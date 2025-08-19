@@ -25,7 +25,8 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
     birthDate: '',
     category: 'senior',
     membershipFee: 250,
-    ffvbLicense: ''
+    ffvbLicense: '',
+    additionalCategories: [] as string[]
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -230,12 +231,12 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <User className="w-4 h-4 inline mr-1" />
-                Catégorie *
+                Catégories *
               </label>
               
               {loadingCategories ? (
                 <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  <span className="text-gray-500">Chargement des catégories...</span>
+                  <span className="text-gray-500">Chargement...</span>
                 </div>
               ) : categories.length === 0 ? (
                 <div className="w-full px-3 py-2 border border-red-300 rounded-lg bg-red-50">
@@ -246,26 +247,69 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
                   </span>
                 </div>
               ) : (
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Sélectionner une catégorie</option>
-                  {categories.map(category => (
-                    <option key={category.id} value={category.value}>
-                      {category.label}
-                      {category.age_range && ` (${category.age_range})`}
-                      {category.membership_fee > 0 && ` - ${category.membership_fee}€`}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-3">
+                  {/* Catégorie principale */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                      Catégorie principale *
+                    </label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Sélectionner la catégorie principale</option>
+                      {categories.map(category => (
+                        <option key={category.id} value={category.value}>
+                          {category.label}
+                          {category.age_range && ` (${category.age_range})`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Catégories supplémentaires */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">
+                      Catégories supplémentaires (optionnel)
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                      {categories.map(category => (
+                        <label key={category.id} className="flex items-center space-x-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={formData.additionalCategories?.includes(category.value) || false}
+                            onChange={(e) => {
+                              const current = formData.additionalCategories || [];
+                              if (e.target.checked) {
+                                setFormData(prev => ({ 
+                                  ...prev, 
+                                  additionalCategories: [...current, category.value]
+                                }));
+                              } else {
+                                setFormData(prev => ({ 
+                                  ...prev, 
+                                  additionalCategories: current.filter(c => c !== category.value)
+                                }));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <span className="text-gray-700">{category.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Un membre peut participer aux entraînements de plusieurs catégories
+                    </p>
+                  </div>
+                </div>
               )}
               
               {categories.length > 0 && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Catégories définies dans <strong>Paramètres → Catégories</strong>
+                  La catégorie principale détermine le tarif de base
                 </p>
               )}
             </div>
@@ -345,10 +389,11 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-semibold text-blue-800 mb-2">ℹ️ Informations importantes</h4>
               <div className="text-sm text-blue-700 space-y-1">
-                <p>• <strong>Catégorie :</strong> Purement informative (âge, niveau) - utilisée pour organiser les entraînements</p>
+                <p>• <strong>Catégorie principale :</strong> Détermine le tarif de base et l'affichage principal</p>
+                <p>• <strong>Catégories supplémentaires :</strong> Permettent de participer à plusieurs groupes d'entraînement</p>
                 <p>• <strong>Tarif :</strong> Montant libre, indépendant de la catégorie</p>
                 <p>• <strong>Licence FFVB :</strong> Optionnelle, pour les compétitions officielles</p>
-                <p>• <strong>Flexibilité :</strong> Chaque membre peut avoir un tarif unique</p>
+                <p>• <strong>Flexibilité :</strong> Tarif unique + participation multi-catégories</p>
               </div>
             </div>
 

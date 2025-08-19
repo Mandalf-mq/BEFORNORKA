@@ -43,12 +43,7 @@ export const MainApp = () => {
   const getDefaultMemberView = () => {
     if (!userProfile) return 'mes-entrainements';
     
-    const hasAdminRights = ['webmaster', 'administrateur', 'tresorerie', 'entraineur'].includes(userProfile.role);
-    
-    if (hasAdminRights) {
-      return 'mon-profil';
-    }
-    
+    // Pour les membres simples, toujours commencer par les entraînements
     return 'mes-entrainements';
   };
 
@@ -59,13 +54,11 @@ export const MainApp = () => {
     if (hash && hash !== '') {
       setCurrentView(hash);
     } else {
-      // Vue par défaut pour les membres : mes-entrainements
-      const defaultView = hasAdminRights ? 'mon-profil' : 'mes-entrainements';
+      // Vue par défaut : toujours mes-entrainements pour les membres
+      const defaultView = 'mes-entrainements';
       setCurrentView(defaultView);
-      // Mettre à jour l'URL aussi
-      if (!hasAdminRights) {
-        window.location.hash = 'mes-entrainements';
-      }
+      // Forcer la redirection vers mes-entrainements
+      window.location.hash = 'mes-entrainements';
     }
     
     window.addEventListener('hashchange', handleHashChange);
@@ -98,10 +91,14 @@ export const MainApp = () => {
   const hasAdminRights = userProfile?.role && ['webmaster', 'administrateur', 'tresorerie', 'entraineur'].includes(userProfile.role);
   const isOnMemberRoute = location.pathname === '/member' || window.location.hash.startsWith('#');
   
-  console.log('🔍 [MainApp] hasAdminRights:', {
-    role: userProfile?.role,
+  // Debug pour comprendre pourquoi ça va vers admin
+  console.log('🔍 [MainApp] Debug redirection:', {
+    userRole: userProfile?.role,
     hasAdminRights: hasAdminRights,
-    allowedRoles: ['webmaster', 'administrateur', 'tresorerie', 'entraineur']
+    isOnMemberRoute: isOnMemberRoute,
+    currentPath: location.pathname,
+    currentHash: window.location.hash,
+    shouldShowMemberView: !hasAdminRights || isOnMemberRoute
   });
 
   // Navigation des vues membres avec breadcrumb
@@ -232,6 +229,9 @@ export const MainApp = () => {
   console.log('🔍 [MainApp] isOnMemberRoute:', isOnMemberRoute);
   console.log('🔍 [MainApp] hasAdminRights:', hasAdminRights);
 
+  // FORCER l'affichage membre si pas d'admin rights OU si on est sur une route membre
+  const shouldShowMemberView = !hasAdminRights || isOnMemberRoute;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
       <Header />
@@ -244,7 +244,7 @@ export const MainApp = () => {
         />
         
         <main className="flex-1 p-6 lg:ml-64">
-          {isOnMemberRoute ? (
+          {shouldShowMemberView ? (
             renderMemberContent()
           ) : (
             <Routes>
@@ -329,9 +329,7 @@ export const MainApp = () => {
               <Route 
                 path="*" 
                 element={
-                  hasAdminRights ? 
-                    <Navigate to="/" replace /> : 
-                    <Navigate to="#mes-entrainements" replace />
+                  <Navigate to="#mes-entrainements" replace />
                 } 
               />
             </Routes>

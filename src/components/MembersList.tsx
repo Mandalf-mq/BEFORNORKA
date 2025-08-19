@@ -802,7 +802,27 @@ if (data && data.length > 0) {
                     
                     <td className="p-4">
                       <span className="text-sm text-gray-900">
-                        {categories.find(c => c.value === member.category)?.label || member.category || 'N/A'}
+                        <div className="space-y-1">
+                          <div className="font-medium">
+                            {categories.find(c => c.value === member.category)?.label || member.category || 'N/A'}
+                            <span className="ml-1 text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+                              Principal
+                            </span>
+                          </div>
+                          {/* Afficher les catégories supplémentaires si disponibles */}
+                          {member.additional_categories && member.additional_categories.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {member.additional_categories.map((catValue: string) => (
+                                <span 
+                                  key={catValue}
+                                  className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+                                >
+                                  {categories.find(c => c.value === catValue)?.label || catValue}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </span>
                     </td>
                     
