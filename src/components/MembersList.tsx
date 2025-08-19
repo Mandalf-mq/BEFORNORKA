@@ -545,15 +545,15 @@ useEffect(() => {
       setCategories(data || []);
       console.log('✅ Catégories membres chargées:', data?.length || 0);
       
+      if (data && data.length > 0) {
+        console.log('📋 Colonnes disponibles:', Object.keys(data[0]));
+        console.log('📋 Première catégorie:', data[0]);
+      }
+      
     } catch (error) {
       console.error('❌ Erreur catégories:', error);
       setCategories([]);
     }
-
-if (data && data.length > 0) {
-  console.log('📋 Colonnes disponibles:', Object.keys(data[0]));
-  console.log('📋 Première catégorie:', data[0]);
-} 
   };
 
   fetchCategories();
