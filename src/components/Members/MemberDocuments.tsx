@@ -344,16 +344,16 @@ console.log('🔍 Valeur exacte:', JSON.stringify(documentType));
   if (!memberData?.birth_date) return [];
   
   const age = calculateAge(memberData.birth_date);
-  const baseDocuments = [
-    'medical_certificate',
-    'photo',
-    'registration_form',
-    'identity_copy'  // ✅ Maintenant obligatoire pour TOUS
-  ];
+  cconst baseDocuments = [
+  'medicalCertificate',    // au lieu de 'medical_certificate'
+  'idPhoto',               // au lieu de 'photo'  
+  'ffvbForm',              // au lieu de 'registration_form'
+  'identityCopy'           // ✅ déjà corrigé
+];
 
-  if (age < 18) {
-    baseDocuments.push('parental_authorization');  // Seule l'autorisation parentale reste pour les mineurs
-  }
+if (age < 18) {
+  baseDocuments.push('parentalConsent');  // au lieu de 'parental_authorization'
+}
 
   return baseDocuments;
 };
