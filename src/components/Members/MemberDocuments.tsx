@@ -227,17 +227,23 @@ export const MemberDocuments: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      // Enregistrer dans la base de données
-      const insertData = {
-        member_id: memberData.id,
-        document_type: documentType,
-        file_name: file.name,
-        file_path: filePath,
-        file_size: file.size,
-        mime_type: file.type,
-        status: 'pending',
-        season_id: currentSeason.id
-      };
+     // Enregistrer dans la base de données
+const insertData = {
+  member_id: memberData.id,
+  document_type: documentType,
+  file_name: file.name,
+  file_path: filePath,
+  file_size: file.size,
+  mime_type: file.type,
+  status: 'pending',
+  season_id: currentSeason.id
+};
+
+// 🔍 DEBUG - Ajoutez ces lignes ICI
+console.log('🔍 Type de document envoyé:', documentType);
+console.log('🔍 Données complètes à insérer:', insertData);
+console.log('🔍 Type de variable documentType:', typeof documentType);
+console.log('🔍 Valeur exacte:', JSON.stringify(documentType));
 
       const { error: dbError } = await supabase
         .from('member_documents')
