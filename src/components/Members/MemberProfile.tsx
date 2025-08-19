@@ -20,6 +20,7 @@ interface MemberData {
   membership_fee: number;
   status: string;
   payment_status: string;
+  additional_categories?: string[];
 }
 
 export const MemberProfile: React.FC = () => {
