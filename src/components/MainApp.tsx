@@ -46,7 +46,7 @@ export const MainApp = () => {
       return 'mon-profil';
     }
     
-    return 'mes-documents';
+    return 'mes-entrainements';
   };
 
   // Écouter les changements de hash pour la navigation des membres
