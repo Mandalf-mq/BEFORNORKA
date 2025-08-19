@@ -86,9 +86,9 @@ export const MainApp = () => {
   console.log('🔍 [MainApp] UserProfile:', userProfile?.role);
   console.log('🔍 [MainApp] Current view:', currentView);
   console.log('🔍 [MainApp] Location:', location.pathname);
-  console.log('🔍 [MainApp] hasAdminRights:', hasAdminRights);
   
   const hasAdminRights = userProfile?.role && ['webmaster', 'administrateur', 'tresorerie', 'entraineur'].includes(userProfile.role);
+  console.log('🔍 [MainApp] hasAdminRights:', hasAdminRights);
   const isOnMemberRoute = location.pathname === '/member' || window.location.hash.startsWith('#');
   
   // Debug pour comprendre pourquoi ça va vers admin
