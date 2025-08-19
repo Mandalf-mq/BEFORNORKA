@@ -334,22 +334,23 @@ export const MemberDocuments: React.FC = () => {
     }
   };
 
-  const getRequiredDocuments = () => {
-    if (!memberData?.birth_date) return [];
-    
-    const age = calculateAge(memberData.birth_date);
-    const baseDocuments = [
-      'medical_certificate',
-      'photo',
-      'registration_form'
-    ];
+ const getRequiredDocuments = () => {
+  if (!memberData?.birth_date) return [];
+  
+  const age = calculateAge(memberData.birth_date);
+  const baseDocuments = [
+    'medical_certificate',
+    'photo',
+    'registration_form',
+    'identity_copy'  // ✅ Maintenant obligatoire pour TOUS
+  ];
 
-    if (age < 18) {
-      baseDocuments.push('parental_authorization', 'identity_copy');
-    }
+  if (age < 18) {
+    baseDocuments.push('parental_authorization');  // Seule l'autorisation parentale reste pour les mineurs
+  }
 
-    return baseDocuments;
-  };
+  return baseDocuments;
+};
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
