@@ -30,7 +30,7 @@ export const MainApp = () => {
     if (hash && hash !== '') {
       setCurrentView(hash);
     } else {
-      // Vue par défaut selon le rôle
+      // Vue par défaut pour les membres : toujours mes-entrainements
       const defaultView = hasAdminRights ? 'mon-profil' : 'mes-entrainements';
       setCurrentView(defaultView);
       // Pour les membres, forcer la redirection vers mes-entrainements
@@ -43,7 +43,6 @@ export const MainApp = () => {
   const getDefaultMemberView = () => {
     if (!userProfile) return 'mes-entrainements';
     
-    // Si l'utilisateur a des droits admin, peut-être montrer le profil par défaut
     const hasAdminRights = ['webmaster', 'administrateur', 'tresorerie', 'entraineur'].includes(userProfile.role);
     
     if (hasAdminRights) {
@@ -94,6 +93,7 @@ export const MainApp = () => {
   console.log('🔍 [MainApp] UserProfile:', userProfile?.role);
   console.log('🔍 [MainApp] Current view:', currentView);
   console.log('🔍 [MainApp] Location:', location.pathname);
+  console.log('🔍 [MainApp] hasAdminRights:', hasAdminRights);
   
   const hasAdminRights = userProfile?.role && ['webmaster', 'administrateur', 'tresorerie', 'entraineur'].includes(userProfile.role);
   const isOnMemberRoute = location.pathname === '/member' || window.location.hash.startsWith('#');
@@ -331,7 +331,7 @@ export const MainApp = () => {
                 element={
                   hasAdminRights ? 
                     <Navigate to="/" replace /> : 
-                    <Navigate to="/member#mes-entrainements" replace />
+                    <Navigate to="#mes-entrainements" replace />
                 } 
               />
             </Routes>
