@@ -348,7 +348,7 @@ console.log('🔍 Valeur exacte:', JSON.stringify(documentType));
     'medical_certificate',
     'photo',
     'registration_form',
-    'identity_copy'  // ✅ Maintenant obligatoire pour TOUS
+    'identitycopy'  // ✅ Maintenant obligatoire pour TOUS
   ];
 
   if (age < 18) {
