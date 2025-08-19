@@ -975,6 +975,18 @@ export const SettingsPanel: React.FC = () => {
               </div>
             ))}
           </div>
+
+          {/* Info sur les catégories */}
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 className="font-semibold text-blue-800 mb-2">ℹ️ Gestion des catégories</h4>
+            <div className="text-sm text-blue-700 space-y-1">
+              <p>• <strong>Catégorie principale :</strong> Détermine le tarif de base et l'affichage principal</p>
+              <p>• <strong>Catégories multiples :</strong> Un membre peut participer aux entraînements de plusieurs catégories</p>
+              <p>• <strong>Personnalisation :</strong> Modifiez les noms selon votre club</p>
+              <p>• <strong>Couleurs :</strong> Pour l'affichage et l'organisation visuelle</p>
+              <p>• <strong>Flexibilité :</strong> Système adaptatif selon les besoins du club</p>
+            </div>
+          </div>
         </div>
       )}
 

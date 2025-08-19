@@ -17,6 +17,7 @@ interface Member {
   validated_at?: string;
   created_at: string;
   updated_at: string;
+  additional_categories?: string[];
 }
 
 interface ValidationStatus {
