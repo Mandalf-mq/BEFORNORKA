@@ -339,10 +339,12 @@ export const MemberDocuments: React.FC = () => {
   
   const age = calculateAge(memberData.birth_date);
   const baseDocuments = [
+   
+    'registration_form',
+    'identity_copy'
     'medical_certificate',
     'photo',
-    'registration_form',
-    'identity_copy'  // ✅ Maintenant obligatoire pour TOUS
+      // ✅ Maintenant obligatoire pour TOUS
   ];
 
   if (age < 18) {
