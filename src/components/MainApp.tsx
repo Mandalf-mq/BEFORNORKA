@@ -316,7 +316,7 @@ export const MainApp = () => {
                 element={
                   hasAdminRights ? 
                     <Navigate to="/" replace /> : 
-                    <Navigate to="/member#mes-documents" replace />
+                    <Navigate to="/member#mes-entrainements" replace />
                 } 
               />
             </Routes>
