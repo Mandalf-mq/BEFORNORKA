@@ -344,7 +344,7 @@ console.log('🔍 Valeur exacte:', JSON.stringify(documentType));
   if (!memberData?.birth_date) return [];
   
   const age = calculateAge(memberData.birth_date);
-  cconst baseDocuments = [
+  const baseDocuments = [
   'medicalCertificate',    // au lieu de 'medical_certificate'
   'idPhoto',               // au lieu de 'photo'  
   'ffvbForm',              // au lieu de 'registration_form'
