@@ -31,8 +31,12 @@ export const MainApp = () => {
       setCurrentView(hash);
     } else {
       // Vue par défaut selon le rôle
-      const defaultView = getDefaultMemberView();
+      const defaultView = hasAdminRights ? 'mon-profil' : 'mes-entrainements';
       setCurrentView(defaultView);
+      // Pour les membres, forcer la redirection vers mes-entrainements
+      if (!hasAdminRights) {
+        window.location.hash = 'mes-entrainements';
+      }
     }
   };
 
@@ -52,7 +56,18 @@ export const MainApp = () => {
   // Écouter les changements de hash pour la navigation des membres
   useEffect(() => {
     // Définir la vue initiale selon le hash
-    handleHashChange();
+    const hash = window.location.hash.slice(1);
+    if (hash && hash !== '') {
+      setCurrentView(hash);
+    } else {
+      // Vue par défaut pour les membres : mes-entrainements
+      const defaultView = hasAdminRights ? 'mon-profil' : 'mes-entrainements';
+      setCurrentView(defaultView);
+      // Mettre à jour l'URL aussi
+      if (!hasAdminRights) {
+        window.location.hash = 'mes-entrainements';
+      }
+    }
     
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
