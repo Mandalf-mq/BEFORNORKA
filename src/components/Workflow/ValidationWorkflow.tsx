@@ -567,7 +567,7 @@ export const ValidationWorkflow: React.FC = () => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="font-semibold text-gray-800 mb-3">📄 Documents requis</h4>
                 <div className="space-y-2">
-                  {['ffvbForm', 'medicalCertificate', 'idPhoto', 'parentalConsent'].map((docType: string) => {
+            {['ffvbForm', 'medicalCertificate', 'idPhoto', 'parentalConsent', 'identityCopy'].map((docType: string) => {
                     const memberDoc = selectedMemberDocs.find(doc => doc.document_type === docType);
                     const isUploaded = !!memberDoc;
                     const isValidated = memberDoc?.status === 'validated';
@@ -577,11 +577,13 @@ export const ValidationWorkflow: React.FC = () => {
                     return (
                       <div key={docType} className="flex items-center justify-between p-2 bg-white rounded">
                         <span className="text-sm text-gray-700">
-                          {docType === 'ffvbForm' ? '📋 Formulaire FFVB' :
-                           docType === 'medicalCertificate' ? '🏥 Certificat médical' :
-                           docType === 'idPhoto' ? '📷 Photo d\'identité' :
-                           docType === 'parentalConsent' ? '👨‍👩‍👧‍👦 Autorisation parentale' :
-                           docType}
+                         {docType === 'ffvbForm' ? '📋 Formulaire FFVB' :
+ docType === 'medicalCertificate' ? '🏥 Certificat médical' :
+ docType === 'idPhoto' ? '📷 Photo d\'identité' :
+ docType === 'parentalConsent' ? '👨‍👩‍👧‍👦 Autorisation parentale' :
+ docType === 'identityCopy' ? '🪪 Pièce d\'identité' :
+ docType}
+
                         </span>
                         <div className="flex items-center space-x-2">
                           {isValidated ? (
