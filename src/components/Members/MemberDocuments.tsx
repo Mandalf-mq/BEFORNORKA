@@ -345,10 +345,10 @@ console.log('🔍 Valeur exacte:', JSON.stringify(documentType));
   
   const age = calculateAge(memberData.birth_date);
   const baseDocuments = [
-  'medicalCertificate',    // au lieu de 'medical_certificate'
-  'idPhoto',               // au lieu de 'photo'  
-  'ffvbForm',              // au lieu de 'registration_form'
-  'identityCopy'           // ✅ déjà corrigé
+  'medical_Certificate',    // au lieu de 'medical_certificate'
+  'Photo',               // au lieu de 'photo'  
+  'registration_form',              // au lieu de 'registration_form'
+  'identity_Copy'           // ✅ déjà corrigé
 ];
 
 if (age < 18) {
