@@ -37,7 +37,7 @@ export const MainApp = () => {
   };
 
   const getDefaultMemberView = () => {
-    if (!userProfile) return 'mes-documents';
+    if (!userProfile) return 'mes-entrainements';
     
     // Si l'utilisateur a des droits admin, peut-être montrer le profil par défaut
     const hasAdminRights = ['webmaster', 'administrateur', 'tresorerie', 'entraineur'].includes(userProfile.role);
