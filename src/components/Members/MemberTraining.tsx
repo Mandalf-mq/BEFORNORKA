@@ -29,6 +29,12 @@ interface MemberData {
   id: string;
   category: string;
   status: string;
+  member_categories?: Array<{
+    category: {
+      id: string;
+      name: string;
+    }
+  }>;
 }
 
 export const MemberTraining: React.FC = () => {
@@ -50,29 +56,40 @@ export const MemberTraining: React.FC = () => {
     }
   }, [memberData]);
 
-  const fetchMemberData = async () => {
-    try {
-      if (!user) return;
+ const fetchMemberData = async () => {
+  try {
+    if (!user) return;
 
-      const { data, error } = await supabase
-        .from('members')
-        .select('id, category, status')
-        .eq('email', user.email)
-        .maybeSingle();
+    // 🚀 NOUVELLE VERSION avec member_categories
+    const { data, error } = await supabase
+      .from('members')
+      .select(`
+        id, 
+        category, 
+        status,
+        member_categories (
+          category:categories (
+            id,
+            name
+          )
+        )
+      `)
+      .eq('email', user.email)
+      .maybeSingle();
 
-      if (error) throw error;
-      
-      if (!data) {
-        console.log('Aucun profil membre trouvé pour cet utilisateur');
-        setMemberData(null);
-        return;
-      }
-      
-      setMemberData(data);
-    } catch (error) {
-      console.error('Erreur lors du chargement du membre:', error);
+    if (error) throw error;
+    
+    if (!data) {
+      console.log('Aucun profil membre trouvé pour cet utilisateur');
+      setMemberData(null);
+      return;
     }
-  };
+    
+    setMemberData(data);
+  } catch (error) {
+    console.error('Erreur lors du chargement du membre:', error);
+  }
+};
 
   const fetchTrainingSessions = async () => {
     try {
@@ -235,7 +252,12 @@ export const MemberTraining: React.FC = () => {
           🏐 Mes Entraînements
         </h1>
         <p className="text-gray-600">
-          Entraînements programmés pour votre catégorie : <span className="font-semibold text-primary-600">{memberData?.category}</span>
+          Entraînements programmés pour votre catégorie : <span className="font-semibold text-primary-600">
+  {memberData?.member_categories?.length > 0 
+    ? memberData.member_categories.map(mc => mc.category?.name).join(' - ')
+    : memberData?.category || 'Aucune catégorie'
+  }
+</span>
         </p>
       </div>
 
