@@ -24,7 +24,7 @@ export const TrainingCalendar: React.FC = () => {
     start_time: '',
     end_time: '',
     location: '',
-    category: ['Senior'],
+    category: [''],
     coach: '',
     max_participants: 20
   });
@@ -129,7 +129,7 @@ export const TrainingCalendar: React.FC = () => {
         start_time: '',
         end_time: '',
         location: '',
-        category: ['senior'],
+        category: [''],
         coach: '',
         max_participants: 20
       });
