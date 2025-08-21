@@ -701,8 +701,11 @@ useEffect(() => {
       member.ffvb_license?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || member.payment_status === statusFilter;
-    const matchesCategory = categoryFilter === 'all' || member.category === categoryFilter;
-    
+  const matchesCategory = categoryFilter === 'all' || 
+  member.member_categories?.some(mc => mc.category_value === categoryFilter) ||
+  (!member.member_categories?.length && member.category === categoryFilter);
+
+  
     const matchesLicense = licenseFilter === 'all' || 
       (licenseFilter === 'with_license' && member.ffvb_license?.trim()) ||
       (licenseFilter === 'without_license' && !member.ffvb_license?.trim());
@@ -834,17 +837,17 @@ useEffect(() => {
 
           {/* Filtre catégorie */}
           <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="all">Toutes les catégories</option>
-            {categories.map(category => (
-              <option key={category.value} value={category.value}>
-                {category.label}
-              </option>
-            ))}
-          </select>
+  value={categoryFilter}
+  onChange={(e) => setCategoryFilter(e.target.value)}
+  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+>
+  <option value="all">Toutes les catégories</option>
+  {categories.map(category => (
+    <option key={category.id} value={category.name}>
+      {category.name}
+    </option>
+  ))}
+</select>
 
           {/* Filtre licence FFVB */}
           <select
