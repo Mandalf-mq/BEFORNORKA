@@ -119,15 +119,15 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
 
     try {
       const { data, error } = await supabase.rpc('create_member_account_with_password', {
-        p_email: formData.email,
-        p_first_name: formData.firstName,
-        p_last_name: formData.lastName,
-        p_phone: formData.phone,
-        p_birth_date: formData.birthDate,
-        total_processed: result.imported_members.length,
-        p_temporary_password: formData.temporaryPassword,
-        p_role: formData.role
-      });
+  p_email: formData.email,
+  p_first_name: formData.firstName,
+  p_last_name: formData.lastName,
+  p_phone: formData.phone,
+  p_birth_date: formData.birthDate,
+  p_category: formData.category,  // 👈 AJOUTER CETTE LIGNE !
+  p_temporary_password: formData.temporaryPassword,
+  p_role: formData.role
+});
 
       if (error) throw error;
 
@@ -172,7 +172,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           email: '',
           phone: '',
           birthDate: '',
-          category: 'senior',
+         category: categories.length > 0 ? categories[0].value : '',
           temporaryPassword: '',
           role: 'member'
         });
