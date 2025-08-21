@@ -49,28 +49,43 @@ export const useMembers = () => {
     setLoading(true);
     setError(null);
 
-  const { data, error } = await supabase
-  .from('members')
-  .select(`
-    *,
-    member_categories (
-      id,
-      category_value,
-      is_primary,
-      categories!inner (
-        label,
-        value,
-        color,
-        membership_fee
-      )
-    )
-  `)
-
+    // 1. Charger les membres avec leurs catégories
+    const { data: membersData, error: membersError } = await supabase
+      .from('members')
+      .select(`
+        *,
+        member_categories (
+          id,
+          category_value,
+          is_primary
+        )
+      `)
       .neq('status', 'archived')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    setMembers(data || []);
+    if (membersError) throw membersError;
+
+    // 2. Charger toutes les catégories pour faire le mapping
+    const { data: categoriesData, error: categoriesError } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('is_active', true);
+
+    if (categoriesError) throw categoriesError;
+
+    // 3. Enrichir les données avec les labels
+    const enrichedMembers = membersData?.map(member => ({
+      ...member,
+      member_categories: member.member_categories?.map(mc => {
+        const categoryInfo = categoriesData?.find(cat => cat.value === mc.category_value);
+        return {
+          ...mc,
+          categories: categoryInfo || { label: mc.category_value, value: mc.category_value }
+        };
+      })
+    }));
+
+    setMembers(enrichedMembers || []);
   } catch (err: any) {
     setError(err.message || 'Erreur lors du chargement des membres');
   } finally {
