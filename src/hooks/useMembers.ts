@@ -49,16 +49,23 @@ export const useMembers = () => {
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase
-      .from('members')
-      .select(`
-        *,
-        member_categories (
-          id,
-          category_value,
-          is_primary
-        )
-      `)
+  const { data, error } = await supabase
+  .from('members')
+  .select(`
+    *,
+    member_categories (
+      id,
+      category_value,
+      is_primary,
+      categories!inner (
+        label,
+        value,
+        color,
+        membership_fee
+      )
+    )
+  `)
+
       .neq('status', 'archived')
       .order('created_at', { ascending: false });
 
