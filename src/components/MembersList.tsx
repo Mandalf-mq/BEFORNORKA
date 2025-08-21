@@ -678,7 +678,6 @@ useEffect(() => {
       
       // ✅ Déjà au bon format !
       setCategories(data || []);
-      console.log('✅ Catégories chargées:', data?.length || 0);
       
     } catch (error) {
       console.error('❌ Erreur catégories:', error);

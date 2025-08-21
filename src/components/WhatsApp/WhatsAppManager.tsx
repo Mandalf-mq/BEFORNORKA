@@ -92,27 +92,13 @@ export const WhatsAppManager: React.FC = () => {
 
   const fetchMembers = async () => {
     try {
-      // Utiliser la fonction RPC si disponible, sinon requête directe
-      let data, error;
-      
-      try {
-        const result = await supabase.rpc('get_members_for_whatsapp', {
-          p_categories: selectedCategories.length > 0 ? selectedCategories : null
-        });
-        data = result.data;
-        error = result.error;
-      } catch (rpcError) {
-        // Fallback vers requête directe si la fonction RPC n'existe pas
-        const result = await supabase
-          .from('members')
-          .select('id, first_name, last_name, phone, category')
-          .eq('status', 'season_validated')
-          .not('phone', 'is', null)
-          .neq('phone', '');
-        
-        data = result.data;
-        error = result.error;
-      }
+      // Requête directe pour éviter l'erreur d'ambiguïté
+      const { data, error } = await supabase
+        .from('members')
+        .select('id, first_name, last_name, phone, category')
+        .eq('status', 'season_validated')
+        .not('phone', 'is', null)
+        .neq('phone', '');
 
       if (error) throw error;
       setMembers(data || []);
