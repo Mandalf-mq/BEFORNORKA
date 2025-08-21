@@ -118,14 +118,14 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     }
 
     try {
-      const { data, error } = await supabase.rpc('create_member_account_with_password', {
+   const { data, error } = await supabase.rpc('create_member_account_with_password', {
   p_email: formData.email,
   p_first_name: formData.firstName,
   p_last_name: formData.lastName,
+  p_temporary_password: formData.temporaryPassword,  // 👈 Maintenant en 4ème position
   p_phone: formData.phone,
   p_birth_date: formData.birthDate,
-  p_category: formData.category,  // 👈 AJOUTER CETTE LIGNE !
-  p_temporary_password: formData.temporaryPassword,
+  p_category: formData.category,
   p_role: formData.role
 });
 
