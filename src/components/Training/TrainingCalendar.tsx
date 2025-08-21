@@ -48,17 +48,18 @@ export const TrainingCalendar: React.FC = () => {
       console.error('Erreur lors du chargement des catégories:', error);
       // Fallback vers les catégories par défaut
       setCategories([
-        { value: 'baby', label: 'Baby Volley' },
-        { value: 'poussin', label: 'Poussin' },
-        { value: 'benjamin', label: 'Benjamin' },
-        { value: 'minime', label: 'Minime' },
-        { value: 'cadet', label: 'Cadet' },
-        { value: 'junior', label: 'Junior' },
-        { value: 'senior', label: 'Senior' },
-        { value: 'veteran', label: 'Vétéran' }
+        { value: 'baby', label: 'Baby Volley', color: '#3b82f6' },
+        { value: 'poussin', label: 'Poussin', color: '#10b981' },
+        { value: 'benjamin', label: 'Benjamin', color: '#f59e0b' },
+        { value: 'minime', label: 'Minime', color: '#8b5cf6' },
+        { value: 'cadet', label: 'Cadet', color: '#ef4444' },
+        { value: 'junior', label: 'Junior', color: '#ec4899' },
+        { value: 'senior', label: 'Senior', color: '#06b6d4' },
+        { value: 'veteran', label: 'Vétéran', color: '#84cc16' }
       ]);
     }
   };
+
   const fetchSessions = async () => {
     try {
       setLoading(true);
@@ -80,6 +81,24 @@ export const TrainingCalendar: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ FONCTION CORRIGÉE pour obtenir le label de la catégorie
+  const getCategoryLabel = (value: string) => {
+    return categories.find(c => c.value === value)?.label || value;
+  };
+
+  // ✅ FONCTION CORRIGÉE pour les couleurs des catégories
+  const getCategoryColor = (categoryValues: string[]) => {
+    const firstCategory = categoryValues[0];
+    const categoryData = categories.find(c => c.value === firstCategory);
+    const color = categoryData?.color || '#ec4899';
+    
+    // Utiliser un style inline au lieu de classes Tailwind dynamiques
+    return {
+      backgroundColor: color,
+      color: 'white'
+    };
   };
 
   const createSession = async () => {
@@ -130,7 +149,6 @@ export const TrainingCalendar: React.FC = () => {
 
     try {
       setUpdating(true);
-      
       const { error } = await supabase
         .from('training_sessions')
         .update({
@@ -147,7 +165,6 @@ export const TrainingCalendar: React.FC = () => {
         .eq('id', editingSession.id);
 
       if (error) throw error;
-
       setEditingSession(null);
       await fetchSessions();
       alert('✅ Séance modifiée avec succès !');
@@ -215,22 +232,6 @@ export const TrainingCalendar: React.FC = () => {
     return sessions.filter(session => isSameDay(new Date(session.date), day));
   };
 
-  const getCategoryColor = (categories: string[]) => {
-    const colors: Record<string, string> = {
-      'baby': 'bg-blue-100 text-blue-700',
-      'poussin': 'bg-green-100 text-green-700',
-      'benjamin': 'bg-yellow-100 text-yellow-700',
-      'minime': 'bg-purple-100 text-purple-700',
-      'cadet': 'bg-red-100 text-red-700',
-      'junior': 'bg-pink-100 text-pink-700',
-      'senior': 'bg-cyan-100 text-cyan-700',
-      'veteran': 'bg-lime-100 text-lime-700'
-    };
-    
-    const firstCategory = categories[0];
-    return colors[firstCategory] || 'bg-gray-100 text-gray-700';
-  };
-
   if (loading) {
     return (
       <div className="bg-white rounded-xl p-8 text-center">
@@ -278,7 +279,7 @@ export const TrainingCalendar: React.FC = () => {
             
             <button
               onClick={() => setShowAddForm(true)}
-              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2"
             >
               <Plus className="w-4 h-4" />
               <span>Nouvelle séance</span>
@@ -287,21 +288,22 @@ export const TrainingCalendar: React.FC = () => {
         </div>
 
         {/* Navigation semaine */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between">
           <button
-            onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
-            className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            onClick={() => setCurrentWeek(prev => subWeeks(prev, 1))}
+            className="px-3 py-2 text-gray-600 hover:text-primary-600 transition-colors"
           >
             ← Semaine précédente
           </button>
           
           <h3 className="text-lg font-semibold text-gray-900">
-            Semaine du {format(startOfWeek(currentWeek, { locale: fr }), 'dd MMMM yyyy', { locale: fr })}
+            {format(startOfWeek(currentWeek, { locale: fr }), 'dd MMMM', { locale: fr })} - {' '}
+            {format(endOfWeek(currentWeek, { locale: fr }), 'dd MMMM yyyy', { locale: fr })}
           </h3>
           
           <button
-            onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
-            className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            onClick={() => setCurrentWeek(prev => addWeeks(prev, 1))}
+            className="px-3 py-2 text-gray-600 hover:text-primary-600 transition-colors"
           >
             Semaine suivante →
           </button>
@@ -311,67 +313,78 @@ export const TrainingCalendar: React.FC = () => {
       {/* Vue Calendrier */}
       {viewMode === 'calendar' && (
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          {/* En-têtes des jours */}
-          <div className="grid grid-cols-7 bg-gray-50">
-            {weekDays.map((day) => (
-              <div key={day.toISOString()} className="p-4 text-center border-r border-gray-200 last:border-r-0">
-                <div className="font-semibold text-gray-900">
-                  {format(day, 'EEEE', { locale: fr })}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {format(day, 'dd MMM', { locale: fr })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Contenu des jours */}
-          <div className="grid grid-cols-7 min-h-[400px]">
-            {weekDays.map((day) => {
+          <div className="grid grid-cols-7 gap-px bg-gray-200">
+            {weekDays.map((day, index) => {
               const daySessions = getSessionsForDay(day);
               const isToday = isSameDay(day, new Date());
-
+              
               return (
                 <div
-                  key={day.toISOString()}
-                  className={`p-3 border-r border-gray-200 last:border-r-0 ${
-                    isToday ? 'bg-primary-50' : 'bg-white'
-                  }`}
+                  key={index}
+                  className={`bg-white min-h-[200px] p-3 ${isToday ? 'bg-primary-50 border-t-2 border-primary-500' : ''}`}
                 >
+                  <div className="font-semibold text-gray-900 mb-2 text-center">
+                    <div className="text-sm text-gray-600">
+                      {format(day, 'EEE', { locale: fr })}
+                    </div>
+                    <div className={`text-lg ${isToday ? 'text-primary-600' : ''}`}>
+                      {format(day, 'd')}
+                    </div>
+                  </div>
+                  
                   <div className="space-y-2">
                     {daySessions.map((session) => (
                       <div
                         key={session.id}
-                        className="p-3 rounded-lg border-l-4 border-primary-500 bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                        className="text-xs p-2 rounded border-l-2 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
+                        style={{ borderLeftColor: getCategoryColor(session.category).backgroundColor }}
+                        onClick={() => setViewingSession(session)}
                       >
+                        <div className="font-medium text-gray-900 truncate mb-1">
+                          {session.title}
+                        </div>
+                        
                         <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-gray-900 text-sm">
-                            {session.title}
-                          </h4>
+                          <span className="text-gray-600">
+                            {session.start_time} - {session.end_time}
+                          </span>
+                          
                           <div className="flex space-x-1">
-                            <button 
-                              onClick={() => setViewingSession(session)}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingSession(session);
+                              }}
                               className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
                               title="Voir détails"
                             >
                               <Eye className="w-3 h-3" />
                             </button>
-                            <button 
-                              onClick={() => setEditingSession(session)}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingSession(session);
+                              }}
                               className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
                               title="Modifier"
                             >
                               <Edit className="w-3 h-3" />
                             </button>
                             <button 
-                              onClick={() => duplicateSession(session)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                duplicateSession(session);
+                              }}
                               className="p-1 text-gray-400 hover:text-green-600 transition-colors"
                               title="Dupliquer"
                             >
                               <Copy className="w-3 h-3" />
                             </button>
                             <button 
-                              onClick={() => deleteSession(session.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteSession(session.id);
+                              }}
                               disabled={deleting === session.id}
                               className="p-1 text-gray-400 hover:text-red-600 transition-colors"
                               title="Supprimer"
@@ -387,12 +400,8 @@ export const TrainingCalendar: React.FC = () => {
                         
                         <div className="space-y-1 text-xs text-gray-600">
                           <div className="flex items-center space-x-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{session.start_time} - {session.end_time}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
                             <MapPin className="w-3 h-3" />
-                            <span>{session.location}</span>
+                            <span className="truncate">{session.location}</span>
                           </div>
                           <div className="flex items-center space-x-1">
                             <Users className="w-3 h-3" />
@@ -400,13 +409,15 @@ export const TrainingCalendar: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* ✅ AFFICHAGE CORRIGÉ DES CATÉGORIES */}
                         <div className="mt-2 flex flex-wrap gap-1">
                           {session.category.map((cat) => (
                             <span
                               key={cat}
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor([cat])}`}
+                              className="px-2 py-1 rounded-full text-xs font-medium"
+                              style={getCategoryColor([cat])}
                             >
-                              {cat}
+                              {getCategoryLabel(cat)}
                             </span>
                           ))}
                         </div>
@@ -447,13 +458,15 @@ export const TrainingCalendar: React.FC = () => {
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
                       <h3 className="text-lg font-semibold text-gray-900">{session.title}</h3>
+                      {/* ✅ AFFICHAGE CORRIGÉ DES CATÉGORIES */}
                       <div className="flex flex-wrap gap-1">
                         {session.category.map((cat) => (
                           <span
                             key={cat}
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor([cat])}`}
+                            className="px-2 py-1 rounded-full text-xs font-medium"
+                            style={getCategoryColor([cat])}
                           >
-                            {cat}
+                            {getCategoryLabel(cat)}
                           </span>
                         ))}
                       </div>
@@ -565,9 +578,14 @@ export const TrainingCalendar: React.FC = () => {
               <Clock className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Heures total</p>
+              <p className="text-sm text-gray-600">Heures totales</p>
               <p className="text-2xl font-bold text-gray-900">
-                {sessions.length * 2}h
+                {sessions.reduce((total, session) => {
+                  const start = new Date(`2000-01-01T${session.start_time}`);
+                  const end = new Date(`2000-01-01T${session.end_time}`);
+                  const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                  return total + duration;
+                }, 0).toFixed(1)}h
               </p>
             </div>
           </div>
@@ -693,20 +711,22 @@ export const TrainingCalendar: React.FC = () => {
                     type="text"
                     required
                     value={newSession.location}
-                    onChange={(e) => setNewSession(prev => ({ ...prev, location: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    onChange={(e) => setNewSession(prev => ({ ...prev, location: 
+e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     placeholder="Gymnase Municipal"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Participants max
+                    Maximum participants
                   </label>
                   <input
                     type="number"
+                    min="1"
                     value={newSession.max_participants}
-                    onChange={(e) => setNewSession(prev => ({ ...prev, max_participants: parseInt(e.target.value) }))}
+                    onChange={(e) => setNewSession(prev => ({ ...prev, max_participants: parseInt(e.target.value) || 20 }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     placeholder="20"
                   />
@@ -719,7 +739,7 @@ export const TrainingCalendar: React.FC = () => {
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {categories.map(cat => (
-                    <label key={cat} className="flex items-center space-x-2">
+                    <label key={cat.value} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
                         checked={newSession.category.includes(cat.value)}
@@ -738,19 +758,20 @@ export const TrainingCalendar: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex space-x-3 pt-4">
+              <div className="flex space-x-3 pt-6">
                 <button
                   type="submit"
                   disabled={creating}
-                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-lg disabled:opacity-50 flex items-center justify-center space-x-2 transition-colors"
                 >
                   {creating ? (
                     <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       <span>Création...</span>
                     </>
                   ) : (
                     <>
+                      <Save className="w-4 h-4" />
                       <span>Créer la séance</span>
                     </>
                   )}
@@ -758,7 +779,7 @@ export const TrainingCalendar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Annuler
                 </button>
@@ -772,17 +793,9 @@ export const TrainingCalendar: React.FC = () => {
       {editingSession && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Modifier la séance
-              </h3>
-              <button
-                onClick={() => setEditingSession(null)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Modifier la séance
+            </h3>
             
             <form onSubmit={(e) => {
               e.preventDefault();
@@ -797,7 +810,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="text"
                     required
                     value={editingSession.title}
-                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, title: e.target.value } : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, title: e.target.value }) : null)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -810,7 +823,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="text"
                     required
                     value={editingSession.coach}
-                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, coach: e.target.value } : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, coach: e.target.value }) : null)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -822,7 +835,7 @@ export const TrainingCalendar: React.FC = () => {
                 </label>
                 <textarea
                   value={editingSession.description || ''}
-                  onChange={(e) => setEditingSession(prev => prev ? { ...prev, description: e.target.value } : null)}
+                  onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, description: e.target.value }) : null)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   rows={3}
                 />
@@ -837,7 +850,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="date"
                     required
                     value={editingSession.date}
-                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, date: e.target.value } : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, date: e.target.value }) : null)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -850,7 +863,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="time"
                     required
                     value={editingSession.start_time}
-                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, start_time: e.target.value } : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, start_time: e.target.value }) : null)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -863,7 +876,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="time"
                     required
                     value={editingSession.end_time}
-                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, end_time: e.target.value } : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, end_time: e.target.value }) : null)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -878,19 +891,20 @@ export const TrainingCalendar: React.FC = () => {
                     type="text"
                     required
                     value={editingSession.location}
-                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, location: e.target.value } : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, location: e.target.value }) : null)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Participants max
+                    Maximum participants
                   </label>
                   <input
                     type="number"
-                    value={editingSession.max_participants || 20}
-                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, max_participants: parseInt(e.target.value) } : null)}
+                    min="1"
+                    value={editingSession.max_participants || ''}
+                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, max_participants: parseInt(e.target.value) || null }) : null)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -907,10 +921,11 @@ export const TrainingCalendar: React.FC = () => {
                         type="checkbox"
                         checked={editingSession.category.includes(cat.value)}
                         onChange={(e) => {
+                          if (!editingSession) return;
                           if (e.target.checked) {
-                            setEditingSession(prev => prev ? { ...prev, category: [...prev.category, cat.value] } : null);
+                            setEditingSession(prev => prev ? ({ ...prev, category: [...prev.category, cat.value] }) : null);
                           } else {
-                            setEditingSession(prev => prev ? { ...prev, category: prev.category.filter(c => c !== cat.value) } : null);
+                            setEditingSession(prev => prev ? ({ ...prev, category: prev.category.filter(c => c !== cat.value) }) : null);
                           }
                         }}
                         className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
@@ -921,15 +936,15 @@ export const TrainingCalendar: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex space-x-3 pt-4">
+              <div className="flex space-x-3 pt-6">
                 <button
                   type="submit"
                   disabled={updating}
-                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-lg disabled:opacity-50 flex items-center justify-center space-x-2 transition-colors"
                 >
                   {updating ? (
                     <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       <span>Modification...</span>
                     </>
                   ) : (
@@ -942,7 +957,7 @@ export const TrainingCalendar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setEditingSession(null)}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Annuler
                 </button>
@@ -957,14 +972,12 @@ export const TrainingCalendar: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900">
-                📅 {viewingSession.title}
-              </h3>
+              <h3 className="text-xl font-bold text-gray-900">{viewingSession.title}</h3>
               <button
                 onClick={() => setViewingSession(null)}
-                className="text-gray-400 hover:text-gray-600"
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -995,13 +1008,15 @@ export const TrainingCalendar: React.FC = () => {
               {/* Catégories */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="font-semibold text-gray-800 mb-3">🏐 Catégories concernées</h4>
+                {/* ✅ AFFICHAGE CORRIGÉ DES CATÉGORIES */}
                 <div className="flex flex-wrap gap-2">
                   {viewingSession.category.map((cat) => (
                     <span
                       key={cat}
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${getCategoryColor([cat])}`}
+                      className="px-3 py-1 rounded-full text-sm font-medium"
+                      style={getCategoryColor([cat])}
                     >
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                      {getCategoryLabel(cat)}
                     </span>
                   ))}
                 </div>
