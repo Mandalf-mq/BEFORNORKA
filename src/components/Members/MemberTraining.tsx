@@ -30,10 +30,9 @@ interface MemberData {
   category: string;
   status: string;
   member_categories?: Array<{
-    categories: {
-      id: string;
-      name: string;
-    }
+    id: string;
+    category_value: string;
+    is_primary: boolean;
   }>;
 }
 
@@ -60,7 +59,7 @@ const fetchMemberData = async () => {
   try {
     if (!user) return;
 
-    // 🚀 VERSION CORRIGÉE avec la bonne syntaxe de relation
+    // ✅ BONNE VERSION - sans relation vers categories
     const { data, error } = await supabase
       .from('members')
       .select(`
@@ -68,10 +67,9 @@ const fetchMemberData = async () => {
         category, 
         status,
         member_categories (
-          categories (
-            id,
-            name
-          )
+          id,
+          category_value,
+          is_primary
         )
       `)
       .eq('email', user.email)
@@ -254,7 +252,10 @@ const fetchMemberData = async () => {
         <p className="text-gray-600">
           Entraînements programmés pour votre catégorie : <span className="font-semibold text-primary-600">
   {memberData?.member_categories?.length > 0 
-    ? memberData.member_categories.map(mc => mc.categories?.name).join(' - ')
+    ? memberData.member_categories
+        .sort((a, b) => b.is_primary ? 1 : -1) // Primary en premier
+        .map(mc => mc.category_value)
+        .join(' - ')
     : memberData?.category || 'Aucune catégorie'
   }
 </span>
