@@ -676,11 +676,17 @@ useEffect(() => {
       
       if (error) throw error;
       
-      // ✅ Déjà au bon format !
+      console.log('📋 Catégories chargées depuis la DB:', data);
       setCategories(data || []);
       
-    } catch (error) {
-      console.error('❌ Erreur catégories:', error);
+      // Si aucune catégorie trouvée
+      if (!data || data.length === 0) {
+        setError('⚠️ Aucune catégorie active trouvée. Veuillez d\'abord créer des catégories dans Paramètres → Catégories');
+      } else {
+        setError(null); // Reset l'erreur si des catégories sont trouvées
+      }
+      console.error('Erreur lors du chargement des catégories:', error);
+      setError('❌ Impossible de charger les catégories. Vérifiez votre connexion.');
       setCategories([]);
     }
   };

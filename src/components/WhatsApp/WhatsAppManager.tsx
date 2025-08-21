@@ -92,18 +92,17 @@ export const WhatsAppManager: React.FC = () => {
 
   const fetchMembers = async () => {
     try {
-      // Requête directe pour éviter l'erreur d'ambiguïté
+      // Utiliser la fonction RPC corrigée
       const { data, error } = await supabase
-        .from('members')
-        .select('id, first_name, last_name, phone, category')
-        .eq('status', 'season_validated')
-        .not('phone', 'is', null)
-        .neq('phone', '');
+        .rpc('get_members_for_whatsapp', {
+          p_categories: selectedCategories.length > 0 ? selectedCategories : null
+        });
 
       if (error) throw error;
       setMembers(data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des membres:', error);
+      setMembers([]);
     } finally {
       setLoading(false);
     }

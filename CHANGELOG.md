@@ -2,6 +2,35 @@
 
 Toutes les modifications notables de ce projet seront documentées dans ce fichier.
 
+## [1.1.0] - 2025-01-19
+
+### Corrigé
+- 🐛 **Erreur de redirection** : Les membres arrivent maintenant directement sur "Mes Entraînements"
+- 🐛 **Erreur "data is not defined"** dans la liste des membres
+- 🐛 **Erreur "column reference id is ambiguous"** dans WhatsApp Manager
+- 🔧 **Fonction get_members_for_whatsapp** corrigée avec aliases explicites
+
+### Ajouté
+- 👥 **Système de catégories multiples** pour les membres
+- 🏷️ **Catégorie principale** + catégories supplémentaires
+- 📋 **Interface de sélection multiple** dans les formulaires
+- 🎨 **Affichage visuel** des catégories avec badges
+- 🔧 **Table member_categories** pour la liaison many-to-many
+- 📊 **Support des catégories multiples** dans WhatsApp Manager
+
+### Modifié
+- 🔄 **Navigation par défaut** : Membres → "Mes Entraînements" au lieu de "Mes Documents"
+- 🎯 **Logique de redirection** simplifiée et plus robuste
+- 📝 **Formulaire d'ajout membre** avec sélection de catégories multiples
+- 👤 **Profil membre** affiche toutes les catégories
+- 📋 **Liste des membres** montre catégorie principale + supplémentaires
+
+### Technique
+- 🗄️ **Migration SQL** pour corriger la fonction WhatsApp
+- 🔧 **Composant ProfileCategoriesDisplay** pour l'affichage des catégories
+- 📱 **Fonction MultiCategorySelector** pour la sélection multiple
+- 🛠️ **Fonctions utilitaires** pour la gestion des catégories multiples
+
 ## [1.0.0] - 2024-12-26
 
 ### Ajouté
