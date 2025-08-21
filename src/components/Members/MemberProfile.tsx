@@ -26,32 +26,40 @@ interface MemberData {
 // Composant pour afficher les catégories du membre
 const ProfileCategoriesDisplay: React.FC<{ memberId: string }> = ({ memberId }) => {
   const [memberCategories, setMemberCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchMemberCategories = async () => {
+    const fetchData = async () => {
       try {
-        const { data, error } = await supabase
+        // 1. Récupérer les catégories du membre
+        const { data: memberCats, error: memberError } = await supabase
           .from('member_categories')
-          .select(`
-            category_value,
-            is_primary,
-            categories:categories(label, color)
-          `)
+          .select('category_value, is_primary')
           .eq('member_id', memberId)
           .order('is_primary', { ascending: false });
 
-        if (error) throw error;
-        setMemberCategories(data || []);
+        if (memberError) throw memberError;
+
+        // 2. Récupérer toutes les catégories pour les labels
+        const { data: allCategories, error: catError } = await supabase
+          .from('categories')
+          .select('value, label, color');
+
+        if (catError) throw catError;
+
+        setMemberCategories(memberCats || []);
+        setCategories(allCategories || []);
       } catch (error) {
         console.error('Erreur chargement catégories:', error);
         setMemberCategories([]);
+        setCategories([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMemberCategories();
+    fetchData();
   }, [memberId]);
 
   if (loading) {
@@ -61,6 +69,12 @@ const ProfileCategoriesDisplay: React.FC<{ memberId: string }> = ({ memberId }) 
   if (memberCategories.length === 0) {
     return <p className="text-gray-500">Aucune catégorie assignée</p>;
   }
+
+  // Fonction pour trouver le label d'une catégorie
+  const getCategoryLabel = (value: string) => {
+    const category = categories.find(cat => cat.value === value);
+    return category?.label || value;
+  };
 
   return (
     <div className="space-y-2">
@@ -74,7 +88,7 @@ const ProfileCategoriesDisplay: React.FC<{ memberId: string }> = ({ memberId }) 
           }`}
         >
           {memberCat.is_primary && '⭐ '}
-          {memberCat.categories?.label || memberCat.category_value}
+          {getCategoryLabel(memberCat.category_value)}
         </span>
       ))}
     </div>
