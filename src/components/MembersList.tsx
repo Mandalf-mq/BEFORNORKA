@@ -145,6 +145,116 @@ const PaymentStatusSelector: React.FC<{ member: any; onUpdate: () => void }> = (
   );
 };
 
+// Nouveau composant pour gérer les catégories multiples
+const MultiCategorySelector: React.FC<{
+  member: any;
+  categories: any[];
+  editing: boolean;
+  onUpdate: (categories: string[]) => void;
+}> = ({ member, categories, editing, onUpdate }) => {
+  const [memberCategories, setMemberCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Charger les catégories du membre
+  useEffect(() => {
+    const loadMemberCategories = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('member_categories')
+          .select('category_value, is_primary')
+          .eq('member_id', member.id);
+
+        if (error) throw error;
+
+        const cats = data?.map(d => d.category_value) || [];
+        
+        // Si pas de catégories multiples, utiliser la catégorie principale
+        if (cats.length === 0 && member.category) {
+          cats.push(member.category);
+        }
+
+        setMemberCategories(cats);
+        setLoading(false);
+      } catch (error) {
+        console.error('Erreur chargement catégories membre:', error);
+        setMemberCategories(member.category ? [member.category] : []);
+        setLoading(false);
+      }
+    };
+
+    loadMemberCategories();
+  }, [member.id, member.category]);
+
+  const handleCategoryChange = (categoryValue: string, checked: boolean) => {
+    let newCategories;
+    
+    if (checked) {
+      newCategories = [...memberCategories, categoryValue];
+    } else {
+      newCategories = memberCategories.filter(c => c !== categoryValue);
+    }
+    
+    setMemberCategories(newCategories);
+    onUpdate(newCategories);
+  };
+
+  if (loading) return <div>Chargement...</div>;
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        🏐 Catégories d'entraînement
+      </label>
+      
+      {editing ? (
+        <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
+          {categories.map(category => (
+            <label key={category.value} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={memberCategories.includes(category.value)}
+                onChange={(e) => handleCategoryChange(category.value, e.target.checked)}
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm">
+                {category.label}
+                {category.age_range && (
+                  <span className="text-gray-500 ml-1">({category.age_range})</span>
+                )}
+              </span>
+            </label>
+          ))}
+        </div>
+      ) : (
+        <div className="px-3 py-2 bg-gray-50 rounded-lg">
+          {memberCategories.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {memberCategories.map((catValue, index) => {
+                const category = categories.find(c => c.value === catValue);
+                return (
+                  <span 
+                    key={catValue}
+                    className={`px-2 py-1 text-xs rounded-full ${
+                      index === 0 
+                        ? 'bg-primary-100 text-primary-700 font-medium' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    {category?.label || catValue}
+                    {index === 0 && ' (Principale)'}
+                  </span>
+                );
+              })}
+            </div>
+          ) : (
+            <span className="text-gray-500 italic">Aucune catégorie</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Modal de détails/édition - COMPLÈTE ET CORRIGÉE
 const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({ 
   member, 
@@ -155,6 +265,7 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
 }) => {
   const [editing, setEditing] = useState(initialEditing);
   const [saving, setSaving] = useState(false);
+  const [memberCategories, setMemberCategories] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     first_name: member.first_name || '',
     last_name: member.last_name || '',
@@ -168,6 +279,44 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
     notes: member.notes || ''
   });
 
+ // Fonction pour sauvegarder les catégories
+  const saveMemberCategories = async (categories: string[]) => {
+    try {
+      // 1. Supprimer les anciennes catégories
+      await supabase
+        .from('member_categories')
+        .delete()
+        .eq('member_id', member.id);
+
+      // 2. Ajouter les nouvelles catégories
+      if (categories.length > 0) {
+        const categoryData = categories.map((catValue, index) => ({
+          member_id: member.id,
+          category_value: catValue,
+          is_primary: index === 0 // La première est principale
+        }));
+
+        const { error } = await supabase
+          .from('member_categories')
+          .insert(categoryData);
+
+        if (error) throw error;
+
+        // 3. Mettre à jour la catégorie principale dans members
+        await supabase
+          .from('members')
+          .update({ 
+            category: categories[0],
+            category_id: categories.find(c => categories.find(cat => cat.value === c))?.id || null
+          })
+          .eq('id', member.id);
+      }
+    } catch (error) {
+      console.error('Erreur sauvegarde catégories:', error);
+      throw error;
+    }
+  };
+  
   // Fonction de sauvegarde
   const handleSave = async () => {
     try {
@@ -184,6 +333,10 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
         return;
       }
 
+    if (memberCategories && memberCategories.length > 0) {
+      await saveMemberCategories(memberCategories);
+    }
+     
       // Vérification Pass Sport
       if (formData.payment_status === 'pass_sport' && !isPassSportEligible(member)) {
         alert('⚠️ Le Pass Sport n\'est disponible que pour les mineurs');
@@ -369,37 +522,14 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             {/* Catégorie */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
-              {editing ? (
-                categories && categories.length > 0 ? (
-                  <select
-                    value={formData.category || ''}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Sélectionner une catégorie</option>
-                    {categories.map(category => (
-                      <option key={category.value} value={category.value}>
-                        {category.label}
-                        {category.age_range && ` (${category.age_range})`}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="w-full px-3 py-2 border border-red-300 rounded-lg bg-red-50">
-                    <span className="text-red-600 text-sm">
-                      ⚠️ Aucune catégorie disponible
-                    </span>
-                  </div>
-                )
-              ) : (
-                <p className="px-3 py-2 bg-gray-50 rounded-lg">
-                  {categories.find(c => c.value === member.category)?.label || member.category || 'N/A'}
-
-                </p>
-              )}
-            </div>
+       <div>
+  <MultiCategorySelector
+    member={member}
+    categories={categories}
+    editing={editing}
+    onUpdate={setMemberCategories}
+  />
+</div>
 
             {/* Cotisation */}
             <div>
@@ -533,22 +663,22 @@ const MembersManagement: React.FC = () => {
   const [categories, setCategories] = useState<any[]>([]);
 
 // Charger les catégories
+
+  // Dans MembersManagement, remplacer useEffect
 useEffect(() => {
   const fetchCategories = async () => {
     try {
       const { data, error } = await supabase
-        .from('member_categories')
-        .select('*'); 
+        .from('categories') // 🔥 PAS member_categories !
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
       
       if (error) throw error;
       
+      // ✅ Déjà au bon format !
       setCategories(data || []);
-      console.log('✅ Catégories membres chargées:', data?.length || 0);
-      
-      if (data && data.length > 0) {
-        console.log('📋 Colonnes disponibles:', Object.keys(data[0]));
-        console.log('📋 Première catégorie:', data[0]);
-      }
+      console.log('✅ Catégories chargées:', data?.length || 0);
       
     } catch (error) {
       console.error('❌ Erreur catégories:', error);
@@ -558,7 +688,6 @@ useEffect(() => {
 
   fetchCategories();
 }, []);
-
 
   // Filtrage des membres
   const filteredMembers = members.filter(member => {
