@@ -936,14 +936,21 @@ useEffect(() => {
                     </td>
                     
                     <td className="p-4">
-                      <span className="text-sm text-gray-900">
-                        <div className="space-y-1">
-                          <div className="font-medium">
-                            {categories.find(c => c.value === member.category)?.label || member.category || 'N/A'}
-                            <span className="ml-1 text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
-                              Principal
-                            </span>
-                          </div>
+  <span className="text-sm text-gray-900">
+    <div className="space-y-1">
+      <div className="font-medium">
+        {/* 🔄 GESTION DOUBLE : member_categories OU category */}
+        {member.member_categories && member.member_categories.length > 0 
+          ? member.member_categories.find(mc => mc.is_primary)?.categories?.label || 
+            member.member_categories[0]?.categories?.label ||
+            'Catégorie inconnue'
+          : categories.find(c => c.value === member.category)?.label || member.category || 'N/A'
+        }
+        <span className="ml-1 text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+          Principal
+        </span>
+      </div>
+
                           {/* Afficher les catégories supplémentaires si disponibles */}
                           {member.additional_categories && member.additional_categories.length > 0 && (
                             <div className="flex flex-wrap gap-1">
