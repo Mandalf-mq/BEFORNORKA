@@ -30,7 +30,7 @@ interface MemberData {
   category: string;
   status: string;
   member_categories?: Array<{
-    category: {
+    categories: {
       id: string;
       name: string;
     }
@@ -56,11 +56,11 @@ export const MemberTraining: React.FC = () => {
     }
   }, [memberData]);
 
- const fetchMemberData = async () => {
+const fetchMemberData = async () => {
   try {
     if (!user) return;
 
-    // 🚀 NOUVELLE VERSION avec member_categories
+    // 🚀 VERSION CORRIGÉE avec la bonne syntaxe de relation
     const { data, error } = await supabase
       .from('members')
       .select(`
@@ -68,7 +68,7 @@ export const MemberTraining: React.FC = () => {
         category, 
         status,
         member_categories (
-          category:categories (
+          categories (
             id,
             name
           )
@@ -254,10 +254,11 @@ export const MemberTraining: React.FC = () => {
         <p className="text-gray-600">
           Entraînements programmés pour votre catégorie : <span className="font-semibold text-primary-600">
   {memberData?.member_categories?.length > 0 
-    ? memberData.member_categories.map(mc => mc.category?.name).join(' - ')
+    ? memberData.member_categories.map(mc => mc.categories?.name).join(' - ')
     : memberData?.category || 'Aucune catégorie'
   }
 </span>
+
         </p>
       </div>
 
