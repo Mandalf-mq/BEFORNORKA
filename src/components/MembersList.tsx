@@ -664,12 +664,12 @@ const MembersManagement: React.FC = () => {
 
 // Charger les catégories
 
-  // Dans MembersManagement, remplacer useEffect
+  // ✅ VERSION CORRIGÉE
 useEffect(() => {
   const fetchCategories = async () => {
     try {
       const { data, error } = await supabase
-        .from('categories') // 🔥 PAS member_categories !
+        .from('categories')
         .select('*')
         .eq('is_active', true)
         .order('display_order', { ascending: true });
@@ -679,12 +679,12 @@ useEffect(() => {
       console.log('📋 Catégories chargées depuis la DB:', data);
       setCategories(data || []);
       
-      // Si aucune catégorie trouvée
       if (!data || data.length === 0) {
         setError('⚠️ Aucune catégorie active trouvée. Veuillez d\'abord créer des catégories dans Paramètres → Catégories');
       } else {
-        setError(null); // Reset l'erreur si des catégories sont trouvées
+        setError(null);
       }
+    } catch (error) { // ← 🚀 AJOUT DU CATCH !
       console.error('Erreur lors du chargement des catégories:', error);
       setError('❌ Impossible de charger les catégories. Vérifiez votre connexion.');
       setCategories([]);
