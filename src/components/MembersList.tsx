@@ -336,7 +336,7 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
     if (memberCategories && memberCategories.length > 0) {
       await saveMemberCategories(memberCategories);
     }
-     
+      
       // Vérification Pass Sport
       if (formData.payment_status === 'pass_sport' && !isPassSportEligible(member)) {
         alert('⚠️ Le Pass Sport n\'est disponible que pour les mineurs');
