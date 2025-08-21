@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
+interface MemberCategory {
+  id: string;
+  category_value: string;
+  is_primary: boolean;
+}
+
 interface Member {
   id: string;
   first_name: string;
@@ -18,6 +24,7 @@ interface Member {
   created_at: string;
   updated_at: string;
   additional_categories?: string[];
+  member_categories?: MemberCategory[];
 }
 
 interface ValidationStatus {
@@ -38,24 +45,31 @@ export const useMembers = () => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchMembers = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  try {
+    setLoading(true);
+    setError(null);
 
-      const { data, error } = await supabase
-        .from('members_workflow_status')
-        .select('*')
-        .neq('status', 'archived')
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('members')
+      .select(`
+        *,
+        member_categories (
+          id,
+          category_value,
+          is_primary
+        )
+      `)
+      .neq('status', 'archived')
+      .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setMembers(data || []);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement des membres');
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (error) throw error;
+    setMembers(data || []);
+  } catch (err: any) {
+    setError(err.message || 'Erreur lors du chargement des membres');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const validateMemberProfile = async (memberId: string, notes?: string) => {
     try {
