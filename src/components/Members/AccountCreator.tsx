@@ -17,7 +17,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     email: '',
     phone: '',
     birthDate: '',
-    category: 'senior',
+    category: '',
     temporaryPassword: '',
     role: 'member'
   });
@@ -42,6 +42,11 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
       if (error) throw error;
       
       setCategories(data || []);
+
+       if (data && data.length > 0 && !formData.category) {
+      setFormData(prev => ({ ...prev, category: data[0].value }));
+    }
+      
     } catch (error) {
       console.error('Erreur lors du chargement des catégories:', error);
       // En cas d'erreur, afficher un message mais ne pas bloquer l'interface
