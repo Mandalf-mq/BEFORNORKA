@@ -665,6 +665,7 @@ const MembersManagement: React.FC = () => {
 // Charger les catégories
 
   // ✅ VERSION CORRIGÉE
+
 useEffect(() => {
   const fetchCategories = async () => {
     try {
@@ -680,13 +681,10 @@ useEffect(() => {
       setCategories(data || []);
       
       if (!data || data.length === 0) {
-        setError('⚠️ Aucune catégorie active trouvée. Veuillez d\'abord créer des catégories dans Paramètres → Catégories');
-      } else {
-        setError(null);
+        console.warn('⚠️ Aucune catégorie active trouvée');
       }
-    } catch (error) { // ← 🚀 AJOUT DU CATCH !
-      console.error('Erreur lors du chargement des catégories:', error);
-      setError('❌ Impossible de charger les catégories. Vérifiez votre connexion.');
+    } catch (error) {
+      console.error('❌ Erreur lors du chargement des catégories:', error);
       setCategories([]);
     }
   };
