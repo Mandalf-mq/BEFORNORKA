@@ -23,6 +23,64 @@ interface MemberData {
   additional_categories?: string[];
 }
 
+// Composant pour afficher les catégories du membre
+const ProfileCategoriesDisplay: React.FC<{ memberId: string }> = ({ memberId }) => {
+  const [memberCategories, setMemberCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMemberCategories = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('member_categories')
+          .select(`
+            category_value,
+            is_primary,
+            categories:categories(label, color)
+          `)
+          .eq('member_id', memberId)
+          .order('is_primary', { ascending: false });
+
+        if (error) throw error;
+        setMemberCategories(data || []);
+      } catch (error) {
+        console.error('Erreur chargement catégories:', error);
+        setMemberCategories([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMemberCategories();
+  }, [memberId]);
+
+  if (loading) {
+    return <p className="text-gray-400">Chargement...</p>;
+  }
+  
+  if (memberCategories.length === 0) {
+    return <p className="text-gray-500">Aucune catégorie assignée</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {memberCategories.map((memberCat, index) => (
+        <span 
+          key={index}
+          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mr-2 ${
+            memberCat.is_primary 
+              ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-200' 
+              : 'bg-gray-100 text-gray-700'
+          }`}
+        >
+          {memberCat.is_primary && '⭐ '}
+          {memberCat.categories?.label || memberCat.category_value}
+        </span>
+      ))}
+    </div>
+  );
+};
+
 export const MemberProfile: React.FC = () => {
   const { user } = useAuth();
   const [memberData, setMemberData] = useState<MemberData | null>(null);
@@ -251,11 +309,11 @@ export const MemberProfile: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Catégorie
-            </label>
-            <p className="text-gray-900 font-medium">{memberData.category}</p>
-          </div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Catégories d'entraînement
+  </label>
+  <ProfileCategoriesDisplay memberId={memberData.id} />
+</div>
         </div>
       </div>
 
@@ -372,11 +430,12 @@ export const MemberProfile: React.FC = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Catégorie
-            </label>
-            <p className="text-gray-900 font-medium">{memberData.category}</p>
-          </div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Catégories d'entraînement
+  </label>
+  <ProfileCategoriesDisplay memberId={memberData.id} />
+</div>
+
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
