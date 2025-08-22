@@ -179,17 +179,13 @@ export const MemberTraining: React.FC = () => {
       // Construire la liste des catégories du membre
       const memberCategories = memberCategoriesData?.map(mc => mc.category_value) || [];
       
-      // Ajouter la catégorie principale si elle n'est pas déjà dans les catégories multiples
-      if (memberData.category && !memberCategories.includes(memberData.category)) {
-        memberCategories.push(memberData.category);
-      }
-
       console.log('🏷️ [MemberTraining] Catégories du membre:', memberCategories);
       
-      // Si aucune catégorie trouvée, utiliser au moins la catégorie principale
-      if (memberCategories.length === 0 && memberData.category) {
-        memberCategories.push(memberData.category);
-        console.log('⚠️ [MemberTraining] Utilisation catégorie principale de secours:', memberData.category);
+      // Si aucune catégorie trouvée, afficher un message d'erreur
+      if (memberCategories.length === 0) {
+        console.log('⚠️ [MemberTraining] Aucune catégorie trouvée pour ce membre');
+        setSessions([]);
+        return;
       }
 
       // Récupérer toutes les séances futures
@@ -377,10 +373,10 @@ export const MemberTraining: React.FC = () => {
           <span className="font-semibold text-primary-600 ml-1">
             {memberData?.member_categories?.length > 0 
               ? memberData.member_categories
-                  .sort((a, b) => b.is_primary ? 1 : -1)
+                  .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
                   .map(mc => getCategoryLabel(mc.category_value))
                   .join(' • ')
-              : getCategoryLabel(memberData?.category || '')
+              : 'Aucune catégorie assignée'
             }
           </span>
         </p>
@@ -390,8 +386,8 @@ export const MemberTraining: React.FC = () => {
           <h4 className="font-semibold text-blue-800 mb-2">🔍 Informations de debug</h4>
           <div className="text-sm text-blue-700 space-y-1">
             <p>• <strong>Statut membre :</strong> {memberData?.status}</p>
-            <p>• <strong>Catégorie principale :</strong> {memberData?.category}</p>
             <p>• <strong>Catégories multiples :</strong> {memberData?.member_categories?.map(mc => mc.category_value).join(', ') || 'Aucune'}</p>
+            <p>• <strong>Catégorie principale :</strong> {memberData?.member_categories?.find(mc => mc.is_primary)?.category_value || 'Aucune'}</p>
             <p>• <strong>Sessions trouvées :</strong> {sessions.length}</p>
             <p>• <strong>Catégories chargées :</strong> {categories.length}</p>
           </div>
@@ -405,9 +401,19 @@ export const MemberTraining: React.FC = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Aucun entraînement programmé
           </h3>
-          <p className="text-gray-600">
-            Aucun entraînement n'est actuellement programmé pour vos catégories.
-          </p>
+          <div className="space-y-2">
+            <p className="text-gray-600">
+              Aucun entraînement n'est actuellement programmé pour vos catégories.
+            </p>
+            {memberData?.member_categories?.length === 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                <p className="text-yellow-800 text-sm">
+                  ⚠️ <strong>Aucune catégorie assignée</strong><br/>
+                  Contactez un administrateur pour vous assigner des catégories d'entraînement.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
