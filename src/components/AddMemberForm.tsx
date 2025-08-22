@@ -89,25 +89,31 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
     setError(null);
 
     try {
-      const { error } = await supabase
-        .from('members')
-        .insert([{
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          address: formData.address || null,
-          postal_code: formData.postalCode || null,
-          city: formData.city || null,
-          birth_date: formData.birthDate,
-          category: formData.category,
-          membership_fee: formData.membershipFee,
-          ffvb_license: formData.ffvbLicense || null, // 🏐 Nouveau champ
-          status: 'active',
-          created_at: new Date().toISOString()
-        }]);
+      // Utiliser la nouvelle fonction qui crée compte + profil membre
+      const { data, error } = await supabase.rpc('create_member_account_with_password', {
+        p_email: formData.email,
+        p_first_name: formData.firstName,
+        p_last_name: formData.lastName,
+        p_temporary_password: 'temp' + Math.random().toString(36).substr(2, 8),
+        p_phone: formData.phone,
+        p_birth_date: formData.birthDate,
+        p_category: formData.category,
+        p_role: 'member'
+      });
 
       if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Erreur lors de la création');
+      }
+
+      alert(`✅ Membre et compte créés avec succès !
+
+👤 ${formData.firstName} ${formData.lastName}
+📧 ${formData.email}
+🔑 Mot de passe temporaire : ${data.temporary_password}
+
+⚠️ Communiquez ces identifiants au membre`);
 
       // Reset du formulaire
       setFormData({
@@ -122,12 +128,13 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
         category: 'senior',
         membershipFee: 250,
         ffvbLicense: ''
+        additionalCategories: []
       });
 
       onSuccess();
     } catch (error) {
       console.error('Erreur lors de l\'ajout du membre:', error);
-      setError('Une erreur est survenue lors de l\'ajout du membre');
+      setError(`Une erreur est survenue lors de la création du compte membre: ${error.message}`);
     } finally {
       setLoading(false);
     }
