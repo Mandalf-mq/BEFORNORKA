@@ -247,7 +247,7 @@ export const MemberTraining: React.FC = () => {
     }
   };
 
-  const respondToSession = async (sessionId: string, response: 'present' | 'absent') => {
+  const respondToSession = async (sessionId: string, response: 'present' | 'absent' | 'maybe') => {
     try {
       if (!memberData) return;
 
@@ -258,7 +258,7 @@ export const MemberTraining: React.FC = () => {
         .upsert({
           session_id: sessionId,
           member_id: memberData.id,
-          status: response,
+          status: response as 'present' | 'absent' | 'maybe',
           response_date: new Date().toISOString()
         }, {
           onConflict: 'session_id,member_id'
@@ -268,7 +268,8 @@ export const MemberTraining: React.FC = () => {
 
       await fetchAttendanceRecords();
       
-      const responseText = response === 'present' ? 'présent' : 'absent';
+      const responseText = response === 'present' ? 'présent' : 
+                          response === 'absent' ? 'absent' : 'peut-être';
       alert(`✅ Réponse enregistrée : ${responseText}`);
     } catch (error: any) {
       console.error('Erreur lors de la réponse:', error);
@@ -293,6 +294,8 @@ export const MemberTraining: React.FC = () => {
         return <CheckCircle className="w-5 h-5 text-green-600" />;
       case 'absent':
         return <XCircle className="w-5 h-5 text-red-600" />;
+      case 'maybe':
+        return <AlertCircle className="w-5 h-5 text-yellow-600" />;
       default:
         return <AlertCircle className="w-5 h-5 text-yellow-600" />;
     }
@@ -304,6 +307,8 @@ export const MemberTraining: React.FC = () => {
         return 'bg-green-100 text-green-700 border-green-300';
       case 'absent':
         return 'bg-red-100 text-red-700 border-red-300';
+      case 'maybe':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-300';
       default:
         return 'bg-yellow-100 text-yellow-700 border-yellow-300';
     }
@@ -487,32 +492,56 @@ export const MemberTraining: React.FC = () => {
                       <Eye className="w-5 h-5" />
                     </button>
 
-                    {!hasResponded ? (
-                      <div className="flex space-x-3">
-                        <button
-                          onClick={() => respondToSession(session.id, 'present')}
-                          disabled={responding === session.id}
-                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
-                        >
-                          {responding === session.id ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          ) : (
-                            <CheckCircle className="w-4 h-4" />
-                          )}
-                          <span>Présent</span>
-                        </button>
-                        <button
-                          onClick={() => respondToSession(session.id, 'absent')}
-                          disabled={responding === session.id}
-                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
-                        >
-                          <XCircle className="w-4 h-4" />
-                          <span>Absent</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500">
-                        Réponse enregistrée le {format(new Date(attendance.response_date!), 'dd/MM/yyyy à HH:mm', { locale: fr })}
+                    {/* Boutons de réponse rapide - toujours visibles */}
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => respondToSession(session.id, 'present')}
+                        disabled={responding === session.id}
+                        className={`px-3 py-2 rounded-lg flex items-center space-x-1 transition-colors disabled:opacity-50 text-sm ${
+                          attendance?.status === 'present'
+                            ? 'bg-green-600 text-white shadow-md'
+                            : 'bg-green-100 hover:bg-green-200 text-green-700 border border-green-300'
+                        }`}
+                      >
+                        {responding === session.id ? (
+                          <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <CheckCircle className="w-3 h-3" />
+                        )}
+                        <span>Présent</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => respondToSession(session.id, 'maybe')}
+                        disabled={responding === session.id}
+                        className={`px-3 py-2 rounded-lg flex items-center space-x-1 transition-colors disabled:opacity-50 text-sm ${
+                          attendance?.status === 'maybe'
+                            ? 'bg-yellow-600 text-white shadow-md'
+                            : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700 border border-yellow-300'
+                        }`}
+                      >
+                        <AlertCircle className="w-3 h-3" />
+                        <span>Peut-être</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => respondToSession(session.id, 'absent')}
+                        disabled={responding === session.id}
+                        className={`px-3 py-2 rounded-lg flex items-center space-x-1 transition-colors disabled:opacity-50 text-sm ${
+                          attendance?.status === 'absent'
+                            ? 'bg-red-600 text-white shadow-md'
+                            : 'bg-red-100 hover:bg-red-200 text-red-700 border border-red-300'
+                        }`}
+                      >
+                        <XCircle className="w-3 h-3" />
+                        <span>Absent</span>
+                      </button>
+                    </div>
+                    
+                    {/* Affichage du statut actuel */}
+                    {hasResponded && (
+                      <div className="text-xs text-gray-500">
+                        Répondu le {format(new Date(attendance.response_date!), 'dd/MM', { locale: fr })}
                       </div>
                     )}
                   </div>
