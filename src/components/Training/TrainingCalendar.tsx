@@ -53,24 +53,31 @@ export const TrainingCalendar: React.FC = () => {
     }
   };
 
-  const fetchCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('active', true)
-        .order('order_index');
+const fetchCategories = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('is_active', true)  // ✅ is_active au lieu de active
+      .order('display_order'); // ✅ display_order au lieu de order_index
 
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (error) {
-      console.error('Erreur lors du chargement des catégories:', error);
-      // Fallback vers les catégories par défaut
-      setCategories([
-        { value: 'senior', label: 'Senior', color: '#3B82F6' }
-      ]);
-    }
-  };
+    if (error) throw error;
+    setCategories(data || []);
+  } catch (error) {
+    console.error('Erreur lors du chargement des catégories:', error);
+    // Fallback vers les catégories par défaut
+    setCategories([
+      { value: 'baby', label: 'Baby Volley', color: '#3b82f6' },
+      { value: 'poussin', label: 'Poussin', color: '#10b981' },
+      { value: 'benjamin', label: 'Benjamin', color: '#f59e0b' },
+      { value: 'minime', label: 'Minime', color: '#8b5cf6' },
+      { value: 'cadet', label: 'Cadet', color: '#ef4444' },
+      { value: 'junior', label: 'Junior', color: '#ec4899' },
+      { value: 'senior', label: 'Senior', color: '#06b6d4' },
+      { value: 'veteran', label: 'Vétéran', color: '#84cc16' }
+    ]);
+  }
+};
 
   const createSession = async () => {
     try {
