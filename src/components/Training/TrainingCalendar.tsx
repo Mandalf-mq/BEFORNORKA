@@ -24,7 +24,7 @@ export const TrainingCalendar: React.FC = () => {
     start_time: '',
     end_time: '',
     location: '',
-    category: [''],
+    category: [],
     coach: '',
     max_participants: 20
   });
@@ -83,6 +83,21 @@ export const TrainingCalendar: React.FC = () => {
     }
   };
 
+const resetForm = () => {
+  setNewSession({
+    title: '',
+    description: '',
+    date: '',
+    start_time: '',
+    end_time: '',
+    location: '',
+    category: [], // ✅ Tableau vide
+    coach: '',
+    max_participants: 20
+  });
+};
+
+  
   // ✅ FONCTION CORRIGÉE pour obtenir le label de la catégorie
   const getCategoryLabel = (value: string) => {
     return categories.find(c => c.value === value)?.label || value;
