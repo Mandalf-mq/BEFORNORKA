@@ -119,16 +119,6 @@ const PaymentStatusSelector: React.FC<{ member: any; onUpdate: () => void }> = (
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'paid': return '✅';
-      case 'pass_sport': return '🎟️';
-      case 'pending': return '⏳';
-      case 'overdue': return '⚠️';
-      default: return '❓';
-    }
-  };
-
   return (
     <select
       value={member.payment_status}
@@ -288,7 +278,7 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
     last_name: member.last_name || '',
     email: member.email || '',
     phone: member.phone || '',
-    address: member.address || '', // ✅ ADRESSE AJOUTÉE
+    address: member.address || '',
     birth_date: member.birth_date || '',
     membership_fee: member.membership_fee || 0,
     ffvb_license: member.ffvb_license || '',
@@ -313,7 +303,7 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
           last_name: formData.last_name,
           email: formData.email,
           phone: formData.phone,
-          address: formData.address, // ✅ ADRESSE INCLUSE
+          address: formData.address,
           birth_date: formData.birth_date,
           membership_fee: formData.membership_fee,
           ffvb_license: formData.ffvb_license,
@@ -446,7 +436,7 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
               )}
             </div>
 
-            {/* ✅ ADRESSE AJOUTÉE */}
+            {/* Adresse */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">📍 Adresse</label>
               {editing ? (
@@ -599,7 +589,7 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
                       last_name: member.last_name || '',
                       email: member.email || '',
                       phone: member.phone || '',
-                      address: member.address || '', // ✅ RESET ADRESSE
+                      address: member.address || '',
                       birth_date: member.birth_date || '',
                       membership_fee: member.membership_fee || 0,
                       ffvb_license: member.ffvb_license || '',
@@ -668,10 +658,6 @@ const MembersManagement: React.FC = () => {
   const [editingMember, setEditingMember] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
 
-  // Charger les catégories
-
-  // ✅ VERSION CORRIGÉE
-
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -711,7 +697,6 @@ const MembersManagement: React.FC = () => {
       member.member_categories?.some(mc => mc.category_value === categoryFilter) ||
       (!member.member_categories?.length && member.category === categoryFilter);
 
-    
     const matchesLicense = licenseFilter === 'all' || 
       (licenseFilter === 'with_license' && member.ffvb_license?.trim()) ||
       (licenseFilter === 'without_license' && !member.ffvb_license?.trim());
@@ -725,7 +710,7 @@ const MembersManagement: React.FC = () => {
     setShowDetailsModal(true);
   };
 
-    const handleEditMember = (member: any) => {
+  const handleEditMember = (member: any) => {
     setEditingMember(member);
     setShowEditModal(true);
   };
@@ -935,7 +920,6 @@ const MembersManagement: React.FC = () => {
                       <span className="text-sm text-gray-900">
                         <div className="space-y-1">
                           <div className="font-medium">
-                            {/* 🔄 GESTION DOUBLE : member_categories OU category */}
                             {member.member_categories && member.member_categories.length > 0 
                               ? member.member_categories.find(mc => mc.is_primary)?.categories?.label || 
                                 member.member_categories[0]?.categories?.label ||
@@ -1020,7 +1004,7 @@ const MembersManagement: React.FC = () => {
             </table>
           </div>
         </div>
-      }
+      </div>
 
       {/* Modals */}
       {showAddForm && (
