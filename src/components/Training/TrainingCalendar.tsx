@@ -1231,14 +1231,14 @@ export const TrainingCalendar: React.FC = () => {
                     }}
                     className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl flex items-center space-x-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold"
                   >
-                    <Copy className="w-5 h-5" />
+                                        <Copy className="w-5 h-5" />
                     <span>Dupliquer</span>
                   </button>
                   <button
                     onClick={() => setViewingSession(null)}
                     className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-semibold"
                   >
-                     Fermer
+                    Fermer
                   </button>
                 </div>
               </div>
@@ -1250,4 +1250,3 @@ export const TrainingCalendar: React.FC = () => {
 };
 
 export default TrainingCalendar;
- 
