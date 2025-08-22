@@ -97,7 +97,55 @@ const resetForm = () => {
   });
 };
 
+  const createSession = async () => {
+  try {
+    setCreating(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    const { error } = await supabase
+      .from('training_sessions')
+      .insert({
+        ...newSession,
+        created_by: user?.id
+      });
+
+    if (error) throw error;
+    
+    await fetchSessions();
+    resetForm();
+    setShowAddForm(false);
+    alert('✅ Séance créée avec succès !');
+  } catch (error) {
+    console.error('Erreur lors de la création:', error);
+    alert(`❌ Erreur: ${error.message}`);
+  } finally {
+    setCreating(false);
+  }
+};
+
+const updateSession = async () => {
+  if (!editingSession) return;
   
+  try {
+    setUpdating(true);
+    const { error } = await supabase
+      .from('training_sessions')
+      .update(editingSession)
+      .eq('id', editingSession.id);
+
+    if (error) throw error;
+    
+    await fetchSessions();
+    setEditingSession(null);
+    alert('✅ Séance modifiée avec succès !');
+  } catch (error) {
+    console.error('Erreur lors de la modification:', error);
+    alert(`❌ Erreur: ${error.message}`);
+  } finally {
+    setUpdating(false);
+  }
+};
+
   // ✅ FONCTION CORRIGÉE pour obtenir le label de la catégorie
   const getCategoryLabel = (value: string) => {
     return categories.find(c => c.value === value)?.label || value;
