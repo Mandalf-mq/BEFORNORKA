@@ -1017,7 +1017,6 @@ export const TrainingCalendar: React.FC = () => {
                               <div>
                                 <p className="font-medium text-gray-900">
                                   {member.first_name} {member.last_name}
-                                responseStatus === 'maybe' ? 'bg-yellow-50 border-yellow-200' :
                                 </p>
                                 <p className="text-sm text-gray-600">
                                   {member.email}
@@ -1044,15 +1043,12 @@ export const TrainingCalendar: React.FC = () => {
                                   )}
                                 </div>
                               </div>
-                                        {responseStatus === 'maybe' && <AlertCircle className="w-4 h-4 text-yellow-600" />}
                               <div className="text-center">
                                 {hasResponded ? (
                                   <div className="flex items-center space-x-2">
-                                          responseStatus === 'maybe' ? 'bg-yellow-100 text-yellow-700' :
                                     {response?.status === 'present' ? (
                                       <>
-                                          {responseStatus === 'present' ? 'Présent' : 
-                                           responseStatus === 'maybe' ? 'Peut-être' : 'Absent'}
+                                        <CheckCircle className="w-5 h-5 text-green-600" />
                                         <span className="text-sm font-medium text-green-700">Présent</span>
                                       </>
                                     ) : (
