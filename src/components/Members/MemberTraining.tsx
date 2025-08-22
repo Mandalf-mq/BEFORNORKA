@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, Users, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, CheckCircle, XCircle, AlertCircle, Eye } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { format } from 'date-fns';
@@ -36,64 +36,100 @@ interface MemberData {
   }>;
 }
 
+interface Category {
+  id: string;
+  value: string;
+  label: string;
+  color: string;
+}
+
 export const MemberTraining: React.FC = () => {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [memberData, setMemberData] = useState<MemberData | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState<string | null>(null);
+  const [viewingSession, setViewingSession] = useState<TrainingSession | null>(null);
 
   useEffect(() => {
-    fetchMemberData();
-  }, []);
+    initializeData();
+  }, [user]);
+
+  const initializeData = async () => {
+    try {
+      setLoading(true);
+      await loadCategories();
+      await fetchMemberData();
+    } catch (error) {
+      console.error('Erreur initialisation:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (memberData) {
+    if (memberData && categories.length > 0) {
       fetchTrainingSessions();
       fetchAttendanceRecords();
     }
-  }, [memberData]);
+  }, [memberData, categories]);
 
-const fetchMemberData = async () => {
-  try {
-    if (!user) return;
+  const loadCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order');
 
-    // ✅ BONNE VERSION - sans relation vers categories
-    const { data, error } = await supabase
-      .from('members')
-      .select(`
-        id, 
-        category, 
-        status,
-        member_categories (
-          id,
-          category_value,
-          is_primary
-        )
-      `)
-      .eq('email', user.email)
-      .maybeSingle();
-
-    if (error) throw error;
-    
-    if (!data) {
-      console.log('Aucun profil membre trouvé pour cet utilisateur');
-      setMemberData(null);
-      return;
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Erreur chargement catégories:', error);
+      setCategories([]);
     }
-    
-    setMemberData(data);
-  } catch (error) {
-    console.error('Erreur lors du chargement du membre:', error);
-  }
-};
+  };
+
+  const fetchMemberData = async () => {
+    try {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('members')
+        .select(`
+          id, 
+          category, 
+          status,
+          member_categories (
+            id,
+            category_value,
+            is_primary
+          )
+        `)
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (!data) {
+        console.log('Aucun profil membre trouvé pour cet utilisateur');
+        setMemberData(null);
+        return;
+      }
+      
+      setMemberData(data);
+    } catch (error) {
+      console.error('Erreur lors du chargement du membre:', error);
+    }
+  };
 
   const fetchTrainingSessions = async () => {
     try {
       if (!memberData) return;
 
-      // Récupérer TOUTES les séances futures et filtrer côté client
+      // Récupérer toutes les séances futures
       const { data, error } = await supabase
         .from('training_sessions')
         .select('*')
@@ -103,9 +139,14 @@ const fetchMemberData = async () => {
 
       if (error) throw error;
       
-      // Filtrer les séances qui incluent la catégorie du membre
+      // Filtrer les séances selon les catégories du membre
+      const memberCategories = memberData.member_categories?.map(mc => mc.category_value) || [];
+      if (memberData.category && !memberCategories.includes(memberData.category)) {
+        memberCategories.push(memberData.category);
+      }
+
       const filteredSessions = (data || []).filter(session => 
-        session.category && session.category.includes(memberData.category)
+        session.category && session.category.some(cat => memberCategories.includes(cat))
       );
       
       setSessions(filteredSessions);
@@ -127,8 +168,6 @@ const fetchMemberData = async () => {
       setAttendanceRecords(data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des présences:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -138,7 +177,6 @@ const fetchMemberData = async () => {
 
       setResponding(sessionId);
 
-      // Créer ou mettre à jour l'enregistrement de présence
       const { error } = await supabase
         .from('attendance_records')
         .upsert({
@@ -158,7 +196,7 @@ const fetchMemberData = async () => {
       alert(`✅ Réponse enregistrée : ${responseText}`);
     } catch (error: any) {
       console.error('Erreur lors de la réponse:', error);
-      alert(`❌ Erreur lors de l'enregistrement: ${error.message}`);
+      alert(`❌ Erreur: ${error.message}`);
     } finally {
       setResponding(null);
     }
@@ -166,6 +204,11 @@ const fetchMemberData = async () => {
 
   const getAttendanceForSession = (sessionId: string) => {
     return attendanceRecords.find(record => record.session_id === sessionId);
+  };
+
+  const getCategoryLabel = (categoryValue: string) => {
+    const category = categories.find(cat => cat.value === categoryValue);
+    return category?.label || categoryValue;
   };
 
   const getStatusIcon = (status: string) => {
@@ -250,16 +293,16 @@ const fetchMemberData = async () => {
           🏐 Mes Entraînements
         </h1>
         <p className="text-gray-600">
-          Entraînements programmés pour votre catégorie : <span className="font-semibold text-primary-600">
-  {memberData?.member_categories?.length > 0 
-    ? memberData.member_categories
-        .sort((a, b) => b.is_primary ? 1 : -1) // Primary en premier
-        .map(mc => mc.category_value)
-        .join(' - ')
-    : memberData?.category || 'Aucune catégorie'
-  }
-</span>
-
+          Entraînements programmés pour vos catégories : 
+          <span className="font-semibold text-primary-600 ml-1">
+            {memberData?.member_categories?.length > 0 
+              ? memberData.member_categories
+                  .sort((a, b) => b.is_primary ? 1 : -1)
+                  .map(mc => getCategoryLabel(mc.category_value))
+                  .join(' • ')
+              : getCategoryLabel(memberData?.category || '')
+            }
+          </span>
         </p>
       </div>
 
@@ -271,7 +314,7 @@ const fetchMemberData = async () => {
             Aucun entraînement programmé
           </h3>
           <p className="text-gray-600">
-            Aucun entraînement n'est actuellement programmé pour votre catégorie.
+            Aucun entraînement n'est actuellement programmé pour vos catégories.
           </p>
         </div>
       ) : (
@@ -288,6 +331,17 @@ const fetchMemberData = async () => {
                     {session.description && (
                       <p className="text-sm text-gray-600 mt-1">{session.description}</p>
                     )}
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {session.category.map((cat) => (
+                        <span
+                          key={cat}
+                          className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                          style={{ backgroundColor: categories.find(c => c.value === cat)?.color || '#6366f1' }}
+                        >
+                          {getCategoryLabel(cat)}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   
                   {hasResponded && (
@@ -326,38 +380,187 @@ const fetchMemberData = async () => {
                     )}
                   </div>
 
-                  {!hasResponded ? (
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={() => respondToSession(session.id, 'present')}
-                        disabled={responding === session.id}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
-                      >
-                        {responding === session.id ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <CheckCircle className="w-4 h-4" />
-                        )}
-                        <span>Présent</span>
-                      </button>
-                      <button
-                        onClick={() => respondToSession(session.id, 'absent')}
-                        disabled={responding === session.id}
-                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
-                      >
-                        <XCircle className="w-4 h-4" />
-                        <span>Absent</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500">
-                      Réponse enregistrée le {format(new Date(attendance.response_date!), 'dd/MM/yyyy à HH:mm', { locale: fr })}
-                    </div>
-                  )}
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => setViewingSession(session)}
+                      className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                      title="Voir détails"
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+
+                    {!hasResponded ? (
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={() => respondToSession(session.id, 'present')}
+                          disabled={responding === session.id}
+                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
+                        >
+                          {responding === session.id ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <CheckCircle className="w-4 h-4" />
+                          )}
+                          <span>Présent</span>
+                        </button>
+                        <button
+                          onClick={() => respondToSession(session.id, 'absent')}
+                          disabled={responding === session.id}
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          <span>Absent</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">
+                        Réponse enregistrée le {format(new Date(attendance.response_date!), 'dd/MM/yyyy à HH:mm', { locale: fr })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal de détails */}
+      {viewingSession && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">
+                📋 Détails de la séance
+              </h3>
+              <button
+                onClick={() => setViewingSession(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Titre & Badges */}
+              <div>
+                <h4 className="text-2xl font-bold text-gray-900 mb-3">{viewingSession.title}</h4>
+                <div className="flex flex-wrap gap-2">
+                  {viewingSession.category.map((cat) => (
+                    <span
+                      key={cat}
+                      className="px-3 py-1 rounded-full text-sm font-medium text-white"
+                      style={{ backgroundColor: categories.find(c => c.value === cat)?.color || '#6366f1' }}
+                    >
+                      {getCategoryLabel(cat)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Infos principales */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <Calendar className="w-5 h-5 text-primary-600" />
+                    <span className="font-semibold">
+                      {format(new Date(viewingSession.date), 'EEEE dd MMMM yyyy', { locale: fr })}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <Clock className="w-5 h-5 text-primary-600" />
+                    <span>{viewingSession.start_time} - {viewingSession.end_time}</span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <MapPin className="w-5 h-5 text-primary-600" />
+                    <span>{viewingSession.location}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <Users className="w-5 h-5 text-primary-600" />
+                    <span>Coach: <strong>{viewingSession.coach}</strong></span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <Users className="w-5 h-5 text-primary-600" />
+                    <span>Max: <strong>{viewingSession.max_participants || 20} participants</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              {viewingSession.description && (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">📝 Description</h4>
+                  <p className="text-gray-700 whitespace-pre-wrap">{viewingSession.description}</p>
+                </div>
+              )}
+
+              {/* Actions de présence */}
+              <div className="bg-blue-50 rounded-xl p-4">
+                <h4 className="font-semibold text-blue-800 mb-3">✋ Votre présence</h4>
+                {(() => {
+                  const attendance = getAttendanceForSession(viewingSession.id);
+                  const hasResponded = attendance !== undefined;
+                  
+                  if (hasResponded) {
+                    return (
+                      <div className="text-center">
+                        <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${
+                          attendance.status === 'present' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {attendance.status === 'present' ? '✅ Présent confirmé' : '❌ Absent confirmé'}
+                        </span>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Réponse enregistrée le {format(new Date(attendance.response_date!), 'dd/MM/yyyy à HH:mm', { locale: fr })}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => respondToSession(viewingSession.id, 'present')}
+                        disabled={responding === viewingSession.id}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+                      >
+                        {responding === viewingSession.id ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Je serai présent</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => respondToSession(viewingSession.id, 'absent')}
+                        disabled={responding === viewingSession.id}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>Je serai absent</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Bouton fermer */}
+              <div className="flex justify-end pt-6 border-t border-gray-200">
+                <button
+                  onClick={() => setViewingSession(null)}
+                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -407,4 +610,35 @@ const fetchMemberData = async () => {
       )}
     </div>
   );
+};
+
+const respondToSession = async (sessionId: string, response: 'present' | 'absent') => {
+  try {
+    if (!memberData) return;
+
+    setResponding(sessionId);
+
+    const { error } = await supabase
+      .from('attendance_records')
+      .upsert({
+        session_id: sessionId,
+        member_id: memberData.id,
+        status: response,
+        response_date: new Date().toISOString()
+      }, {
+        onConflict: 'session_id,member_id'
+      });
+
+    if (error) throw error;
+
+    await fetchAttendanceRecords();
+    
+    const responseText = response === 'present' ? 'présent' : 'absent';
+    alert(`✅ Réponse enregistrée : ${responseText}`);
+  } catch (error: any) {
+    console.error('Erreur lors de la réponse:', error);
+    alert(`❌ Erreur: ${error.message}`);
+  } finally {
+    setResponding(null);
+  }
 };

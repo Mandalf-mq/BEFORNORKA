@@ -1,15 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, Users, Plus, Edit, Trash2, Eye, Copy, Grid, List, Save, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, Plus, Edit, Trash2, Eye, Copy, Grid, List, Save, X, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '../../lib/supabase';
-import { TrainingSession } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+
+interface TrainingSession {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  location: string;
+  category: string[];
+  coach: string;
+  max_participants?: number;
+  season_id?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Category {
+  id: string;
+  value: string;
+  label: string;
+  color: string;
+  is_active: boolean;
+  display_order: number;
+}
+
+interface AttendanceRecord {
+  id: string;
+  session_id: string;
+  member_id: string;
+  status: string;
+  response_date?: string;
+}
+
+interface Season {
+  id: string;
+  name: string;
+  is_current: boolean;
+}
 
 export const TrainingCalendar: React.FC = () => {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const { user, userProfile } = useAuth();
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [memberData, setMemberData] = useState<any>(null);
+  const [currentSeason, setCurrentSeason] = useState<Season | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
@@ -19,6 +61,7 @@ export const TrainingCalendar: React.FC = () => {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [responding, setResponding] = useState<string | null>(null);
 
   const [newSession, setNewSession] = useState({
     title: '',
@@ -32,69 +75,98 @@ export const TrainingCalendar: React.FC = () => {
     max_participants: 20
   });
 
-  // ✅ CHARGEMENT INITIAL
-  useEffect(() => {
-    getCurrentUser();
-  }, []);
+  // Vérifier les permissions
+  const canManageTrainings = userProfile?.role && ['webmaster', 'administrateur', 'entraineur'].includes(userProfile.role);
+  const isMember = userProfile?.role === 'member';
 
   useEffect(() => {
-    if (user) {
+    initializeData();
+  }, [user, userProfile]);
+
+  useEffect(() => {
+    if (categories.length > 0) {
       loadSessions();
-      loadCategories();
     }
-  }, [user, currentWeek]);
+  }, [currentWeek, categories, memberData]);
 
-  // ✅ FONCTION - Récupérer l'utilisateur actuel
-  const getCurrentUser = async () => {
+  useEffect(() => {
+    if (memberData && sessions.length > 0 && isMember) {
+      loadAttendanceRecords();
+    }
+  }, [memberData, sessions, isMember]);
+
+  const initializeData = async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-
-      if (user) {
-        const { data: profileData, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (error && error.code !== 'PGRST116') {
-          console.error('Erreur profil:', error);
-        } else {
-          setProfile(profileData);
-        }
-      }
+      await Promise.all([
+        loadCategories(),
+        loadCurrentSeason(),
+        isMember ? loadMemberData() : Promise.resolve()
+      ]);
     } catch (error) {
-      console.error('Erreur getCurrentUser:', error);
+      console.error('Erreur initialisation:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ FONCTION - Charger les catégories
   const loadCategories = async () => {
     try {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .order('name');
+        .eq('is_active', true)
+        .order('display_order');
 
       if (error) throw error;
-
-      const formattedCategories = data?.map(cat => ({
-        value: cat.name.toLowerCase(),
-        label: cat.name,
-        color: cat.color
-      })) || [];
-
-      setCategories(formattedCategories);
+      setCategories(data || []);
     } catch (error) {
       console.error('Erreur chargement catégories:', error);
       setCategories([]);
     }
   };
 
-  // ✅ FONCTION - Charger les sessions
+  const loadCurrentSeason = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('seasons')
+        .select('*')
+        .eq('is_current', true)
+        .maybeSingle();
+
+      if (error) throw error;
+      setCurrentSeason(data);
+    } catch (error) {
+      console.error('Erreur chargement saison:', error);
+    }
+  };
+
+  const loadMemberData = async () => {
+    try {
+      if (!user) return;
+
+      const { data: member, error } = await supabase
+        .from('members')
+        .select(`
+          id, 
+          category,
+          status,
+          member_categories (
+            id,
+            category_value,
+            is_primary
+          )
+        `)
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (error) throw error;
+      setMemberData(member);
+    } catch (error) {
+      console.error('Erreur chargement membre:', error);
+    }
+  };
+
   const loadSessions = async () => {
     try {
       const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -110,6 +182,7 @@ export const TrainingCalendar: React.FC = () => {
 
       if (error) throw error;
 
+      // Filtrer selon le rôle
       const filteredSessions = getFilteredSessions(data || []);
       setSessions(filteredSessions);
     } catch (error) {
@@ -118,27 +191,44 @@ export const TrainingCalendar: React.FC = () => {
     }
   };
 
-  // ✅ FONCTION - Filtrer selon le rôle utilisateur
-  const getFilteredSessions = (allSessions: TrainingSession[]) => {
-    if (!profile) return [];
-    
-    // Admin/Coach voient tout
-    if (profile.role === 'admin' || profile.role === 'coach') {
-      return allSessions;
+  const loadAttendanceRecords = async () => {
+    try {
+      if (!memberData) return;
+
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('member_id', memberData.id);
+
+      if (error) throw error;
+      setAttendanceRecords(data || []);
+    } catch (error) {
+      console.error('Erreur chargement présences:', error);
     }
-    
-    // Membres voient seulement leurs catégories
-    const userCategories = profile.categories || [];
+  };
+
+  const getFilteredSessions = (allSessions: TrainingSession[]) => {
+    if (!isMember || !memberData) {
+      return allSessions; // Admin/Coach voient tout
+    }
+
+    // Pour les membres, filtrer selon leurs catégories
+    const memberCategories = memberData.member_categories?.map((mc: any) => mc.category_value) || [];
+    if (memberData.category && !memberCategories.includes(memberData.category)) {
+      memberCategories.push(memberData.category);
+    }
+
     return allSessions.filter(session => 
-      session.category.some(cat => userCategories.includes(cat))
+      session.category.some(cat => memberCategories.includes(cat))
     );
   };
 
-  // ✅ FONCTION - Vérifier permissions de gestion
-  const canManageTrainings = profile?.role === 'admin' || profile?.role === 'coach';
-
-  // ✅ FONCTION - Créer une session
   const createSession = async () => {
+    if (!newSession.title.trim() || !newSession.date || !newSession.start_time || !newSession.end_time || !newSession.location.trim() || !newSession.coach.trim()) {
+      alert('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
     if (newSession.category.length === 0) {
       alert('Veuillez sélectionner au moins une catégorie');
       return;
@@ -149,7 +239,7 @@ export const TrainingCalendar: React.FC = () => {
 
       const sessionData = {
         title: newSession.title.trim(),
-        description: newSession.description.trim(),
+        description: newSession.description.trim() || null,
         date: newSession.date,
         start_time: newSession.start_time,
         end_time: newSession.end_time,
@@ -157,6 +247,7 @@ export const TrainingCalendar: React.FC = () => {
         category: newSession.category,
         coach: newSession.coach.trim(),
         max_participants: newSession.max_participants,
+        season_id: currentSeason?.id || null,
         created_by: user?.id
       };
 
@@ -180,19 +271,26 @@ export const TrainingCalendar: React.FC = () => {
       });
 
       setShowAddForm(false);
-      loadSessions();
+      await loadSessions();
+      alert('✅ Séance créée avec succès !');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur création session:', error);
-      alert('Erreur lors de la création de la session');
+      alert(`❌ Erreur lors de la création: ${error.message}`);
     } finally {
       setCreating(false);
     }
   };
 
-  // ✅ FONCTION - Mettre à jour une session  
   const updateSession = async () => {
-    if (!editingSession || editingSession.category.length === 0) {
+    if (!editingSession) return;
+
+    if (!editingSession.title.trim() || !editingSession.date || !editingSession.start_time || !editingSession.end_time || !editingSession.location.trim() || !editingSession.coach.trim()) {
+      alert('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    if (editingSession.category.length === 0) {
       alert('Veuillez sélectionner au moins une catégorie');
       return;
     }
@@ -204,7 +302,7 @@ export const TrainingCalendar: React.FC = () => {
         .from('training_sessions')
         .update({
           title: editingSession.title.trim(),
-          description: editingSession.description?.trim(),
+          description: editingSession.description?.trim() || null,
           date: editingSession.date,
           start_time: editingSession.start_time,
           end_time: editingSession.end_time,
@@ -219,17 +317,17 @@ export const TrainingCalendar: React.FC = () => {
       if (error) throw error;
 
       setEditingSession(null);
-      loadSessions();
+      await loadSessions();
+      alert('✅ Séance modifiée avec succès !');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur mise à jour session:', error);
-      alert('Erreur lors de la mise à jour');
+      alert(`❌ Erreur lors de la mise à jour: ${error.message}`);
     } finally {
       setUpdating(false);
     }
   };
 
-  // ✅ FONCTION - Supprimer une session
   const deleteSession = async (sessionId: string) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette session ?')) {
       return;
@@ -245,16 +343,16 @@ export const TrainingCalendar: React.FC = () => {
 
       if (error) throw error;
 
-      loadSessions();
-    } catch (error) {
+      await loadSessions();
+      alert('✅ Séance supprimée avec succès !');
+    } catch (error: any) {
       console.error('Erreur suppression session:', error);
-      alert('Erreur lors de la suppression');
+      alert(`❌ Erreur lors de la suppression: ${error.message}`);
     } finally {
       setDeleting(null);
     }
   };
 
-  // ✅ FONCTION - Dupliquer une session
   const duplicateSession = (session: TrainingSession) => {
     setNewSession({
       title: `${session.title} (copie)`,
@@ -270,8 +368,40 @@ export const TrainingCalendar: React.FC = () => {
     setShowAddForm(true);
   };
 
-  // ✅ FONCTION - Obtenir la couleur d'une catégorie
+  const respondToSession = async (sessionId: string, response: 'present' | 'absent') => {
+    try {
+      if (!memberData) return;
+
+      setResponding(sessionId);
+
+      const { error } = await supabase
+        .from('attendance_records')
+        .upsert({
+          session_id: sessionId,
+          member_id: memberData.id,
+          status: response,
+          response_date: new Date().toISOString()
+        }, {
+          onConflict: 'session_id,member_id'
+        });
+
+      if (error) throw error;
+
+      await loadAttendanceRecords();
+      
+      const responseText = response === 'present' ? 'présent' : 'absent';
+      alert(`✅ Réponse enregistrée : ${responseText}`);
+    } catch (error: any) {
+      console.error('Erreur lors de la réponse:', error);
+      alert(`❌ Erreur: ${error.message}`);
+    } finally {
+      setResponding(null);
+    }
+  };
+
   const getCategoryColor = (sessionCategories: string[]) => {
+    if (sessionCategories.length === 0) return { backgroundColor: '#6366f1', color: '#ffffff' };
+    
     const category = categories.find(cat => 
       sessionCategories.includes(cat.value)
     );
@@ -281,18 +411,21 @@ export const TrainingCalendar: React.FC = () => {
     };
   };
 
-  // ✅ FONCTION - Obtenir le label d'une catégorie
   const getCategoryLabel = (categoryValue: string) => {
     const category = categories.find(cat => cat.value === categoryValue);
     return category?.label || categoryValue;
   };
 
-  // ✅ NAVIGATION SEMAINE
+  const getAttendanceForSession = (sessionId: string) => {
+    return attendanceRecords.find(record => record.session_id === sessionId);
+  };
+
+  // Navigation semaine
   const goToPreviousWeek = () => setCurrentWeek(subWeeks(currentWeek, 1));
   const goToNextWeek = () => setCurrentWeek(addWeeks(currentWeek, 1));
   const goToToday = () => setCurrentWeek(new Date());
 
-  // ✅ OBTENIR LES JOURS DE LA SEMAINE
+  // Obtenir les jours de la semaine
   const weekDays = eachDayOfInterval({
     start: startOfWeek(currentWeek, { weekStartsOn: 1 }),
     end: endOfWeek(currentWeek, { weekStartsOn: 1 })
@@ -301,20 +434,57 @@ export const TrainingCalendar: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement des entraînements...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Vue membre non validé
+  if (isMember && memberData?.status !== 'season_validated') {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+        <div className="text-center">
+          <AlertCircle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-yellow-800 mb-2">
+            Dossier en cours de validation
+          </h2>
+          <p className="text-yellow-700 mb-4">
+            Vous devez avoir un dossier complet et validé pour accéder aux entraînements.
+          </p>
+          <div className="bg-yellow-100 rounded-lg p-4">
+            <h3 className="font-semibold text-yellow-800 mb-2">📋 Prochaines étapes</h3>
+            <div className="text-sm text-yellow-700 space-y-1">
+              <p>1. Complétez l'upload de vos documents</p>
+              <p>2. Attendez la validation par un administrateur</p>
+              <p>3. Une fois validé, vous accéderez aux entraînements</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* ✅ HEADER AVEC CONTRÔLES */}
+      {/* Header avec contrôles */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Calendrier d'entraînement</h2>
+          <h2 className="text-2xl font-bold text-gray-900">
+            {isMember ? '🏐 Mes Entraînements' : '📅 Calendrier d\'entraînement'}
+          </h2>
           <p className="text-gray-600 mt-1">
             Semaine du {format(weekDays[0], 'dd MMM', { locale: fr })} au {format(weekDays[6], 'dd MMM yyyy', { locale: fr })}
           </p>
+          {isMember && memberData && (
+            <p className="text-sm text-primary-600 mt-1">
+              Vos catégories : {memberData.member_categories?.map((mc: any) => 
+                getCategoryLabel(mc.category_value)
+              ).join(', ') || getCategoryLabel(memberData.category)}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -373,7 +543,7 @@ export const TrainingCalendar: React.FC = () => {
         </div>
       </div>
 
-      {/* ✅ VUE CALENDRIER */}
+      {/* Vue calendrier */}
       {viewMode === 'calendar' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {/* En-tête jours */}
@@ -401,53 +571,64 @@ export const TrainingCalendar: React.FC = () => {
 
               return (
                 <div key={index} className="border-r border-gray-200 last:border-r-0 p-2 space-y-2">
-                  {daySessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className="p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow text-sm"
-                      style={getCategoryColor(session.category)}
-                      onClick={() => setViewingSession(session)}
-                    >
-                      <div className="font-semibold mb-1">{session.title}</div>
-                      <div className="text-xs opacity-90 flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{session.start_time}</span>
-                      </div>
-                      <div className="text-xs opacity-90 flex items-center space-x-1 mt-1">
-                        <MapPin className="w-3 h-3" />
-                        <span className="truncate">{session.location}</span>
-                      </div>
-                      
-                      {/* Actions rapides (si autorisé) */}
-                      {canManageTrainings && (
-                        <div className="flex justify-end space-x-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingSession(session);
-                            }}
-                            className="p-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
-                          >
-                            <Edit className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteSession(session.id);
-                            }}
-                            className="p-1 bg-white/20 hover:bg-red-500 rounded transition-colors"
-                            disabled={deleting === session.id}
-                          >
-                            {deleting === session.id ? (
-                              <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <Trash2 className="w-3 h-3" />
-                            )}
-                          </button>
+                  {daySessions.map((session) => {
+                    const attendance = isMember ? getAttendanceForSession(session.id) : null;
+                    
+                    return (
+                      <div
+                        key={session.id}
+                        className="p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow text-sm group"
+                        style={getCategoryColor(session.category)}
+                        onClick={() => setViewingSession(session)}
+                      >
+                        <div className="font-semibold mb-1">{session.title}</div>
+                        <div className="text-xs opacity-90 flex items-center space-x-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{session.start_time}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        <div className="text-xs opacity-90 flex items-center space-x-1 mt-1">
+                          <MapPin className="w-3 h-3" />
+                          <span className="truncate">{session.location}</span>
+                        </div>
+                        
+                        {/* Statut de présence pour les membres */}
+                        {isMember && attendance && (
+                          <div className="text-xs mt-2 bg-white/20 rounded px-2 py-1">
+                            {attendance.status === 'present' ? '✅ Présent' : '❌ Absent'}
+                          </div>
+                        )}
+                        
+                        {/* Actions rapides admin */}
+                        {canManageTrainings && (
+                          <div className="flex justify-end space-x-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingSession(session);
+                              }}
+                              className="p-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
+                            >
+                              <Edit className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteSession(session.id);
+                              }}
+                              className="p-1 bg-white/20 hover:bg-red-500 rounded transition-colors"
+                              disabled={deleting === session.id}
+                            >
+                              {deleting === session.id ? (
+                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3 h-3" />
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -455,7 +636,7 @@ export const TrainingCalendar: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ VUE LISTE */}
+      {/* Vue liste */}
       {viewMode === 'list' && (
         <div className="bg-white rounded-xl border border-gray-200">
           {sessions.length === 0 ? (
@@ -463,105 +644,134 @@ export const TrainingCalendar: React.FC = () => {
               <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <h3 className="text-lg font-semibold mb-2">Aucune session cette semaine</h3>
               <p>Aucune session d'entraînement prévue pour cette période.</p>
+              {canManageTrainings && (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="mt-4 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 mx-auto transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Créer une séance</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {sessions.map((session) => (
-                <div key={session.id} className="p-6 hover:bg-gray-50 transition-colors group">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      {/* Ligne 1: Titre + Catégories */}
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{session.title}</h3>
-                        <div className="flex space-x-1">
-                          {session.category.map((cat) => (
-                            <span
-                              key={cat}
-                              className="px-2 py-1 rounded-full text-xs font-medium"
-                              style={getCategoryColor([cat])}
-                            >
-                              {getCategoryLabel(cat)}
+              {sessions.map((session) => {
+                const attendance = isMember ? getAttendanceForSession(session.id) : null;
+                
+                return (
+                  <div key={session.id} className="p-6 hover:bg-gray-50 transition-colors group">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        {/* Titre + Catégories */}
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">{session.title}</h3>
+                          <div className="flex space-x-1">
+                            {session.category.map((cat) => (
+                              <span
+                                key={cat}
+                                className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                                style={{ backgroundColor: categories.find(c => c.value === cat)?.color || '#6366f1' }}
+                              >
+                                {getCategoryLabel(cat)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Infos principales */}
+                        <div className="flex items-center space-x-6 text-sm text-gray-600 mb-2">
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="w-4 h-4" />
+                            <span>{format(new Date(session.date), 'EEEE dd MMM', { locale: fr })}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Clock className="w-4 h-4" />
+                            <span>{session.start_time} - {session.end_time}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <MapPin className="w-4 h-4" />
+                            <span>{session.location}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Users className="w-4 h-4" />
+                            <span>Coach: {session.coach}</span>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        {session.description && (
+                          <p className="text-sm text-gray-700 line-clamp-2">{session.description}</p>
+                        )}
+
+                        {/* Statut de présence pour les membres */}
+                        {isMember && attendance && (
+                          <div className="mt-3">
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                              attendance.status === 'present' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-red-100 text-red-700'
+                            }`}>
+                              {attendance.status === 'present' ? '✅ Présent confirmé' : '❌ Absent confirmé'}
                             </span>
-                          ))}
-                        </div>
+                            <span className="ml-2 text-xs text-gray-500">
+                              le {format(new Date(attendance.response_date!), 'dd/MM/yyyy à HH:mm', { locale: fr })}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Ligne 2: Infos principales */}
-                      <div className="flex items-center space-x-6 text-sm text-gray-600 mb-2">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>{format(new Date(session.date), 'EEEE dd MMM', { locale: fr })}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{session.start_time} - {session.end_time}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <MapPin className="w-4 h-4" />
-                          <span>{session.location}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Users className="w-4 h-4" />
-                          <span>Coach: {session.coach}</span>
-                        </div>
+                      {/* Actions */}
+                      <div className="flex items-center space-x-2 ml-4">
+                        <button
+                          onClick={() => setViewingSession(session)}
+                          className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                          title="Voir détails"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        
+                        {canManageTrainings && (
+                          <>
+                            <button
+                              onClick={() => setEditingSession(session)}
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Modifier"
+                            >
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => duplicateSession(session)}
+                              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="Dupliquer"
+                            >
+                              <Copy className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => deleteSession(session.id)}
+                              disabled={deleting === session.id}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                              title="Supprimer"
+                            >
+                              {deleting === session.id ? (
+                                <div className="w-5 h-5 border-2 border-gray-300 border-t-red-600 rounded-full animate-spin" />
+                              ) : (
+                                <Trash2 className="w-5 h-5" />
+                              )}
+                            </button>
+                          </>
+                        )}
                       </div>
-
-                      {/* Description si présente */}
-                      {session.description && (
-                        <p className="text-sm text-gray-700 line-clamp-2">{session.description}</p>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center space-x-2 ml-4">
-                      <button
-                        onClick={() => setViewingSession(session)}
-                        className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                        title="Voir détails"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                      
-                      {canManageTrainings && (
-                        <>
-                          <button
-                            onClick={() => setEditingSession(session)}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Modifier"
-                          >
-                            <Edit className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => duplicateSession(session)}
-                            className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="Dupliquer"
-                          >
-                            <Copy className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => deleteSession(session.id)}
-                            disabled={deleting === session.id}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                            title="Supprimer"
-                          >
-                            {deleting === session.id ? (
-                              <div className="w-5 h-5 border-2 border-gray-300 border-t-red-600 rounded-full animate-spin" />
-                            ) : (
-                              <Trash2 className="w-5 h-5" />
-                            )}
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* ✅ MODAL CRÉATION */}
+      {/* Modal création */}
       {showAddForm && canManageTrainings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -680,7 +890,8 @@ export const TrainingCalendar: React.FC = () => {
                   />
                 </div>
               </div>
-              {/* SÉLECTION CATÉGORIES */}
+
+              {/* Sélection catégories */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Catégories concernées *
@@ -777,7 +988,7 @@ export const TrainingCalendar: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ MODAL MODIFICATION */}
+      {/* Modal modification */}
       {editingSession && canManageTrainings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -894,7 +1105,7 @@ export const TrainingCalendar: React.FC = () => {
                 </div>
               </div>
 
-              {/* SÉLECTION CATÉGORIES POUR MODIFICATION */}
+              {/* Sélection catégories pour modification */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Catégories concernées *
@@ -991,7 +1202,7 @@ export const TrainingCalendar: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ MODAL VISUALISATION */}
+      {/* Modal visualisation */}
       {viewingSession && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -1063,7 +1274,62 @@ export const TrainingCalendar: React.FC = () => {
                 </div>
               )}
 
-              {/* Actions */}
+              {/* Actions pour membres */}
+              {isMember && memberData && (
+                <div className="bg-blue-50 rounded-xl p-4">
+                  <h4 className="font-semibold text-blue-800 mb-3">✋ Votre présence</h4>
+                  {(() => {
+                    const attendance = getAttendanceForSession(viewingSession.id);
+                    const hasResponded = attendance !== undefined;
+                    
+                    if (hasResponded) {
+                      return (
+                        <div className="text-center">
+                          <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${
+                            attendance.status === 'present' 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {attendance.status === 'present' ? '✅ Présent confirmé' : '❌ Absent confirmé'}
+                          </span>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Réponse enregistrée le {format(new Date(attendance.response_date!), 'dd/MM/yyyy à HH:mm', { locale: fr })}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={() => respondToSession(viewingSession.id, 'present')}
+                          disabled={responding === viewingSession.id}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+                        >
+                          {responding === viewingSession.id ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <>
+                              <Users className="w-4 h-4" />
+                              <span>Je serai présent</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => respondToSession(viewingSession.id, 'absent')}
+                          disabled={responding === viewingSession.id}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+                        >
+                          <X className="w-4 h-4" />
+                          <span>Je serai absent</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Actions admin */}
               <div className="flex space-x-3 pt-6 border-t border-gray-200">
                 {canManageTrainings && (
                   <>
