@@ -1244,7 +1244,7 @@ export const TrainingCalendar: React.FC = () => {
               </div>
             </div>
           </div
-          </div>
+    
         )}
       </div>
     );
