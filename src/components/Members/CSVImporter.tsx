@@ -175,6 +175,8 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       const { data, error } = await supabase.rpc('import_members_with_accounts', {
         p_csv_data: csvData,
         p_send_emails: sendEmails
+        p_csv_data: csvData,
+        p_send_emails: sendEmails
       });
 
       if (error) throw error;
@@ -309,6 +311,29 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       {showPreview && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <h4 className="font-semibold text-green-800 mb-2">4. Lancer l'import</h4>
+          
+          {/* Option envoi d'emails */}
+          <div className="mb-4">
+            <label className="flex items-center space-x-3 p-3 bg-white border border-green-300 rounded-lg">
+              <input
+                type="checkbox"
+                checked={sendEmails}
+                onChange={(e) => setSendEmails(e.target.checked)}
+                className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+              />
+              <div>
+                <span className="font-medium text-green-800">
+                  📧 Créer des comptes et envoyer les identifiants par email
+                </span>
+                <p className="text-sm text-green-700">
+                  {sendEmails 
+                    ? "✅ Les membres recevront leurs identifiants de connexion par email"
+                    : "❌ Import silencieux - Aucun email envoyé (comptes créés quand même)"
+                  }
+                </p>
+              </div>
+            </label>
+          </div>
           
           {/* Option envoi d'emails */}
           <div className="mb-4">
