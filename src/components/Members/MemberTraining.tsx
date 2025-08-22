@@ -30,16 +30,10 @@ interface MemberData {
   category: string;
   status: string;
   member_categories?: Array<{
+    id: string;
     category_value: string;
     is_primary: boolean;
   }>;
-}
-
-interface Category {
-  id: string;
-  value: string;
-  label: string;
-  color: string;
 }
 
 export const MemberTraining: React.FC = () => {
@@ -47,83 +41,59 @@ export const MemberTraining: React.FC = () => {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [memberData, setMemberData] = useState<MemberData | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState<string | null>(null);
 
   useEffect(() => {
-    loadCategories();
     fetchMemberData();
   }, []);
 
   useEffect(() => {
-    if (memberData && categories.length > 0) {
+    if (memberData) {
       fetchTrainingSessions();
       fetchAttendanceRecords();
     }
-  }, [memberData, categories]);
+  }, [memberData]);
 
-  const loadCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order');
+const fetchMemberData = async () => {
+  try {
+    if (!user) return;
 
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (error) {
-      console.error('Erreur chargement catégories:', error);
-      setCategories([]);
+    // ✅ BONNE VERSION - sans relation vers categories
+    const { data, error } = await supabase
+      .from('members')
+      .select(`
+        id, 
+        category, 
+        status,
+        member_categories (
+          id,
+          category_value,
+          is_primary
+        )
+      `)
+      .eq('email', user.email)
+      .maybeSingle();
+
+    if (error) throw error;
+    
+    if (!data) {
+      console.log('Aucun profil membre trouvé pour cet utilisateur');
+      setMemberData(null);
+      return;
     }
-  };
-
-  const fetchMemberData = async () => {
-    try {
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('members')
-        .select(`
-          id, 
-          category, 
-          status,
-          member_categories (
-            category_value,
-            is_primary
-          )
-        `)
-        .eq('email', user.email)
-        .maybeSingle();
-
-      if (error) throw error;
-      
-      if (!data) {
-        console.log('Aucun profil membre trouvé pour cet utilisateur');
-        setMemberData(null);
-        return;
-      }
-      
-      setMemberData(data);
-    } catch (error) {
-      console.error('Erreur lors du chargement du membre:', error);
-    }
-  };
+    
+    setMemberData(data);
+  } catch (error) {
+    console.error('Erreur lors du chargement du membre:', error);
+  }
+};
 
   const fetchTrainingSessions = async () => {
     try {
       if (!memberData) return;
 
-      // Récupérer toutes les catégories du membre
-      const memberCategories = [
-        memberData.category, // Catégorie principale
-        ...(memberData.member_categories?.map(mc => mc.category_value) || []) // Catégories supplémentaires
-      ].filter(Boolean);
-
-      console.log('🏐 Catégories du membre:', memberCategories);
-
-      // Récupérer TOUTES les séances futures
+      // Récupérer TOUTES les séances futures et filtrer côté client
       const { data, error } = await supabase
         .from('training_sessions')
         .select('*')
@@ -133,12 +103,11 @@ export const MemberTraining: React.FC = () => {
 
       if (error) throw error;
       
-      // Filtrer les séances qui incluent au moins une des catégories du membre
+      // Filtrer les séances qui incluent la catégorie du membre
       const filteredSessions = (data || []).filter(session => 
-        session.category && session.category.some(cat => memberCategories.includes(cat))
+        session.category && session.category.includes(memberData.category)
       );
       
-      console.log('🏐 Séances filtrées pour le membre:', filteredSessions.length);
       setSessions(filteredSessions);
     } catch (error) {
       console.error('Erreur lors du chargement des entraînements:', error);
@@ -169,6 +138,7 @@ export const MemberTraining: React.FC = () => {
 
       setResponding(sessionId);
 
+      // Créer ou mettre à jour l'enregistrement de présence
       const { error } = await supabase
         .from('attendance_records')
         .upsert({
@@ -218,11 +188,6 @@ export const MemberTraining: React.FC = () => {
       default:
         return 'bg-yellow-100 text-yellow-700 border-yellow-300';
     }
-  };
-
-  const getCategoryLabel = (categoryValue: string) => {
-    const category = categories.find(cat => cat.value === categoryValue);
-    return category?.label || categoryValue;
   };
 
   if (loading) {
@@ -285,16 +250,16 @@ export const MemberTraining: React.FC = () => {
           🏐 Mes Entraînements
         </h1>
         <p className="text-gray-600">
-          Entraînements programmés pour vos catégories : 
-          <span className="font-semibold text-primary-600 ml-1">
-            {memberData?.member_categories?.length > 0 
-              ? memberData.member_categories
-                  .sort((a, b) => b.is_primary ? 1 : -1)
-                  .map(mc => getCategoryLabel(mc.category_value))
-                  .join(' - ')
-              : getCategoryLabel(memberData?.category || '')
-            }
-          </span>
+          Entraînements programmés pour votre catégorie : <span className="font-semibold text-primary-600">
+  {memberData?.member_categories?.length > 0 
+    ? memberData.member_categories
+        .sort((a, b) => b.is_primary ? 1 : -1) // Primary en premier
+        .map(mc => mc.category_value)
+        .join(' - ')
+    : memberData?.category || 'Aucune catégorie'
+  }
+</span>
+
         </p>
       </div>
 
@@ -306,7 +271,7 @@ export const MemberTraining: React.FC = () => {
             Aucun entraînement programmé
           </h3>
           <p className="text-gray-600">
-            Aucun entraînement n'est actuellement programmé pour vos catégories.
+            Aucun entraînement n'est actuellement programmé pour votre catégorie.
           </p>
         </div>
       ) : (
@@ -323,17 +288,6 @@ export const MemberTraining: React.FC = () => {
                     {session.description && (
                       <p className="text-sm text-gray-600 mt-1">{session.description}</p>
                     )}
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {session.category.map((cat) => (
-                        <span
-                          key={cat}
-                          className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                          style={{ backgroundColor: categories.find(c => c.value === cat)?.color || '#6366f1' }}
-                        >
-                          {getCategoryLabel(cat)}
-                        </span>
-                      ))}
-                    </div>
                   </div>
                   
                   {hasResponded && (
