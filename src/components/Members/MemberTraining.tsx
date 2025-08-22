@@ -669,35 +669,3 @@ export const MemberTraining: React.FC = () => {
     </div>
   );
 };
-
-const respondToSession = async (sessionId: string, response: 'present' | 'absent') => {
-  try {
-    if (!memberData) return;
-
-    setResponding(sessionId);
-
-    const { error } = await supabase
-      .from('attendance_records')
-      .upsert({
-        session_id: sessionId,
-        member_id: memberData.id,
-        status: response,
-        response_date: new Date().toISOString()
-      }, {
-        onConflict: 'session_id,member_id'
-      });
-
-      console.log('✅ [MemberTraining] Sessions filtrées pour le membre:', filteredSessions.length);
-    if (error) throw error;
-
-    await fetchAttendanceRecords();
-    
-    const responseText = response === 'present' ? 'présent' : 'absent';
-    alert(`✅ Réponse enregistrée : ${responseText}`);
-  } catch (error: any) {
-    console.error('Erreur lors de la réponse:', error);
-    alert(`❌ Erreur: ${error.message}`);
-  } finally {
-    setResponding(null);
-  }
-};
