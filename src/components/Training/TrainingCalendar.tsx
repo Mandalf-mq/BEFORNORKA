@@ -1238,16 +1238,16 @@ export const TrainingCalendar: React.FC = () => {
                     onClick={() => setViewingSession(null)}
                     className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-semibold"
                   >
-                    Fermer
+                     Fermer
                   </button>
                 </div>
               </div>
             </div>
-           </div>    // ✅ Balise fermée correctement
           </div>
         )}
       </div>
     );
-  };
+};
 
+export default TrainingCalendar;
  
