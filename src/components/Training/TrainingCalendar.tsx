@@ -1243,7 +1243,7 @@ export const TrainingCalendar: React.FC = () => {
                 </div>
               </div>
             </div>
-                     </div>    // ✅ Balise fermée correctement
+           </div>    // ✅ Balise fermée correctement
           </div>
         )}
       </div>
