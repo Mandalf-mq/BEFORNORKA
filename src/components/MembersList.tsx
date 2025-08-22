@@ -45,30 +45,15 @@ const calculateAge = (dateOfBirth: string): number => {
   return age;
 };
 
+// Vérifier l'éligibilité au Pass Sport
 const isPassSportEligible = (member: any): boolean => {
   if (!member.birth_date) return false;
   const age = calculateAge(member.birth_date);
   return age < 18;
 };
 
-const getStatusLabel = (status: string) => {
-  const labels = {
-    'pending': '⏳ En attente',
-    'overdue': '⚠️ En retard', 
-    'paid': '✅ Payé',
-    'pass_sport': '🇫🇷 Pass Sport',
-    'archived': '📁 Archivé',
-    'season_validated': '✅ Saison validée',
-    'documents_validated': '📄 Documents validés',
-    'documents_pending': '⏳ Documents en attente',
-    'validated': '✅ Validé',
-    'rejected': '❌ Rejeté'
-  };
-  return labels[status as keyof typeof labels] || status;
-};
-
-// Composant de statistiques FFVB
-const LicenseStats: React.FC<{ members: Member[] }> = ({ members }) => {
+// Composant pour les statistiques des licences FFVB
+const LicenseStats: React.FC<{ members: any[] }> = ({ members }) => {
   const withLicense = members.filter(m => m.ffvb_license?.trim()).length;
   const withoutLicense = members.length - withLicense;
   const licenseRate = members.length > 0 ? Math.round((withLicense / members.length) * 100) : 0;
@@ -111,15 +96,11 @@ const PaymentStatusSelector: React.FC<{ member: any; onUpdate: () => void }> = (
 
       const { error } = await supabase
         .from('members')
-        .update({ 
-          payment_status: newStatus,
-          updated_at: new Date().toISOString()
-        })
+        .update({ payment_status: newStatus })
         .eq('id', member.id);
 
       if (error) throw error;
       
-      alert(`✅ Statut mis à jour: ${getStatusLabel(newStatus)}`);
       onUpdate();
     } catch (error: any) {
       alert(`❌ Erreur: ${error.message}`);
@@ -128,247 +109,248 @@ const PaymentStatusSelector: React.FC<{ member: any; onUpdate: () => void }> = (
     }
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'paid': return 'bg-green-100 text-green-800';
+      case 'pass_sport': return 'bg-purple-100 text-purple-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'overdue': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'paid': return '✅';
+      case 'pass_sport': return '🎟️';
+      case 'pending': return '⏳';
+      case 'overdue': return '⚠️';
+      default: return '❓';
+    }
+  };
+
   return (
     <select
       value={member.payment_status}
       onChange={(e) => handlePaymentStatusChange(e.target.value)}
       disabled={updating}
-      className="px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-primary-500"
+      className={`px-3 py-1 rounded-full text-xs font-medium border-0 ${getStatusColor(member.payment_status)}`}
     >
       <option value="pending">⏳ En attente</option>
-      <option value="overdue">⚠️ En retard</option>
       <option value="paid">✅ Payé</option>
+      <option value="overdue">⚠️ En retard</option>
       {isPassSportEligible(member) && (
-        <option value="pass_sport">🇫🇷 Pass Sport</option>
+        <option value="pass_sport">🎟️ Pass Sport</option>
       )}
     </select>
   );
 };
 
-// Nouveau composant pour gérer les catégories multiples
+// Composant pour la sélection multiple des catégories
 const MultiCategorySelector: React.FC<{
   member: any;
   categories: any[];
   editing: boolean;
-  onUpdate: (categories: string[]) => void;
+  onUpdate: (categories: any[]) => void;
 }> = ({ member, categories, editing, onUpdate }) => {
-  const [memberCategories, setMemberCategories] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [memberCategories, setMemberCategories] = useState<any[]>([]);
 
-  // Charger les catégories du membre
   useEffect(() => {
-    const loadMemberCategories = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('member_categories')
-          .select('category_value, is_primary')
-          .eq('member_id', member.id);
-
-        if (error) throw error;
-
-        const cats = data?.map(d => d.category_value) || [];
-        
-        // Si pas de catégories multiples, utiliser la catégorie principale
-        if (cats.length === 0 && member.category) {
-          cats.push(member.category);
-        }
-
-        setMemberCategories(cats);
-        setLoading(false);
-      } catch (error) {
-        console.error('Erreur chargement catégories membre:', error);
-        setMemberCategories(member.category ? [member.category] : []);
-        setLoading(false);
+    if (member.member_categories?.length > 0) {
+      setMemberCategories(member.member_categories);
+    } else if (member.category) {
+      const category = categories.find(c => c.value === member.category || c.name === member.category);
+      if (category) {
+        setMemberCategories([{
+          category_id: category.id,
+          category_value: category.name,
+          is_primary: true,
+          categories: category
+        }]);
       }
-    };
-
-    loadMemberCategories();
-  }, [member.id, member.category]);
-
-  const handleCategoryChange = (categoryValue: string, checked: boolean) => {
-    let newCategories;
-    
-    if (checked) {
-      newCategories = [...memberCategories, categoryValue];
-    } else {
-      newCategories = memberCategories.filter(c => c !== categoryValue);
     }
+  }, [member, categories]);
+
+  const handleCategoryToggle = (category: any) => {
+    const isSelected = memberCategories.some(mc => mc.category_id === category.id);
     
-    setMemberCategories(newCategories);
-    onUpdate(newCategories);
+    if (isSelected) {
+      const updated = memberCategories.filter(mc => mc.category_id !== category.id);
+      if (updated.length > 0 && !updated.some(mc => mc.is_primary)) {
+        updated[0].is_primary = true;
+      }
+      setMemberCategories(updated);
+      onUpdate(updated);
+    } else {
+      const updated = [...memberCategories, {
+        category_id: category.id,
+        category_value: category.name,
+        is_primary: memberCategories.length === 0,
+        categories: category
+      }];
+      setMemberCategories(updated);
+      onUpdate(updated);
+    }
   };
 
-  if (loading) return <div>Chargement...</div>;
+  const setPrimaryCategory = (categoryId: string) => {
+    const updated = memberCategories.map(mc => ({
+      ...mc,
+      is_primary: mc.category_id === categoryId
+    }));
+    setMemberCategories(updated);
+    onUpdate(updated);
+  };
 
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        🏐 Catégories d'entraînement
-      </label>
-      
-      {editing ? (
-        <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
-          {categories.map(category => (
-            <label key={category.value} className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={memberCategories.includes(category.value)}
-                onChange={(e) => handleCategoryChange(category.value, e.target.checked)}
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              />
-              <span className="text-sm">
-                {category.label}
-                {category.age_range && (
-                  <span className="text-gray-500 ml-1">({category.age_range})</span>
-                )}
-              </span>
-            </label>
-          ))}
-        </div>
-      ) : (
+  if (!editing) {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">🏐 Catégories</label>
         <div className="px-3 py-2 bg-gray-50 rounded-lg">
           {memberCategories.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {memberCategories.map((catValue, index) => {
-                const category = categories.find(c => c.value === catValue);
-                return (
-                  <span 
-                    key={catValue}
-                    className={`px-2 py-1 text-xs rounded-full ${
-                      index === 0 
-                        ? 'bg-primary-100 text-primary-700 font-medium' 
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {category?.label || catValue}
-                    {index === 0 && ' (Principale)'}
+            <div className="space-y-2">
+              {memberCategories.map((mc, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                    ${mc.is_primary ? 'bg-primary-100 text-primary-800' : 'bg-gray-100 text-gray-800'}
+                  `}>
+                    {mc.categories?.label || mc.category_value}
                   </span>
-                );
-              })}
+                  {mc.is_primary && (
+                    <span className="text-xs text-primary-600 font-medium">Principal</span>
+                  )}
+                </div>
+              ))}
             </div>
           ) : (
             <span className="text-gray-500 italic">Aucune catégorie</span>
           )}
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">🏐 Catégories</label>
+      <div className="space-y-2">
+        {categories.map(category => {
+          const isSelected = memberCategories.some(mc => mc.category_id === category.id);
+          const isPrimary = memberCategories.find(mc => mc.category_id === category.id)?.is_primary;
+          
+          return (
+            <div key={category.id} className="flex items-center justify-between p-2 border rounded-lg">
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => handleCategoryToggle(category)}
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm text-gray-700">{category.label}</span>
+              </label>
+              
+              {isSelected && (
+                <button
+                  type="button"
+                  onClick={() => setPrimaryCategory(category.id)}
+                  className={`px-2 py-1 text-xs rounded-full transition-colors
+                    ${isPrimary 
+                      ? 'bg-primary-100 text-primary-800 font-medium'
+                      : 'bg-gray-100 text-gray-600 hover:bg-primary-50'
+                    }
+                  `}
+                >
+                  {isPrimary ? 'Principal' : 'Définir principal'}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
 
-// Modal de détails/édition - COMPLÈTE ET CORRIGÉE
+// Modal des détails du membre
 const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({ 
   member, 
   onClose, 
   onUpdate, 
-  isEditing: initialEditing = false,
-  categories
+  isEditing = false, 
+  categories 
 }) => {
-  const [editing, setEditing] = useState(initialEditing);
+  const [editing, setEditing] = useState(isEditing);
   const [saving, setSaving] = useState(false);
-  const [memberCategories, setMemberCategories] = useState<string[]>([]);
+  const [memberCategories, setMemberCategories] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     first_name: member.first_name || '',
     last_name: member.last_name || '',
     email: member.email || '',
     phone: member.phone || '',
+    address: member.address || '', // ✅ ADRESSE AJOUTÉE
     birth_date: member.birth_date || '',
     membership_fee: member.membership_fee || 0,
-    payment_status: member.payment_status || 'pending',
-    category: member.category || '',
     ffvb_license: member.ffvb_license || '',
     notes: member.notes || ''
   });
 
- // Fonction pour sauvegarder les catégories
-  const saveMemberCategories = async (categories: string[]) => {
-    try {
-      // 1. Supprimer les anciennes catégories
-      await supabase
-        .from('member_categories')
-        .delete()
-        .eq('member_id', member.id);
-
-      // 2. Ajouter les nouvelles catégories
-      if (categories.length > 0) {
-        const categoryData = categories.map((catValue, index) => ({
-          member_id: member.id,
-          category_value: catValue,
-          is_primary: index === 0 // La première est principale
-        }));
-
-        const { error } = await supabase
-          .from('member_categories')
-          .insert(categoryData);
-
-        if (error) throw error;
-
-        // 3. Mettre à jour la catégorie principale dans members
-        await supabase
-          .from('members')
-          .update({ 
-            category: categories[0],
-            category_id: categories.find(c => categories.find(cat => cat.value === c))?.id || null
-          })
-          .eq('id', member.id);
-      }
-    } catch (error) {
-      console.error('Erreur sauvegarde catégories:', error);
-      throw error;
+  useEffect(() => {
+    if (member.member_categories?.length > 0) {
+      setMemberCategories(member.member_categories);
     }
-  };
-  
-  // Fonction de sauvegarde
+  }, [member]);
+
   const handleSave = async () => {
     try {
       setSaving(true);
-
-      // Validation
-      if (!formData.first_name.trim() || !formData.last_name.trim()) {
-        alert('❌ Le nom et prénom sont obligatoires');
-        return;
-      }
-
-      if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-        alert('❌ L\'email n\'est pas valide');
-        return;
-      }
-
-    if (memberCategories && memberCategories.length > 0) {
-      await saveMemberCategories(memberCategories);
-    }
       
-      // Vérification Pass Sport
-      if (formData.payment_status === 'pass_sport' && !isPassSportEligible(member)) {
-        alert('⚠️ Le Pass Sport n\'est disponible que pour les mineurs');
-        return;
-      }
-
-      // Mise à jour
-      const { error } = await supabase
+      // Sauvegarder les informations principales du membre
+      const { error: memberError } = await supabase
         .from('members')
         .update({
-          first_name: formData.first_name.trim(),
-          last_name: formData.last_name.trim(),
-          email: formData.email.trim(),
-          phone: formData.phone.trim(),
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          email: formData.email,
+          phone: formData.phone,
+          address: formData.address, // ✅ ADRESSE INCLUSE
           birth_date: formData.birth_date,
           membership_fee: formData.membership_fee,
-          payment_status: formData.payment_status,
-          category: formData.category,
-          ffvb_license: formData.ffvb_license.trim(),
-          notes: formData.notes.trim(),
+          ffvb_license: formData.ffvb_license,
+          notes: formData.notes,
           updated_at: new Date().toISOString()
         })
         .eq('id', member.id);
 
-      if (error) throw error;
+      if (memberError) throw memberError;
 
-      alert('✅ Membre modifié avec succès !');
+      // Sauvegarder les catégories
+      if (memberCategories.length > 0) {
+        await supabase
+          .from('member_categories')
+          .delete()
+          .eq('member_id', member.id);
+
+        const categoriesToInsert = memberCategories.map(mc => ({
+          member_id: member.id,
+          category_id: mc.category_id,
+          category_value: mc.category_value,
+          is_primary: mc.is_primary || false
+        }));
+
+        const { error: categoriesError } = await supabase
+          .from('member_categories')
+          .insert(categoriesToInsert);
+
+        if (categoriesError) throw categoriesError;
+      }
+
+      alert('✅ Membre mis à jour avec succès');
       setEditing(false);
       onUpdate();
       
     } catch (error: any) {
-      console.error('Erreur:', error);
+      console.error('Erreur lors de la sauvegarde:', error);
       alert(`❌ Erreur: ${error.message}`);
     } finally {
       setSaving(false);
@@ -454,13 +436,29 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
               {editing ? (
                 <input
-                                  type="tel"
+                  type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               ) : (
                 <p className="px-3 py-2 bg-gray-50 rounded-lg">{formData.phone || 'Non renseigné'}</p>
+              )}
+            </div>
+
+            {/* ✅ ADRESSE AJOUTÉE */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">📍 Adresse</label>
+              {editing ? (
+                <input
+                  type="text"
+                  value={formData.address || ''}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Adresse complète"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              ) : (
+                <p className="px-3 py-2 bg-gray-50 rounded-lg">{formData.address || 'Non renseignée'}</p>
               )}
             </div>
 
@@ -475,18 +473,16 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               ) : (
-                <div className="px-3 py-2 bg-gray-50 rounded-lg">
+                <p className="px-3 py-2 bg-gray-50 rounded-lg">
                   {formData.birth_date ? (
                     <>
                       {new Date(formData.birth_date).toLocaleDateString('fr-FR')}
-                      <span className="ml-2 text-sm text-gray-500">
-                        ({calculateAge(formData.birth_date)} ans)
-                      </span>
+                      <span className="ml-2 text-sm text-gray-500">({calculateAge(formData.birth_date)} ans)</span>
                     </>
                   ) : (
-                    'Non renseigné'
+                    'Non renseignée'
                   )}
-                </div>
+                </p>
               )}
             </div>
 
@@ -522,14 +518,14 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             {/* Catégorie */}
-       <div>
-  <MultiCategorySelector
-    member={member}
-    categories={categories}
-    editing={editing}
-    onUpdate={setMemberCategories}
-  />
-</div>
+            <div>
+              <MultiCategorySelector
+                member={member}
+                categories={categories}
+                editing={editing}
+                onUpdate={setMemberCategories}
+              />
+            </div>
 
             {/* Cotisation */}
             <div>
@@ -547,33 +543,30 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
             </div>
 
             {/* Statut de paiement */}
-            <div className="md:col-span-2">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Statut de paiement</label>
-              {editing ? (
-                <select
-                  value={formData.payment_status}
-                  onChange={(e) => {
-                    if (e.target.value === 'pass_sport' && !isPassSportEligible(member)) {
-                      alert('⚠️ Le Pass Sport n\'est disponible que pour les mineurs');
-                      return;
-                    }
-                    setFormData({ ...formData, payment_status: e.target.value });
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="pending">⏳ En attente</option>
-                  <option value="overdue">⚠️ En retard</option>
-                  <option value="paid">✅ Payé</option>
-                  {isPassSportEligible(member) && (
-                    <option value="pass_sport">🇫🇷 Pass Sport</option>
-                  )}
-                </select>
-              ) : (
-                <p className="px-3 py-2 bg-gray-50 rounded-lg">
-                  {getStatusLabel(formData.payment_status)}
-                </p>
-              )}
+              <div className="px-3 py-2 bg-gray-50 rounded-lg">
+                <PaymentStatusSelector member={member} onUpdate={onUpdate} />
+              </div>
             </div>
+
+            {/* Âge et Pass Sport */}
+            {member.birth_date && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Éligibilité Pass Sport</label>
+                <div className="px-3 py-2 bg-gray-50 rounded-lg">
+                  {isPassSportEligible(member) ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      ✅ Éligible (moins de 18 ans)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      ❌ Non éligible (18 ans ou plus)
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Notes */}
@@ -594,12 +587,25 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
             )}
           </div>
 
-          {/* Boutons d'action */}
-          <div className="flex justify-between border-t pt-6">
+          {/* Actions */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
             {editing ? (
-              <div className="flex space-x-3 w-full justify-end">
+              <>
                 <button
-                  onClick={() => setEditing(false)}
+                  onClick={() => {
+                    setEditing(false);
+                    setFormData({
+                      first_name: member.first_name || '',
+                      last_name: member.last_name || '',
+                      email: member.email || '',
+                      phone: member.phone || '',
+                      address: member.address || '', // ✅ RESET ADRESSE
+                      birth_date: member.birth_date || '',
+                      membership_fee: member.membership_fee || 0,
+                      ffvb_license: member.ffvb_license || '',
+                      notes: member.notes || ''
+                    });
+                  }}
                   className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                   disabled={saving}
                 >
@@ -612,7 +618,7 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
                 >
                   {saving ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       <span>Sauvegarde...</span>
                     </>
                   ) : (
@@ -622,9 +628,9 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
                     </>
                   )}
                 </button>
-              </div>
+              </>
             ) : (
-              <div className="flex space-x-3 w-full justify-end">
+              <div className="flex space-x-3">
                 <button
                   onClick={onClose}
                   className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
@@ -662,35 +668,35 @@ const MembersManagement: React.FC = () => {
   const [editingMember, setEditingMember] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
 
-// Charger les catégories
+  // Charger les catégories
 
   // ✅ VERSION CORRIGÉE
 
-useEffect(() => {
-  const fetchCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true });
-      
-      if (error) throw error;
-      
-      console.log('📋 Catégories chargées depuis la DB:', data);
-      setCategories(data || []);
-      
-      if (!data || data.length === 0) {
-        console.warn('⚠️ Aucune catégorie active trouvée');
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('is_active', true)
+          .order('display_order', { ascending: true });
+        
+        if (error) throw error;
+        
+        console.log('📋 Catégories chargées depuis la DB:', data);
+        setCategories(data || []);
+        
+        if (!data || data.length === 0) {
+          console.warn('⚠️ Aucune catégorie active trouvée');
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement des catégories:', error);
+        setCategories([]);
       }
-    } catch (error) {
-      console.error('❌ Erreur lors du chargement des catégories:', error);
-      setCategories([]);
-    }
-  };
+    };
 
-  fetchCategories();
-}, []);
+    fetchCategories();
+  }, []);
 
   // Filtrage des membres
   const filteredMembers = members.filter(member => {
@@ -701,11 +707,11 @@ useEffect(() => {
       member.ffvb_license?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || member.payment_status === statusFilter;
-  const matchesCategory = categoryFilter === 'all' || 
-  member.member_categories?.some(mc => mc.category_value === categoryFilter) ||
-  (!member.member_categories?.length && member.category === categoryFilter);
+    const matchesCategory = categoryFilter === 'all' || 
+      member.member_categories?.some(mc => mc.category_value === categoryFilter) ||
+      (!member.member_categories?.length && member.category === categoryFilter);
 
-  
+    
     const matchesLicense = licenseFilter === 'all' || 
       (licenseFilter === 'with_license' && member.ffvb_license?.trim()) ||
       (licenseFilter === 'without_license' && !member.ffvb_license?.trim());
@@ -719,7 +725,7 @@ useEffect(() => {
     setShowDetailsModal(true);
   };
 
-  const handleEditMember = (member: any) => {
+    const handleEditMember = (member: any) => {
     setEditingMember(member);
     setShowEditModal(true);
   };
@@ -808,92 +814,82 @@ useEffect(() => {
           <LicenseStats members={filteredMembers} />
         </div>
 
-        {/* Filtres et recherche */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        {/* Filtres */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Recherche */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Rechercher (nom, email, licence FFVB...)"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+          <div className="lg:col-span-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Rechercher par nom, email, licence..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
           </div>
 
           {/* Filtre statut */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="all">Tous les statuts</option>
-            <option value="pending">En attente</option>
-            <option value="overdue">En retard</option>
-            <option value="paid">Payé</option>
-            <option value="pass_sport">Pass Sport</option>
-          </select>
+          <div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="all">Tous les statuts</option>
+              <option value="paid">✅ Payé</option>
+              <option value="pending">⏳ En attente</option>
+              <option value="overdue">⚠️ En retard</option>
+              <option value="pass_sport">🎟️ Pass Sport</option>
+            </select>
+          </div>
 
           {/* Filtre catégorie */}
-          <select
-  value={categoryFilter}
-  onChange={(e) => setCategoryFilter(e.target.value)}
-  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
->
-  <option value="all">Toutes les catégories</option>
-  {categories.map(category => (
-    <option key={category.id} value={category.name}>
-      {category.name}
-    </option>
-  ))}
-</select>
+          <div>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="all">Toutes les catégories</option>
+              {categories.map(category => (
+                <option key={category.id || category.value} value={category.value || category.name}>
+                  {category.label || category.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {/* Filtre licence FFVB */}
-          <select
-            value={licenseFilter}
-            onChange={(e) => setLicenseFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="all">Toutes les licences</option>
-            <option value="with_license">🏐 Avec licence FFVB</option>
-            <option value="without_license">⚠️ Sans licence FFVB</option>
-          </select>
-
-          {/* Stats */}
-          <div className="flex items-center justify-center bg-primary-50 rounded-lg px-4 py-2">
-            <span className="text-primary-600 font-semibold">
-              {filteredMembers.length} membre{filteredMembers.length > 1 ? 's' : ''}
-            </span>
+          {/* Filtre licence */}
+          <div>
+            <select
+              value={licenseFilter}
+              onChange={(e) => setLicenseFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="all">Toutes les licences</option>
+              <option value="with_license">🏐 Avec licence</option>
+              <option value="without_license">⚠️ Sans licence</option>
+            </select>
           </div>
         </div>
       </div>
 
       {/* Liste des membres */}
-      {filteredMembers.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 text-center shadow-lg">
-          <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-600 mb-2">Aucun membre trouvé</h3>
-          <p className="text-gray-500 mb-6">
-            {searchTerm || statusFilter !== 'all' || categoryFilter !== 'all' || licenseFilter !== 'all'
-              ? 'Aucun membre ne correspond aux filtres sélectionnés'
-              : 'Commencez par ajouter votre premier membre'}
-          </p>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 mx-auto transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Ajouter un membre</span>
-          </button>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="bg-white rounded-xl shadow-lg">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Membres ({filteredMembers.length})
+            </h3>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left p-4 font-semibold text-gray-700">Membre</th>
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left p-4 font-semibold text-gray-700">Nom</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Contact</th>
                   <th className="text-left p-4 font-semibold text-gray-700">🏐 Licence FFVB</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Catégorie</th>
@@ -936,20 +932,20 @@ useEffect(() => {
                     </td>
                     
                     <td className="p-4">
-  <span className="text-sm text-gray-900">
-    <div className="space-y-1">
-      <div className="font-medium">
-        {/* 🔄 GESTION DOUBLE : member_categories OU category */}
-        {member.member_categories && member.member_categories.length > 0 
-          ? member.member_categories.find(mc => mc.is_primary)?.categories?.label || 
-            member.member_categories[0]?.categories?.label ||
-            'Catégorie inconnue'
-          : categories.find(c => c.value === member.category)?.label || member.category || 'N/A'
-        }
-        <span className="ml-1 text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
-          Principal
-        </span>
-      </div>
+                      <span className="text-sm text-gray-900">
+                        <div className="space-y-1">
+                          <div className="font-medium">
+                            {/* 🔄 GESTION DOUBLE : member_categories OU category */}
+                            {member.member_categories && member.member_categories.length > 0 
+                              ? member.member_categories.find(mc => mc.is_primary)?.categories?.label || 
+                                member.member_categories[0]?.categories?.label ||
+                                'Catégorie inconnue'
+                              : categories.find(c => c.value === member.category)?.label || member.category || 'N/A'
+                            }
+                            <span className="ml-1 text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+                              Principal
+                            </span>
+                          </div>
 
                           {/* Afficher les catégories supplémentaires si disponibles */}
                           {member.additional_categories && member.additional_categories.length > 0 && (
@@ -1024,7 +1020,7 @@ useEffect(() => {
             </table>
           </div>
         </div>
-      )}
+      }
 
       {/* Modals */}
       {showAddForm && (
@@ -1084,4 +1080,3 @@ useEffect(() => {
 };
 
 export default MembersManagement;
-
