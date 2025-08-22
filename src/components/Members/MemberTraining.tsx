@@ -385,18 +385,6 @@ export const MemberTraining: React.FC = () => {
             }
           </span>
         </p>
-        
-        {/* Debug info pour diagnostiquer */}
-        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <h4 className="font-semibold text-blue-800 mb-2">🔍 Informations de debug</h4>
-          <div className="text-sm text-blue-700 space-y-1">
-            <p>• <strong>Statut membre :</strong> {memberData?.status}</p>
-            <p>• <strong>Catégories multiples :</strong> {memberData?.member_categories?.map(mc => mc.category_value).join(', ') || 'Aucune'}</p>
-            <p>• <strong>Catégorie principale :</strong> {memberData?.member_categories?.find(mc => mc.is_primary)?.category_value || 'Aucune'}</p>
-            <p>• <strong>Sessions trouvées :</strong> {sessions.length}</p>
-            <p>• <strong>Catégories chargées :</strong> {categories.length}</p>
-          </div>
-        </div>
       </div>
 
       {/* Liste des entraînements */}
