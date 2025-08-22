@@ -628,7 +628,7 @@ Les entraîneurs voient maintenant cette réponse sur le site !`);
                 <div className="text-sm text-blue-700 space-y-2">
                   <p>• <strong>Chaque matin à 8h :</strong> Le système génère automatiquement le sondage pour l'entraînement du jour</p>
                   <p>• <strong>Message formaté :</strong> Prêt à copier-coller dans votre groupe WhatsApp</p>
-                  <p>• <strong>Réponses intelligentes :</strong> Les membres répondent "OUI"/"NON"/"PEUT-ÊTRE" directement</p>
+                  <p>• <strong>Réponses intelligentes :</strong> Les membres répondent "OUI"/"NON"/"PEUT-ÊTRE\" directement</p>
                   <p>• <strong>Synchronisation :</strong> Utilisez l'outil de simulation pour mettre à jour le site</p>
                   <p>• <strong>Suivi temps réel :</strong> Les entraîneurs voient les présences instantanément</p>
                 </div>
