@@ -73,6 +73,11 @@ export const MemberTraining: React.FC = () => {
     if (memberData && categories.length > 0) {
       fetchTrainingSessions();
       fetchAttendanceRecords();
+    } else if (memberData) {
+      // Même si les catégories ne sont pas encore chargées, essayer de charger les sessions
+      console.log('⚠️ [MemberTraining] Chargement sessions sans catégories complètes');
+      fetchTrainingSessions();
+      fetchAttendanceRecords();
     }
   }, [memberData, categories]);
 
@@ -80,6 +85,8 @@ export const MemberTraining: React.FC = () => {
   useEffect(() => {
     if (!memberData) return;
 
+    console.log('🔄 [MemberTraining] Mise en place de la subscription temps réel');
+    
     const channel = supabase
       .channel('training_sessions_changes')
       .on(
@@ -92,12 +99,13 @@ export const MemberTraining: React.FC = () => {
         (payload) => {
           console.log('🔄 [MemberTraining] Changement détecté sur training_sessions:', payload);
           // Recharger les sessions quand il y a un changement
-          loadSessions();
+          fetchTrainingSessions();
         }
       )
       .subscribe();
 
     return () => {
+      console.log('🔌 [MemberTraining] Nettoyage subscription');
       supabase.removeChannel(channel);
     };
   }, [memberData]);
@@ -155,8 +163,6 @@ export const MemberTraining: React.FC = () => {
     try {
       if (!memberData) return;
 
-      if (!memberData || categories.length === 0) return;
-
       console.log('🔍 [MemberTraining] Chargement des sessions pour membre:', memberData.id);
       
       // Récupérer les catégories du membre (principale + supplémentaires)
@@ -167,7 +173,7 @@ export const MemberTraining: React.FC = () => {
 
       if (memberCatError) {
         console.error('Erreur chargement catégories membre:', memberCatError);
-        return;
+        // Continuer avec la catégorie principale seulement
       }
 
       // Construire la liste des catégories du membre
@@ -179,6 +185,12 @@ export const MemberTraining: React.FC = () => {
       }
 
       console.log('🏷️ [MemberTraining] Catégories du membre:', memberCategories);
+      
+      // Si aucune catégorie trouvée, utiliser au moins la catégorie principale
+      if (memberCategories.length === 0 && memberData.category) {
+        memberCategories.push(memberData.category);
+        console.log('⚠️ [MemberTraining] Utilisation catégorie principale de secours:', memberData.category);
+      }
 
       // Récupérer toutes les séances futures
       const { data, error } = await supabase
@@ -191,6 +203,11 @@ export const MemberTraining: React.FC = () => {
       if (error) throw error;
       
       console.log('📅 [MemberTraining] Sessions trouvées:', data?.length || 0);
+      console.log('📅 [MemberTraining] Sessions détails:', data?.map(s => ({ 
+        title: s.title, 
+        categories: s.category,
+        date: s.date 
+      })));
       
       // Filtrer les séances selon les catégories du membre avec logging détaillé
       const filteredSessions = (data || []).filter(session => {
@@ -200,11 +217,16 @@ export const MemberTraining: React.FC = () => {
         console.log(`🔍 [MemberTraining] Session "${session.title}":`, {
           sessionCategories,
           memberCategories,
-          hasMatchingCategory
+          hasMatchingCategory,
+          sessionDate: session.date,
+          sessionTime: `${session.start_time}-${session.end_time}`
         });
         
         return hasMatchingCategory;
       });
+      
+      console.log('✅ [MemberTraining] Sessions filtrées pour le membre:', filteredSessions.length);
+      console.log('✅ [MemberTraining] Sessions filtrées détails:', filteredSessions.map(s => s.title));
       
       setSessions(filteredSessions);
     } catch (error) {
@@ -362,6 +384,18 @@ export const MemberTraining: React.FC = () => {
             }
           </span>
         </p>
+        
+        {/* Debug info pour diagnostiquer */}
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 className="font-semibold text-blue-800 mb-2">🔍 Informations de debug</h4>
+          <div className="text-sm text-blue-700 space-y-1">
+            <p>• <strong>Statut membre :</strong> {memberData?.status}</p>
+            <p>• <strong>Catégorie principale :</strong> {memberData?.category}</p>
+            <p>• <strong>Catégories multiples :</strong> {memberData?.member_categories?.map(mc => mc.category_value).join(', ') || 'Aucune'}</p>
+            <p>• <strong>Sessions trouvées :</strong> {sessions.length}</p>
+            <p>• <strong>Catégories chargées :</strong> {categories.length}</p>
+          </div>
+        </div>
       </div>
 
       {/* Liste des entraînements */}
