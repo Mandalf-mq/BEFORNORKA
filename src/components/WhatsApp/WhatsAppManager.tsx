@@ -1,23 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  MessageSquare, Users, Send, Plus, Edit, Trash2, Eye, X, Copy, Calendar, Clock, MapPin, User,
-  Phone, CheckCircle, XCircle, AlertTriangle, Shield, BarChart3, Smartphone, Zap, Target,
-  TrendingUp, Activity, Settings, Download, Upload, RefreshCw, Bell, Heart
-} from 'lucide-react';
+import { MessageSquare, Users, Send, Copy, Phone, CheckCircle, XCircle, AlertCircle, Eye, Settings, TrendingUp, BarChart3, Clock, Zap, Target, Award, RefreshCw, Download, Upload, Link as LinkIcon, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-
-interface TrainingSession {
-  id: string;
-  title: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  location: string;
-  category: string[];
-  coach: string;
-  description?: string;
-}
 
 interface WhatsAppContact {
   id: string;
@@ -36,7 +20,20 @@ interface WhatsAppContact {
   engagement_score: number;
 }
 
-interface MessageTemplate {
+interface TrainingSession {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  location: string;
+  category: string[];
+  coach: string;
+  max_participants: number;
+}
+
+interface WhatsAppTemplate {
   id: string;
   name: string;
   description: string;
@@ -60,46 +57,32 @@ interface WhatsAppStats {
 
 export const WhatsAppManager: React.FC = () => {
   const { userProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'send' | 'contacts' | 'templates' | 'stats'>('send');
+  const [activeTab, setActiveTab] = useState<'compose' | 'contacts' | 'templates' | 'stats'>('compose');
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
+  const [selectedSession, setSelectedSession] = useState<string>('');
   const [contacts, setContacts] = useState<WhatsAppContact[]>([]);
-  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-  const [stats, setStats] = useState<WhatsAppStats | null>(null);
-  const [selectedSession, setSelectedSession] = useState<TrainingSession | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [customMessage, setCustomMessage] = useState('');
-  const [messagePreview, setMessagePreview] = useState('');
+  const [finalMessage, setFinalMessage] = useState('');
+  const [stats, setStats] = useState<WhatsAppStats | null>(null);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [showTemplateForm, setShowTemplateForm] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null);
-  const [newTemplate, setNewTemplate] = useState({
-    name: '',
-    description: '',
-    message_template: '',
-    template_type: 'training',
-    suggested_emojis: [] as string[]
-  });
-  const [syncingContacts, setSyncingContacts] = useState(false);
+  const [showLinksPage, setShowLinksPage] = useState(false);
+  const [generatedLinks, setGeneratedLinks] = useState<string[]>([]);
 
   useEffect(() => {
     initializeData();
   }, []);
-
-  useEffect(() => {
-    updateMessagePreview();
-  }, [selectedSession, selectedTemplate, customMessage]);
-
-  useEffect(() => {
-    fetchContacts();
-  }, [selectedCategories]);
 
   const initializeData = async () => {
     try {
       setLoading(true);
       await Promise.all([
         fetchSessions(),
+        fetchCategories(),
         fetchTemplates(),
         fetchStats(),
         syncContacts()
@@ -123,21 +106,22 @@ export const WhatsAppManager: React.FC = () => {
       if (error) throw error;
       setSessions(data || []);
     } catch (error) {
-      console.error('Erreur lors du chargement des séances:', error);
+      console.error('Erreur chargement sessions:', error);
     }
   };
 
-  const fetchContacts = async () => {
+  const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_whatsapp_contacts_validated', {
-        p_categories: selectedCategories.length > 0 ? selectedCategories : null
-      });
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order');
 
       if (error) throw error;
-      setContacts(data || []);
+      setCategories(data || []);
     } catch (error) {
-      console.error('Erreur lors du chargement des contacts:', error);
-      setContacts([]);
+      console.error('Erreur chargement catégories:', error);
     }
   };
 
@@ -152,7 +136,7 @@ export const WhatsAppManager: React.FC = () => {
       if (error) throw error;
       setTemplates(data || []);
     } catch (error) {
-      console.error('Erreur lors du chargement des templates:', error);
+      console.error('Erreur chargement templates:', error);
     }
   };
 
@@ -162,469 +146,109 @@ export const WhatsAppManager: React.FC = () => {
       if (error) throw error;
       setStats(data);
     } catch (error) {
-      console.error('Erreur lors du chargement des stats:', error);
+      console.error('Erreur chargement stats:', error);
     }
   };
 
   const syncContacts = async () => {
     try {
-      setSyncingContacts(true);
       const { data, error } = await supabase.rpc('sync_whatsapp_contacts');
       if (error) throw error;
-      
-      console.log('✅ Contacts synchronisés:', data);
       await fetchContacts();
     } catch (error) {
-      console.error('Erreur synchronisation contacts:', error);
-    } finally {
-      setSyncingContacts(false);
+      console.error('Erreur sync contacts:', error);
     }
   };
 
-  const updateMessagePreview = () => {
-    if (!selectedSession) {
-      setMessagePreview('');
-      return;
-    }
-
-    let message = '';
-    
-    if (selectedTemplate) {
-      const template = templates.find(t => t.id === selectedTemplate);
-      if (template) {
-        message = template.message_template;
-      }
-    } else if (customMessage) {
-      message = customMessage;
-    }
-
-    if (message) {
-      // Remplacer les variables
-      message = message.replace(/{titre}/g, selectedSession.title);
-      message = message.replace(/{date}/g, new Date(selectedSession.date).toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      }));
-      message = message.replace(/{heure}/g, `${selectedSession.start_time} - ${selectedSession.end_time}`);
-      message = message.replace(/{lieu}/g, selectedSession.location);
-      message = message.replace(/{coach}/g, selectedSession.coach);
-      message = message.replace(/{description}/g, selectedSession.description || '');
-    }
-
-    setMessagePreview(message);
-  };
-
-  const generateWhatsAppLinks = async () => {
-    if (!selectedSession || (!selectedTemplate && !customMessage)) {
-      alert('Veuillez sélectionner une séance et un message');
-      return;
-    }
-
-    const finalMessage = customMessage || messagePreview;
-    if (!finalMessage) {
-      alert('Impossible de générer le message');
-      return;
-    }
-
-    const filteredContacts = contacts.filter(contact => 
-      selectedCategories.length === 0 || 
-      selectedCategories.includes(contact.category) ||
-      contact.additional_categories.some(cat => selectedCategories.includes(cat))
-    );
-
-    if (filteredContacts.length === 0) {
-      alert('Aucun contact valide sélectionné');
-      return;
-    }
-
+  const fetchContacts = async () => {
     try {
-      setSending(true);
-
-      // Enregistrer l'envoi dans l'historique
-      const memberIds = filteredContacts.map(c => c.member_id);
-      const { data: logResult, error: logError } = await supabase.rpc('log_whatsapp_message', {
-        p_session_id: selectedSession.id,
-        p_member_ids: memberIds,
-        p_message_content: finalMessage,
-        p_template_id: selectedTemplate || null,
-        p_message_type: templates.find(t => t.id === selectedTemplate)?.template_type || 'custom'
+      const { data, error } = await supabase.rpc('get_whatsapp_contacts_validated', {
+        p_categories: selectedCategories.length > 0 ? selectedCategories : null
       });
-
-      if (logError) throw logError;
-
-      // Mettre à jour le compteur d'usage du template
-      if (selectedTemplate) {
-        await supabase
-          .from('whatsapp_templates_enhanced')
-          .update({ 
-            usage_count: templates.find(t => t.id === selectedTemplate)?.usage_count + 1 
-          })
-          .eq('id', selectedTemplate);
-      }
-
-      // Générer les liens WhatsApp
-      const whatsappLinks = filteredContacts
-        .filter(contact => contact.phone_valid)
-        .map(contact => {
-          const encodedMessage = encodeURIComponent(finalMessage);
-          return {
-            member: `${contact.first_name} ${contact.last_name}`,
-            phone: contact.phone_original,
-            formatted_phone: contact.phone_formatted,
-            link: `https://wa.me/${contact.phone_formatted}?text=${encodedMessage}`,
-            engagement_score: contact.engagement_score,
-            last_sent: contact.last_message_sent
-          };
-        });
-
-      // Créer la page de liens avec design amélioré
-      const linksWindow = window.open('', '_blank');
-      if (linksWindow) {
-        linksWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>🏐 BE FOR NOR KA - Liens WhatsApp</title>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  min-height: 100vh;
-                  padding: 20px;
-                }
-                .container { 
-                  max-width: 800px; 
-                  margin: 0 auto; 
-                  background: white; 
-                  border-radius: 20px; 
-                  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-                  overflow: hidden;
-                }
-                .header { 
-                  background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); 
-                  color: white; 
-                  padding: 30px; 
-                  text-align: center;
-                }
-                .header h1 { font-size: 28px; margin-bottom: 10px; }
-                .header p { opacity: 0.9; font-size: 16px; }
-                .session-info { 
-                  background: #f8f9fa; 
-                  padding: 25px; 
-                  border-bottom: 1px solid #e9ecef;
-                }
-                .session-grid { 
-                  display: grid; 
-                  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-                  gap: 15px; 
-                  margin-bottom: 20px;
-                }
-                .session-item { 
-                  display: flex; 
-                  align-items: center; 
-                  gap: 10px; 
-                  padding: 10px; 
-                  background: white; 
-                  border-radius: 10px;
-                  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                .message-preview { 
-                  background: #e3f2fd; 
-                  padding: 20px; 
-                  border-radius: 15px; 
-                  border-left: 4px solid #2196f3;
-                  white-space: pre-wrap;
-                  font-family: monospace;
-                  line-height: 1.5;
-                }
-                .contacts-section { padding: 25px; }
-                .contacts-header { 
-                  display: flex; 
-                  justify-content: space-between; 
-                  align-items: center; 
-                  margin-bottom: 20px;
-                }
-                .stats { 
-                  display: grid; 
-                  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); 
-                  gap: 15px; 
-                  margin-bottom: 25px;
-                }
-                .stat-card { 
-                  text-align: center; 
-                  padding: 15px; 
-                  background: #f8f9fa; 
-                  border-radius: 10px;
-                  border: 2px solid #e9ecef;
-                }
-                .stat-number { font-size: 24px; font-weight: bold; color: #25D366; }
-                .stat-label { font-size: 12px; color: #666; margin-top: 5px; }
-                .contact-card { 
-                  display: flex; 
-                  justify-content: space-between; 
-                  align-items: center; 
-                  padding: 15px; 
-                  margin: 10px 0; 
-                  background: #f8f9fa; 
-                  border-radius: 12px; 
-                  border: 1px solid #e9ecef;
-                  transition: all 0.3s ease;
-                }
-                .contact-card:hover { 
-                  transform: translateY(-2px); 
-                  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                }
-                .contact-info { display: flex; align-items: center; gap: 15px; }
-                .contact-avatar { 
-                  width: 50px; 
-                  height: 50px; 
-                  background: linear-gradient(135deg, #25D366, #128C7E); 
-                  border-radius: 50%; 
-                  display: flex; 
-                  align-items: center; 
-                  justify-content: center; 
-                  color: white; 
-                  font-weight: bold;
-                  font-size: 18px;
-                }
-                .contact-details h4 { margin-bottom: 5px; color: #333; }
-                .contact-details p { font-size: 14px; color: #666; margin: 2px 0; }
-                .whatsapp-btn { 
-                  background: linear-gradient(135deg, #25D366, #128C7E); 
-                  color: white; 
-                  border: none; 
-                  padding: 12px 20px; 
-                  border-radius: 25px; 
-                  font-weight: bold; 
-                  cursor: pointer; 
-                  transition: all 0.3s ease;
-                  text-decoration: none;
-                  display: inline-flex;
-                  align-items: center;
-                  gap: 8px;
-                }
-                .whatsapp-btn:hover { 
-                  transform: scale(1.05); 
-                  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
-                }
-                .engagement-badge {
-                  padding: 4px 8px;
-                  border-radius: 12px;
-                  font-size: 11px;
-                  font-weight: bold;
-                }
-                .engagement-high { background: #d4edda; color: #155724; }
-                .engagement-medium { background: #fff3cd; color: #856404; }
-                .engagement-low { background: #f8d7da; color: #721c24; }
-                .footer { 
-                  background: #f8f9fa; 
-                  padding: 20px; 
-                  text-align: center; 
-                  color: #666; 
-                  font-size: 14px;
-                  border-top: 1px solid #e9ecef;
-                }
-                .copy-all-btn {
-                  background: #007bff;
-                  color: white;
-                  border: none;
-                  padding: 10px 20px;
-                  border-radius: 8px;
-                  cursor: pointer;
-                  margin-bottom: 20px;
-                }
-                @media (max-width: 768px) {
-                  .session-grid { grid-template-columns: 1fr; }
-                  .contact-card { flex-direction: column; gap: 15px; text-align: center; }
-                  .stats { grid-template-columns: repeat(2, 1fr); }
-                }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <div class="header">
-                  <h1>🏐 BE FOR NOR KA</h1>
-                  <p>Appel d'entraînement WhatsApp</p>
-                </div>
-                
-                <div class="session-info">
-                  <h2 style="margin-bottom: 20px; color: #333;">📅 ${selectedSession.title}</h2>
-                  <div class="session-grid">
-                    <div class="session-item">
-                      <span style="font-size: 20px;">📅</span>
-                      <div>
-                        <strong>Date</strong><br>
-                        <span style="color: #666;">${new Date(selectedSession.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                      </div>
-                    </div>
-                    <div class="session-item">
-                      <span style="font-size: 20px;">⏰</span>
-                      <div>
-                        <strong>Heure</strong><br>
-                        <span style="color: #666;">${selectedSession.start_time} - ${selectedSession.end_time}</span>
-                      </div>
-                    </div>
-                    <div class="session-item">
-                      <span style="font-size: 20px;">📍</span>
-                      <div>
-                        <strong>Lieu</strong><br>
-                        <span style="color: #666;">${selectedSession.location}</span>
-                      </div>
-                    </div>
-                    <div class="session-item">
-                      <span style="font-size: 20px;">👨‍🏫</span>
-                      <div>
-                        <strong>Coach</strong><br>
-                        <span style="color: #666;">${selectedSession.coach}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <h3 style="margin-bottom: 15px; color: #333;">📱 Message à envoyer :</h3>
-                  <div class="message-preview">${finalMessage}</div>
-                </div>
-                
-                <div class="contacts-section">
-                  <div class="contacts-header">
-                    <h3>👥 Contacts à contacter (${whatsappLinks.length})</h3>
-                    <button class="copy-all-btn" onclick="copyAllLinks()">📋 Copier tous les liens</button>
-                  </div>
-                  
-                  <div class="stats">
-                    <div class="stat-card">
-                      <div class="stat-number">${whatsappLinks.length}</div>
-                      <div class="stat-label">Contacts valides</div>
-                    </div>
-                    <div class="stat-card">
-                      <div class="stat-number">${filteredContacts.filter(c => !c.phone_valid).length}</div>
-                      <div class="stat-label">Numéros invalides</div>
-                    </div>
-                    <div class="stat-card">
-                      <div class="stat-number">${whatsappLinks.filter(l => l.engagement_score > 70).length}</div>
-                      <div class="stat-label">Engagement élevé</div>
-                    </div>
-                    <div class="stat-card">
-                      <div class="stat-number">${Math.round(finalMessage.length)}</div>
-                      <div class="stat-label">Caractères</div>
-                    </div>
-                  </div>
-                  
-                  ${whatsappLinks.map(link => `
-                    <div class="contact-card">
-                      <div class="contact-info">
-                        <div class="contact-avatar">
-                          ${link.member.split(' ').map(n => n[0]).join('')}
-                        </div>
-                        <div class="contact-details">
-                          <h4>${link.member}</h4>
-                          <p>📱 ${link.phone}</p>
-                          <p>🏐 Catégorie principale</p>
-                          ${link.engagement_score > 0 ? `
-                            <span class="engagement-badge ${
-                              link.engagement_score > 70 ? 'engagement-high' : 
-                              link.engagement_score > 40 ? 'engagement-medium' : 'engagement-low'
-                            }">
-                              📊 Engagement: ${link.engagement_score}%
-                            </span>
-                          ` : ''}
-                          ${link.last_sent ? `<p style="font-size: 11px; color: #999;">Dernier envoi: ${new Date(link.last_sent).toLocaleDateString('fr-FR')}</p>` : ''}
-                        </div>
-                      </div>
-                      <a href="${link.link}" target="_blank" class="whatsapp-btn">
-                        <span style="font-size: 18px;">📱</span>
-                        Ouvrir WhatsApp
-                      </a>
-                    </div>
-                  `).join('')}
-                </div>
-                
-                <div class="footer">
-                  <p>💡 <strong>Instructions :</strong></p>
-                  <p>1. Cliquez sur "Ouvrir WhatsApp" pour chaque membre</p>
-                  <p>2. Le message sera pré-rempli dans WhatsApp</p>
-                  <p>3. Appuyez sur Envoyer dans WhatsApp</p>
-                  <p>4. Répétez pour tous les membres</p>
-                  <br>
-                  <p style="font-size: 12px; color: #999;">
-                    📊 Envoi enregistré le ${new Date().toLocaleString('fr-FR')} par ${userProfile?.first_name} ${userProfile?.last_name}
-                  </p>
-                </div>
-              </div>
-              
-              <script>
-                function copyAllLinks() {
-                  const links = [${whatsappLinks.map(l => `"${l.link}"`).join(',')}];
-                  const text = links.join('\\n');
-                  navigator.clipboard.writeText(text).then(() => {
-                    alert('✅ Tous les liens copiés dans le presse-papier !');
-                  });
-                }
-              </script>
-            </body>
-          </html>
-        `);
-      }
-
-      alert(`✅ ${whatsappLinks.length} liens WhatsApp générés !
-
-📱 Nouvelle fenêtre ouverte avec interface améliorée
-📊 Statistiques d'engagement incluses
-📋 Bouton pour copier tous les liens
-🎯 ${logResult.sent_count} envois enregistrés`);
-
-      // Rafraîchir les données
-      await Promise.all([fetchStats(), fetchContacts()]);
-
-    } catch (error: any) {
-      console.error('Erreur lors de la génération:', error);
-      alert(`❌ Erreur: ${error.message}`);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const createTemplate = async () => {
-    try {
-      const { error } = await supabase
-        .from('whatsapp_templates_enhanced')
-        .insert({
-          name: newTemplate.name,
-          description: newTemplate.description,
-          message_template: newTemplate.message_template,
-          template_type: newTemplate.template_type,
-          suggested_emojis: newTemplate.suggested_emojis,
-          created_by: userProfile?.id
-        });
 
       if (error) throw error;
-
-      setNewTemplate({
-        name: '',
-        description: '',
-        message_template: '',
-        template_type: 'training',
-        suggested_emojis: []
-      });
-      setShowTemplateForm(false);
-      await fetchTemplates();
-      alert('✅ Template créé avec succès !');
-    } catch (error: any) {
-      console.error('Erreur lors de la création:', error);
-      alert(`❌ Erreur: ${error.message}`);
+      setContacts(data || []);
+    } catch (error) {
+      console.error('Erreur chargement contacts:', error);
     }
   };
 
-  const updateConsent = async (memberId: string, consent: boolean) => {
+  useEffect(() => {
+    if (selectedCategories.length >= 0) {
+      fetchContacts();
+    }
+  }, [selectedCategories]);
+
+  const generateMessage = () => {
+    const session = sessions.find(s => s.id === selectedSession);
+    const template = templates.find(t => t.id === selectedTemplate);
+    
+    if (!session) {
+      setFinalMessage(customMessage);
+      return;
+    }
+
+    let message = template?.message_template || customMessage;
+    
+    // Remplacer les variables
+    const variables = {
+      '{titre}': session.title,
+      '{date}': new Date(session.date).toLocaleDateString('fr-FR', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      '{heure}': `${session.start_time} - ${session.end_time}`,
+      '{lieu}': session.location,
+      '{coach}': session.coach,
+      '{description}': session.description || '',
+      '{categories}': session.category.map(cat => 
+        categories.find(c => c.value === cat)?.label || cat
+      ).join(', '),
+      '{max_participants}': session.max_participants?.toString() || '20'
+    };
+
+    Object.entries(variables).forEach(([key, value]) => {
+      message = message.replace(new RegExp(key, 'g'), value);
+    });
+
+    setFinalMessage(message);
+  };
+
+  useEffect(() => {
+    generateMessage();
+  }, [selectedSession, selectedTemplate, customMessage, sessions, templates, categories]);
+
+  const generateWhatsAppLinks = () => {
+    const filteredContacts = contacts.filter(contact => 
+      contact.phone_valid && contact.has_consent
+    );
+
+    const links = filteredContacts.map(contact => {
+      const encodedMessage = encodeURIComponent(finalMessage);
+      return `https://wa.me/${contact.phone_formatted}?text=${encodedMessage}`;
+    });
+
+    setGeneratedLinks(links);
+    setShowLinksPage(true);
+  };
+
+  const copyAllLinks = () => {
+    const allLinks = generatedLinks.join('\n');
+    navigator.clipboard.writeText(allLinks);
+    alert(`✅ ${generatedLinks.length} liens copiés dans le presse-papier !`);
+  };
+
+  const updateConsent = async (contactId: string, consent: boolean) => {
     try {
+      const contact = contacts.find(c => c.id === contactId);
+      if (!contact) return;
+
       const { error } = await supabase
         .from('whatsapp_consent')
         .upsert({
-          member_id: memberId,
+          member_id: contact.member_id,
           consent_given: consent,
           consent_date: consent ? new Date().toISOString() : null,
           consent_withdrawn: !consent,
@@ -637,19 +261,28 @@ export const WhatsAppManager: React.FC = () => {
       if (error) throw error;
       
       await fetchContacts();
-      alert(`✅ Consentement ${consent ? 'accordé' : 'retiré'} !`);
+      alert(`✅ Consentement ${consent ? 'accordé' : 'retiré'} pour ${contact.first_name} ${contact.last_name}`);
     } catch (error: any) {
       console.error('Erreur mise à jour consentement:', error);
       alert(`❌ Erreur: ${error.message}`);
     }
   };
 
-  const availableCategories = [...new Set(contacts.map(c => c.category))];
-  const filteredContacts = contacts.filter(contact => 
-    selectedCategories.length === 0 || 
-    selectedCategories.includes(contact.category) ||
-    contact.additional_categories.some(cat => selectedCategories.includes(cat))
-  );
+  const analyzeMessage = (message: string) => {
+    const charCount = message.length;
+    const wordCount = message.split(/\s+/).filter(word => word.length > 0).length;
+    const emojiCount = (message.match(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu) || []).length;
+    
+    return {
+      characters: charCount,
+      words: wordCount,
+      emojis: emojiCount,
+      readingTime: Math.ceil(wordCount / 200), // mots par minute
+      isOptimal: charCount >= 50 && charCount <= 300 && emojiCount >= 2
+    };
+  };
+
+  const messageAnalysis = analyzeMessage(finalMessage);
 
   if (loading) {
     return (
@@ -660,74 +293,181 @@ export const WhatsAppManager: React.FC = () => {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Header avec statistiques */}
-      <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl p-6 text-white">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center space-x-2">
-              <MessageSquare className="w-6 h-6" />
-              <span>Gestionnaire WhatsApp Pro</span>
+  if (showLinksPage) {
+    return (
+      <div className="space-y-6">
+        {/* Header de la page des liens */}
+        <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">📱 Liens WhatsApp générés</h2>
+              <p className="text-green-100">
+                {generatedLinks.length} liens prêts à utiliser
+              </p>
             </div>
-            <p className="text-green-100 mt-2">
-              Interface avancée pour la communication avec vos membres
-            </p>
+            <button
+              onClick={() => setShowLinksPage(false)}
+              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              ← Retour
+            </button>
           </div>
-          <button
-            onClick={syncContacts}
-            disabled={syncingContacts}
-            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-          >
-            {syncingContacts ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            <span>Sync contacts</span>
-          </button>
         </div>
 
-        {/* Stats rapides */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold">{stats.valid_contacts}</div>
-              <div className="text-green-100 text-sm">Contacts valides</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{stats.consent_given}</div>
-              <div className="text-green-100 text-sm">Consentements</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{stats.messages_sent}</div>
-              <div className="text-green-100 text-sm">Messages envoyés</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{Math.round(stats.avg_engagement)}%</div>
-              <div className="text-green-100 text-sm">Engagement moyen</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{templates.length}</div>
-              <div className="text-green-100 text-sm">Templates</div>
+        {/* Actions rapides */}
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">🚀 Actions rapides</h3>
+            <div className="flex space-x-3">
+              <button
+                onClick={copyAllLinks}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+              >
+                <Copy className="w-4 h-4" />
+                <span>Copier tous les liens</span>
+              </button>
+              <button
+                onClick={() => {
+                  generatedLinks.forEach((link, index) => {
+                    setTimeout(() => window.open(link, '_blank'), index * 500);
+                  });
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+              >
+                <LinkIcon className="w-4 h-4" />
+                <span>Ouvrir tous ({generatedLinks.length})</span>
+              </button>
             </div>
           </div>
-        )}
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h4 className="font-semibold text-green-800 mb-2">💡 Comment utiliser</h4>
+            <div className="text-sm text-green-700 space-y-1">
+              <p>• <strong>Copier tous :</strong> Colle tous les liens dans un document</p>
+              <p>• <strong>Ouvrir tous :</strong> Ouvre chaque conversation WhatsApp (avec délai)</p>
+              <p>• <strong>Clic individuel :</strong> Ouvre une conversation spécifique</p>
+              <p>• <strong>Message pré-rempli :</strong> Le message apparaît automatiquement</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Liste des liens */}
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            📋 Liens individuels ({generatedLinks.length})
+          </h3>
+          
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {contacts.filter(c => c.phone_valid && c.has_consent).map((contact, index) => (
+              <div key={contact.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-green-600 font-semibold text-sm">
+                      {contact.first_name[0]}{contact.last_name[0]}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {contact.first_name} {contact.last_name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      📱 {contact.phone_original} → {contact.phone_formatted}
+                    </p>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                        {contact.category}
+                      </span>
+                      {contact.additional_categories.length > 0 && (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                          +{contact.additional_categories.length}
+                        </span>
+                      )}
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                        📊 {contact.engagement_score}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedLinks[index]);
+                      alert('✅ Lien copié !');
+                    }}
+                    className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                    title="Copier le lien"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => window.open(generatedLinks[index], '_blank')}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center space-x-1 transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Ouvrir</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Aperçu du message */}
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">📱 Aperçu du message</h3>
+          <div className="bg-gray-100 rounded-xl p-4 max-h-64 overflow-y-auto">
+            <div className="bg-green-500 text-white p-3 rounded-lg max-w-xs ml-auto">
+              <pre className="whitespace-pre-wrap text-sm font-sans">{finalMessage}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header principal */}
+      <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl p-6 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">📱 Gestionnaire WhatsApp</h1>
+            <p className="text-green-100">
+              Envoyez des appels d'entraînement via WhatsApp
+            </p>
+          </div>
+          <div className="flex items-center space-x-4">
+            {stats && (
+              <div className="text-right">
+                <p className="text-green-100 text-sm">Contacts valides</p>
+                <p className="text-2xl font-bold">{stats.valid_contacts}</p>
+              </div>
+            )}
+            <button
+              onClick={() => syncContacts()}
+              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Sync</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Navigation par onglets */}
       <div className="bg-white rounded-xl shadow-lg">
         <div className="flex border-b border-gray-200">
           <button
-            onClick={() => setActiveTab('send')}
+            onClick={() => setActiveTab('compose')}
             className={`flex-1 py-4 px-6 text-center font-medium transition-colors flex items-center justify-center space-x-2 ${
-              activeTab === 'send'
+              activeTab === 'compose'
                 ? 'border-b-2 border-green-500 text-green-600 bg-green-50'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
             }`}
           >
             <Send className="w-4 h-4" />
-            <span>Envoyer</span>
+            <span>Composer</span>
           </button>
           <button
             onClick={() => setActiveTab('contacts')}
@@ -764,392 +504,306 @@ export const WhatsAppManager: React.FC = () => {
           </button>
         </div>
 
+        {/* Contenu des onglets */}
         <div className="p-6">
-          {/* ONGLET ENVOI */}
-          {activeTab === 'send' && (
+          {activeTab === 'compose' && (
             <div className="space-y-6">
-              {/* Sélection de séance */}
+              {/* Sélection de l'entraînement */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  📅 Sélectionner une séance
-                </h3>
-                
-                {sessions.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">Aucune séance programmée</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {sessions.map((session) => (
-                      <div
-                        key={session.id}
-                        onClick={() => setSelectedSession(session)}
-                        className={`p-4 border-2 rounded-xl cursor-pointer transition-all hover:shadow-lg ${
-                          selectedSession?.id === session.id
-                            ? 'border-green-500 bg-green-50 shadow-lg'
-                            : 'border-gray-200 hover:border-green-300'
-                        }`}
-                      >
-                        <h4 className="font-semibold text-gray-900 mb-2">{session.title}</h4>
-                        <div className="space-y-1 text-sm text-gray-600">
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="w-4 h-4" />
-                            <span>{new Date(session.date).toLocaleDateString('fr-FR')}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="w-4 h-4" />
-                            <span>{session.start_time} - {session.end_time}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <MapPin className="w-4 h-4" />
-                            <span>{session.location}</span>
-                          </div>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {session.category.map((cat) => (
-                            <span key={cat} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
-                              {cat}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  🏐 Sélectionner l'entraînement
+                </label>
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                >
+                  <option value="">Choisir un entraînement...</option>
+                  {sessions.map(session => (
+                    <option key={session.id} value={session.id}>
+                      {session.title} - {new Date(session.date).toLocaleDateString('fr-FR')} à {session.start_time}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Sélection des catégories */}
+              {/* Filtrage par catégories */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  🏐 Filtrer par catégories
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {availableCategories.map((category) => (
-                    <label key={category} className="flex items-center space-x-2 cursor-pointer p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  🏷️ Filtrer par catégories (optionnel)
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {categories.map(category => (
+                    <label key={category.id} className="flex items-center space-x-2 p-2 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={selectedCategories.includes(category)}
+                        checked={selectedCategories.includes(category.value)}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedCategories(prev => [...prev, category]);
+                            setSelectedCategories(prev => [...prev, category.value]);
                           } else {
-                            setSelectedCategories(prev => prev.filter(c => c !== category));
+                            setSelectedCategories(prev => prev.filter(c => c !== category.value));
                           }
                         }}
                         className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                       />
-                      <span className="text-sm text-gray-700 font-medium">{category}</span>
+                      <span className="text-sm text-gray-700">{category.label}</span>
                     </label>
                   ))}
                 </div>
-                
-                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-700 flex items-center space-x-2">
-                    <Users className="w-4 h-4" />
-                    <span>
-                      <strong>{filteredContacts.filter(c => c.phone_valid).length}</strong> contacts valides sélectionnés
-                      {filteredContacts.filter(c => !c.phone_valid).length > 0 && (
-                        <span className="text-red-600 ml-2">
-                          ({filteredContacts.filter(c => !c.phone_valid).length} numéros invalides)
-                        </span>
-                      )}
-                    </span>
-                  </p>
-                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Si aucune catégorie sélectionnée, tous les membres validés recevront le message
+                </p>
               </div>
 
-              {/* Templates et message */}
+              {/* Sélection du template */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  💬 Composer le message
-                </h3>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Sélection template */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Choisir un template
-                      </label>
-                      <select
-                        value={selectedTemplate}
-                        onChange={(e) => {
-                          setSelectedTemplate(e.target.value);
-                          setCustomMessage('');
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      >
-                        <option value="">Template personnalisé</option>
-                        {templates.map((template) => (
-                          <option key={template.id} value={template.id}>
-                            {template.name} {template.is_default ? '⭐' : ''} ({template.usage_count} utilisations)
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Message personnalisé */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Ou message personnalisé
-                      </label>
-                      <textarea
-                        value={customMessage}
-                        onChange={(e) => {
-                          setCustomMessage(e.target.value);
-                          setSelectedTemplate('');
-                        }}
-                        placeholder="Tapez votre message..."
-                        rows={8}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      />
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>Variables: {'{date}'}, {'{heure}'}, {'{lieu}'}, {'{coach}'}</span>
-                        <span>{customMessage.length} caractères</span>
-                      </div>
-                    </div>
-
-                    {/* Émojis suggérés */}
-                    {selectedTemplate && templates.find(t => t.id === selectedTemplate)?.suggested_emojis && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Émojis suggérés
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {templates.find(t => t.id === selectedTemplate)?.suggested_emojis.map((emoji, index) => (
-                            <button
-                              key={index}
-                              onClick={() => {
-                                if (customMessage) {
-                                  setCustomMessage(prev => prev + emoji);
-                                }
-                              }}
-                              className="text-2xl hover:bg-gray-100 p-2 rounded-lg transition-colors"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Prévisualisation */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        📱 Prévisualisation mobile
-                      </label>
-                      <div className="bg-gray-100 rounded-2xl p-4 max-w-sm mx-auto">
-                        <div className="bg-green-500 text-white p-3 rounded-t-xl text-center text-sm font-medium">
-                          WhatsApp
-                        </div>
-                        <div className="bg-white p-4 rounded-b-xl min-h-[200px]">
-                          {messagePreview ? (
-                            <div className="bg-green-100 p-3 rounded-lg text-sm whitespace-pre-wrap">
-                              {messagePreview}
-                            </div>
-                          ) : (
-                            <div className="text-gray-400 text-sm text-center py-8">
-                              Sélectionnez une séance et un template pour voir l'aperçu
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Informations du message */}
-                    {messagePreview && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-800 mb-2">📊 Analyse du message</h4>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-blue-700">Caractères:</span>
-                            <span className={`ml-2 font-bold ${
-                              messagePreview.length > 1000 ? 'text-red-600' : 
-                              messagePreview.length > 500 ? 'text-yellow-600' : 'text-green-600'
-                            }`}>
-                              {messagePreview.length}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-blue-700">Mots:</span>
-                            <span className="ml-2 font-bold text-blue-900">
-                              {messagePreview.split(' ').length}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-blue-700">Lignes:</span>
-                            <span className="ml-2 font-bold text-blue-900">
-                              {messagePreview.split('\n').length}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-blue-700">Émojis:</span>
-                            <span className="ml-2 font-bold text-blue-900">
-                              {(messagePreview.match(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu) || []).length}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  📝 Template de message
+                </label>
+                <select
+                  value={selectedTemplate}
+                  onChange={(e) => setSelectedTemplate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                >
+                  <option value="">Message personnalisé</option>
+                  {templates.map(template => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} ({template.template_type})
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Bouton d'envoi amélioré */}
-              <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
-                      <Zap className="w-5 h-5 text-green-600" />
-                      <span>Envoyer l'appel d'entraînement</span>
-                    </h3>
-                    <div className="mt-2 space-y-1">
-                      <p className="text-sm text-gray-600">
-                        <strong>{filteredContacts.filter(c => c.phone_valid).length}</strong> contacts valides recevront le message
-                      </p>
-                      {filteredContacts.filter(c => !c.phone_valid).length > 0 && (
-                        <p className="text-sm text-red-600">
-                          ⚠️ <strong>{filteredContacts.filter(c => !c.phone_valid).length}</strong> numéros invalides seront ignorés
-                        </p>
-                      )}
-                      {filteredContacts.filter(c => !c.has_consent).length > 0 && (
-                        <p className="text-sm text-yellow-600">
-                          🔒 <strong>{filteredContacts.filter(c => !c.has_consent).length}</strong> sans consentement explicite
-                        </p>
-                      )}
+              {/* Zone de composition */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Éditeur de message */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ✏️ Composer votre message
+                  </label>
+                  <textarea
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    rows={12}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono text-sm"
+                    placeholder="Tapez votre message ici ou sélectionnez un template..."
+                  />
+                  
+                  {/* Analyse du message */}
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="grid grid-cols-4 gap-4 text-center">
+                      <div>
+                        <p className="text-lg font-bold text-gray-900">{messageAnalysis.characters}</p>
+                        <p className="text-xs text-gray-600">Caractères</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-gray-900">{messageAnalysis.words}</p>
+                        <p className="text-xs text-gray-600">Mots</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-gray-900">{messageAnalysis.emojis}</p>
+                        <p className="text-xs text-gray-600">Émojis</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-gray-900">{messageAnalysis.readingTime}s</p>
+                        <p className="text-xs text-gray-600">Lecture</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-center">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        messageAnalysis.isOptimal 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {messageAnalysis.isOptimal ? '✅ Message optimal' : '⚠️ Peut être amélioré'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prévisualisation mobile */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    📱 Aperçu WhatsApp
+                  </label>
+                  <div className="bg-gray-100 rounded-xl p-4 h-80 overflow-y-auto">
+                    <div className="bg-green-500 text-white p-3 rounded-lg max-w-xs ml-auto shadow-lg">
+                      <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed">
+                        {finalMessage || 'Votre message apparaîtra ici...'}
+                      </pre>
+                      <div className="text-right mt-2">
+                        <span className="text-xs text-green-100">
+                          {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   
-                  <button
-                    onClick={generateWhatsAppLinks}
-                    disabled={!selectedSession || (!selectedTemplate && !customMessage) || sending}
-                    className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-4 px-8 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-3 shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    {sending ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Génération...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Smartphone className="w-5 h-5" />
-                        <span>Générer les liens WhatsApp</span>
-                      </>
-                    )}
-                  </button>
+                  {/* Émojis suggérés */}
+                  {selectedTemplate && templates.find(t => t.id === selectedTemplate)?.suggested_emojis && (
+                    <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                      <p className="text-sm font-medium text-blue-800 mb-2">😊 Émojis suggérés</p>
+                      <div className="flex flex-wrap gap-2">
+                        {templates.find(t => t.id === selectedTemplate)?.suggested_emojis.map((emoji, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setCustomMessage(prev => prev + emoji)}
+                            className="text-lg hover:bg-blue-100 p-1 rounded transition-colors"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Destinataires */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 mb-3">
+                  👥 Destinataires ({contacts.filter(c => c.phone_valid && c.has_consent).length})
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {contacts.filter(c => c.phone_valid && c.has_consent).slice(0, 6).map(contact => (
+                    <div key={contact.id} className="bg-white p-3 rounded-lg border border-blue-200">
+                      <p className="font-medium text-gray-900 text-sm">
+                        {contact.first_name} {contact.last_name}
+                      </p>
+                      <p className="text-xs text-gray-600">{contact.phone_original}</p>
+                      <div className="flex items-center space-x-1 mt-1">
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                          {contact.category}
+                        </span>
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                          📊 {contact.engagement_score}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {contacts.filter(c => c.phone_valid && c.has_consent).length > 6 && (
+                    <div className="bg-white p-3 rounded-lg border border-blue-200 flex items-center justify-center">
+                      <span className="text-sm text-gray-600">
+                        +{contacts.filter(c => c.phone_valid && c.has_consent).length - 6} autres
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bouton de génération */}
+              <div className="text-center">
+                <button
+                  onClick={generateWhatsAppLinks}
+                  disabled={!finalMessage.trim() || contacts.filter(c => c.phone_valid && c.has_consent).length === 0}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-3 mx-auto"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                  <span>Générer les liens WhatsApp</span>
+                  <span className="bg-white/20 px-2 py-1 rounded-full text-sm">
+                    {contacts.filter(c => c.phone_valid && c.has_consent).length}
+                  </span>
+                </button>
               </div>
             </div>
           )}
 
-          {/* ONGLET CONTACTS */}
           {activeTab === 'contacts' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  👥 Gestion des contacts
-                </h3>
-                <button
-                  onClick={syncContacts}
-                  disabled={syncingContacts}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-                >
-                  {syncingContacts ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                  <span>Synchroniser</span>
-                </button>
-              </div>
-
               {/* Statistiques des contacts */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                  <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-green-700">{contacts.filter(c => c.phone_valid).length}</div>
+                <div className="bg-blue-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-blue-700">{stats?.total_contacts || 0}</div>
+                  <div className="text-sm text-blue-600">Total contacts</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-green-700">{stats?.valid_contacts || 0}</div>
                   <div className="text-sm text-green-600">Numéros valides</div>
                 </div>
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-                  <XCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-red-700">{contacts.filter(c => !c.phone_valid).length}</div>
+                <div className="bg-red-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-red-700">{stats?.invalid_contacts || 0}</div>
                   <div className="text-sm text-red-600">Numéros invalides</div>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-                  <Shield className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-blue-700">{contacts.filter(c => c.has_consent).length}</div>
-                  <div className="text-sm text-blue-600">Consentements</div>
-                </div>
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
-                  <Activity className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-purple-700">
-                    {contacts.length > 0 ? Math.round(contacts.reduce((sum, c) => sum + c.engagement_score, 0) / contacts.length) : 0}%
-                  </div>
-                  <div className="text-sm text-purple-600">Engagement moyen</div>
+                <div className="bg-purple-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-purple-700">{stats?.consent_given || 0}</div>
+                  <div className="text-sm text-purple-600">Consentements</div>
                 </div>
               </div>
 
               {/* Liste des contacts */}
               <div className="space-y-3">
-                {contacts.map((contact) => (
-                  <div key={contact.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                {contacts.map(contact => (
+                  <div key={contact.id} className="bg-white border border-gray-200 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white font-bold">
-                          {contact.first_name[0]}{contact.last_name[0]}
+                        <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
+                          <span className="text-primary-600 font-semibold">
+                            {contact.first_name[0]}{contact.last_name[0]}
+                          </span>
                         </div>
                         <div>
-                          <h4 className="font-semibold text-gray-900">
+                          <p className="font-medium text-gray-900">
                             {contact.first_name} {contact.last_name}
-                          </h4>
-                          <div className="flex items-center space-x-2 text-sm text-gray-600">
-                            <Phone className="w-3 h-3" />
-                            <span>{contact.phone_original}</span>
-                            {contact.phone_valid ? (
-                              <CheckCircle className="w-4 h-4 text-green-600" />
-                            ) : (
-                              <XCircle className="w-4 h-4 text-red-600" />
+                          </p>
+                          <div className="flex items-center space-x-2 text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              contact.phone_valid 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-red-100 text-red-700'
+                            }`}>
+                              📱 {contact.phone_original}
+                            </span>
+                            {contact.phone_valid && (
+                              <span className="text-xs text-gray-500">
+                                → {contact.phone_formatted}
+                              </span>
                             )}
                           </div>
                           <div className="flex items-center space-x-2 mt-1">
                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                               {contact.category}
                             </span>
-                            {contact.engagement_score > 0 && (
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                contact.engagement_score > 70 ? 'bg-green-100 text-green-700' :
-                                contact.engagement_score > 40 ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-red-100 text-red-700'
-                              }`}>
-                                📊 {contact.engagement_score}%
+                            {contact.additional_categories.length > 0 && (
+                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                                +{contact.additional_categories.length}
                               </span>
                             )}
+                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                              📊 {contact.engagement_score}%
+                            </span>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex items-center space-x-3">
-                        {/* Consentement RGPD */}
-                        <button
-                          onClick={() => updateConsent(contact.member_id, !contact.has_consent)}
-                          className={`p-2 rounded-lg transition-colors ${
-                            contact.has_consent 
-                              ? 'bg-green-100 text-green-600 hover:bg-green-200' 
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title={contact.has_consent ? 'Retirer le consentement' : 'Donner le consentement'}
-                        >
-                          <Shield className="w-4 h-4" />
-                        </button>
+                        {/* Gestion du consentement */}
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-600">RGPD:</span>
+                          {contact.has_consent ? (
+                            <button
+                              onClick={() => updateConsent(contact.id, false)}
+                              className="bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded text-xs flex items-center space-x-1 transition-colors"
+                            >
+                              <UserCheck className="w-3 h-3" />
+                              <span>Accordé</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => updateConsent(contact.id, true)}
+                              className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded text-xs flex items-center space-x-1 transition-colors"
+                            >
+                              <UserX className="w-3 h-3" />
+                              <span>Refusé</span>
+                            </button>
+                          )}
+                        </div>
 
-                        {/* Statistiques */}
+                        {/* Statistiques du contact */}
                         <div className="text-right text-xs text-gray-500">
-                          <div>{contact.total_messages_sent} messages</div>
+                          <p>{contact.total_messages_sent} messages</p>
                           {contact.last_message_sent && (
-                            <div>Dernier: {new Date(contact.last_message_sent).toLocaleDateString('fr-FR')}</div>
+                            <p>Dernier: {new Date(contact.last_message_sent).toLocaleDateString('fr-FR')}</p>
                           )}
                         </div>
                       </div>
@@ -1160,89 +814,46 @@ export const WhatsAppManager: React.FC = () => {
             </div>
           )}
 
-          {/* ONGLET TEMPLATES */}
           {activeTab === 'templates' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  💬 Gestion des templates
-                </h3>
-                <button
-                  onClick={() => setShowTemplateForm(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Nouveau template</span>
-                </button>
-              </div>
-
+              {/* Liste des templates */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {templates.map((template) => (
-                  <div key={template.id} className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow">
-                    <div className="flex items-center justify-between mb-4">
+                {templates.map(template => (
+                  <div key={template.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
                       <div>
-                        <h4 className="font-semibold text-gray-900 flex items-center space-x-2">
-                          <span>{template.name}</span>
-                          {template.is_default && <span className="text-yellow-500">⭐</span>}
-                        </h4>
+                        <h4 className="font-semibold text-gray-900">{template.name}</h4>
                         <p className="text-sm text-gray-600">{template.description}</p>
                       </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => setEditingTemplate(template)}
-                          className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        {!template.is_default && (
-                          <button
-                            onClick={() => {
-                              if (confirm('Supprimer ce template ?')) {
-                                supabase
-                                  .from('whatsapp_templates_enhanced')
-                                  .update({ is_active: false })
-                                  .eq('id', template.id)
-                                  .then(() => fetchTemplates());
-                              }
-                            }}
-                            className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Type:</span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      <div className="flex items-center space-x-2">
+                        <span className={`text-xs px-2 py-1 rounded-full ${
                           template.template_type === 'urgent' ? 'bg-red-100 text-red-700' :
                           template.template_type === 'match' ? 'bg-purple-100 text-purple-700' :
                           'bg-blue-100 text-blue-700'
                         }`}>
                           {template.template_type}
                         </span>
+                        {template.is_default && (
+                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                            ⭐ Défaut
+                          </span>
+                        )}
                       </div>
-                      
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Utilisations:</span>
-                        <span className="font-bold text-gray-900">{template.usage_count}</span>
-                      </div>
-
-                      {template.suggested_emojis && template.suggested_emojis.length > 0 && (
-                        <div>
-                          <span className="text-xs text-gray-600">Émojis:</span>
-                          <div className="flex space-x-1 mt-1">
-                            {template.suggested_emojis.slice(0, 8).map((emoji, index) => (
-                              <span key={index} className="text-lg">{emoji}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 max-h-20 overflow-hidden">
-                        {template.message_template.substring(0, 150)}...
+                    </div>
+                    
+                    <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                      <pre className="text-xs text-gray-700 whitespace-pre-wrap">
+                        {template.message_template.substring(0, 200)}
+                        {template.message_template.length > 200 && '...'}
+                      </pre>
+                    </div>
+                    
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Utilisé {template.usage_count} fois</span>
+                      <div className="flex space-x-1">
+                        {template.suggested_emojis.slice(0, 5).map((emoji, index) => (
+                          <span key={index}>{emoji}</span>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1251,104 +862,53 @@ export const WhatsAppManager: React.FC = () => {
             </div>
           )}
 
-          {/* ONGLET STATISTIQUES */}
           {activeTab === 'stats' && stats && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
-                📊 Statistiques d'engagement
-              </h3>
-
-              {/* Métriques principales */}
+              {/* Statistiques principales */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-6">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
-                      <Users className="w-6 h-6 text-white" />
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                      <MessageSquare className="w-6 h-6 text-green-600" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-green-800">Contacts</h4>
-                      <p className="text-sm text-green-600">Gestion des numéros</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Total:</span>
-                      <span className="font-bold text-green-900">{stats.total_contacts}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Valides:</span>
-                      <span className="font-bold text-green-900">{stats.valid_contacts}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Invalides:</span>
-                      <span className="font-bold text-red-600">{stats.invalid_contacts}</span>
+                      <p className="text-sm text-gray-600">Messages envoyés</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.messages_sent}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-6">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                      <Shield className="w-6 h-6 text-white" />
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <TrendingUp className="w-6 h-6 text-blue-600" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-blue-800">RGPD</h4>
-                      <p className="text-sm text-blue-600">Consentements</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">Accordés:</span>
-                      <span className="font-bold text-green-600">{stats.consent_given}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">En attente:</span>
-                      <span className="font-bold text-yellow-600">{stats.consent_pending}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">Taux:</span>
-                      <span className="font-bold text-blue-900">
-                        {stats.total_contacts > 0 ? Math.round((stats.consent_given / stats.total_contacts) * 100) : 0}%
-                      </span>
+                      <p className="text-sm text-gray-600">Engagement moyen</p>
+                      <p className="text-2xl font-bold text-gray-900">{Math.round(stats.avg_engagement)}%</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-6">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-white" />
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <UserCheck className="w-6 h-6 text-purple-600" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-purple-800">Engagement</h4>
-                      <p className="text-sm text-purple-600">Performance</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-purple-700">Messages:</span>
-                      <span className="font-bold text-purple-900">{stats.messages_sent}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-purple-700">Engagement:</span>
-                      <span className="font-bold text-purple-900">{Math.round(stats.avg_engagement)}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-purple-700">Actifs:</span>
-                      <span className="font-bold text-green-600">
-                        {contacts.filter(c => c.engagement_score > 50).length}
-                      </span>
+                      <p className="text-sm text-gray-600">Consentements RGPD</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.consent_given}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Top performers */}
-              <div className="bg-white border border-gray-200 rounded-xl p-6">
-                <h4 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
-                  <Target className="w-5 h-5 text-green-600" />
-                  <span>Top engagement</span>
-                </h4>
+              <div className="bg-white rounded-xl p-6 shadow-lg">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                  <Award className="w-5 h-5 text-yellow-500" />
+                  <span>Top membres les plus réactifs</span>
+                </h3>
                 <div className="space-y-3">
                   {contacts
                     .filter(c => c.engagement_score > 0)
@@ -1369,12 +929,16 @@ export const WhatsAppManager: React.FC = () => {
                             <p className="font-medium text-gray-900">
                               {contact.first_name} {contact.last_name}
                             </p>
-                            <p className="text-sm text-gray-600">{contact.total_messages_sent} messages reçus</p>
+                            <p className="text-sm text-gray-600">
+                              {contact.total_messages_sent} messages reçus
+                            </p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold text-green-600">{contact.engagement_score}%</div>
-                          <div className="text-xs text-gray-500">engagement</div>
+                          <p className="text-lg font-bold text-green-600">
+                            {contact.engagement_score}%
+                          </p>
+                          <p className="text-xs text-gray-500">Engagement</p>
                         </div>
                       </div>
                     ))}
@@ -1384,123 +948,6 @@ export const WhatsAppManager: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* Modal de création de template */}
-      {showTemplateForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">
-                ✨ Nouveau template WhatsApp
-              </h3>
-              <button
-                onClick={() => setShowTemplateForm(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nom du template *
-                  </label>
-                  <input
-                    type="text"
-                    value={newTemplate.name}
-                    onChange={(e) => setNewTemplate(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Ex: Appel match important"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Type de template *
-                  </label>
-                  <select
-                    value={newTemplate.template_type}
-                    onChange={(e) => setNewTemplate(prev => ({ ...prev, template_type: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="training">🏐 Entraînement</option>
-                    <option value="match">🏆 Match</option>
-                    <option value="urgent">🚨 Urgent</option>
-                    <option value="reminder">🔔 Rappel</option>
-                    <option value="custom">✏️ Personnalisé</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <input
-                  type="text"
-                  value={newTemplate.description}
-                  onChange={(e) => setNewTemplate(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Description courte du template"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Message template *
-                </label>
-                <textarea
-                  value={newTemplate.message_template}
-                  onChange={(e) => setNewTemplate(prev => ({ ...prev, message_template: e.target.value }))}
-                  rows={10}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Votre message... Utilisez {date}, {heure}, {lieu}, {coach}, {description}, {titre} comme variables"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>Variables disponibles: {'{date}'}, {'{heure}'}, {'{lieu}'}, {'{coach}'}, {'{titre}'}, {'{description}'}</span>
-                  <span>{newTemplate.message_template.length} caractères</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Émojis suggérés (optionnel)
-                </label>
-                <input
-                  type="text"
-                  value={newTemplate.suggested_emojis.join(' ')}
-                  onChange={(e) => setNewTemplate(prev => ({ 
-                    ...prev, 
-                    suggested_emojis: e.target.value.split(' ').filter(emoji => emoji.trim())
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="🏐 📅 ⏰ 📍 👨‍🏫 ✅ ❌"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Séparez les émojis par des espaces
-                </p>
-              </div>
-
-              <div className="flex space-x-3 pt-4">
-                <button
-                  onClick={createTemplate}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-                >
-                  Créer le template
-                </button>
-                <button
-                  onClick={() => setShowTemplateForm(false)}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Annuler
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
