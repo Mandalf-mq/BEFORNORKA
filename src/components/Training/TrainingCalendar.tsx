@@ -1105,4 +1105,3 @@ export const TrainingCalendar: React.FC = () => {
 };
 
 export default TrainingCalendar;
-
