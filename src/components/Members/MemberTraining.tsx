@@ -76,6 +76,32 @@ export const MemberTraining: React.FC = () => {
     }
   }, [memberData, categories]);
 
+  // Écouter les changements en temps réel sur les training_sessions
+  useEffect(() => {
+    if (!memberData) return;
+
+    const channel = supabase
+      .channel('training_sessions_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'training_sessions'
+        },
+        (payload) => {
+          console.log('🔄 [MemberTraining] Changement détecté sur training_sessions:', payload);
+          // Recharger les sessions quand il y a un changement
+          loadSessions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [memberData]);
+
   const loadCategories = async () => {
     try {
       const { data, error } = await supabase
@@ -129,6 +155,31 @@ export const MemberTraining: React.FC = () => {
     try {
       if (!memberData) return;
 
+      if (!memberData || categories.length === 0) return;
+
+      console.log('🔍 [MemberTraining] Chargement des sessions pour membre:', memberData.id);
+      
+      // Récupérer les catégories du membre (principale + supplémentaires)
+      const { data: memberCategoriesData, error: memberCatError } = await supabase
+        .from('member_categories')
+        .select('category_value')
+        .eq('member_id', memberData.id);
+
+      if (memberCatError) {
+        console.error('Erreur chargement catégories membre:', memberCatError);
+        return;
+      }
+
+      // Construire la liste des catégories du membre
+      const memberCategories = memberCategoriesData?.map(mc => mc.category_value) || [];
+      
+      // Ajouter la catégorie principale si elle n'est pas déjà dans les catégories multiples
+      if (memberData.category && !memberCategories.includes(memberData.category)) {
+        memberCategories.push(memberData.category);
+      }
+
+      console.log('🏷️ [MemberTraining] Catégories du membre:', memberCategories);
+
       // Récupérer toutes les séances futures
       const { data, error } = await supabase
         .from('training_sessions')
@@ -139,19 +190,26 @@ export const MemberTraining: React.FC = () => {
 
       if (error) throw error;
       
-      // Filtrer les séances selon les catégories du membre
-      const memberCategories = memberData.member_categories?.map(mc => mc.category_value) || [];
-      if (memberData.category && !memberCategories.includes(memberData.category)) {
-        memberCategories.push(memberData.category);
-      }
-
+      console.log('📅 [MemberTraining] Sessions trouvées:', data?.length || 0);
+      
+      // Filtrer les séances selon les catégories du membre avec logging détaillé
       const filteredSessions = (data || []).filter(session => 
-        session.category && session.category.some(cat => memberCategories.includes(cat))
+        const sessionCategories = session.category || [];
+        const hasMatchingCategory = sessionCategories.some(cat => memberCategories.includes(cat));
+        
+        console.log(`🔍 [MemberTraining] Session "${session.title}":`, {
+          sessionCategories,
+          memberCategories,
+          hasMatchingCategory
+        });
+        
+        return hasMatchingCategory;
       );
       
       setSessions(filteredSessions);
     } catch (error) {
       console.error('Erreur lors du chargement des entraînements:', error);
+      setSessions([]);
     }
   };
 
@@ -629,6 +687,7 @@ const respondToSession = async (sessionId: string, response: 'present' | 'absent
         onConflict: 'session_id,member_id'
       });
 
+      console.log('✅ [MemberTraining] Sessions filtrées pour le membre:', filteredSessions.length);
     if (error) throw error;
 
     await fetchAttendanceRecords();

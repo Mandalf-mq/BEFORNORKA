@@ -237,6 +237,9 @@ export const TrainingCalendar: React.FC = () => {
     try {
       setCreating(true);
 
+      console.log('🆕 [TrainingCalendar] Création nouvelle session');
+      console.log('🏷️ [TrainingCalendar] Catégories sélectionnées:', newSession.category);
+
       const sessionData = {
         title: newSession.title.trim(),
         description: newSession.description.trim() || null,
@@ -288,6 +291,9 @@ export const TrainingCalendar: React.FC = () => {
     if (!editingSession.title.trim() || !editingSession.date || !editingSession.start_time || !editingSession.end_time || !editingSession.location.trim() || !editingSession.coach.trim()) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
+      console.log('🔄 [TrainingCalendar] Mise à jour session:', editingSession.id);
+      console.log('🏷️ [TrainingCalendar] Nouvelles catégories:', newSession.category);
+
     }
 
     if (editingSession.category.length === 0) {
@@ -316,6 +322,8 @@ export const TrainingCalendar: React.FC = () => {
 
       if (error) throw error;
 
+      console.log('✅ [TrainingCalendar] Session mise à jour avec succès');
+      
       setEditingSession(null);
       await loadSessions();
       alert('✅ Séance modifiée avec succès !');
@@ -335,6 +343,8 @@ export const TrainingCalendar: React.FC = () => {
 
     try {
       setDeleting(sessionId);
+      
+      console.log('🗑️ [TrainingCalendar] Suppression session:', sessionId);
 
       const { error } = await supabase
         .from('training_sessions')
@@ -343,6 +353,7 @@ export const TrainingCalendar: React.FC = () => {
 
       if (error) throw error;
 
+      console.log('✅ [TrainingCalendar] Session supprimée avec succès');
       await loadSessions();
       alert('✅ Séance supprimée avec succès !');
     } catch (error: any) {
@@ -387,6 +398,8 @@ export const TrainingCalendar: React.FC = () => {
 
       if (error) throw error;
 
+      console.log('✅ [TrainingCalendar] Session créée avec succès');
+      
       await loadAttendanceRecords();
       
       const responseText = response === 'present' ? 'présent' : 'absent';
