@@ -876,6 +876,7 @@ const MembersManagement: React.FC = () => {
                 <tr className="border-b border-gray-200">
                   <th className="text-left p-4 font-semibold text-gray-700">Nom</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Contact</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">📍 Adresse</th>
                   <th className="text-left p-4 font-semibold text-gray-700">🏐 Licence FFVB</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Catégorie</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Cotisation</th>
@@ -901,6 +902,28 @@ const MembersManagement: React.FC = () => {
                       <div className="text-sm">
                         <div className="text-gray-900">{member.email}</div>
                         <div className="text-gray-500">{member.phone}</div>
+                      </div>
+                    </td>
+
+                    <td className="p-4">
+                      <div className="text-sm">
+                        {member.postal_code || member.city ? (
+                          <>
+                            {member.postal_code && (
+                              <div className="text-gray-900 font-medium">{member.postal_code}</div>
+                            )}
+                            {member.city && (
+                              <div className="text-gray-500">{member.city}</div>
+                            )}
+                            {member.address && (
+                              <div className="text-xs text-gray-400 truncate max-w-[150px]" title={member.address}>
+                                {member.address}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-400 italic text-xs">Non renseigné</span>
+                        )}
                       </div>
                     </td>
 
