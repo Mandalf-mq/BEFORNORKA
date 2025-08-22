@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Users, Send, Copy, Phone, CheckCircle, XCircle, AlertCircle, Eye, Settings, TrendingUp, BarChart3, Clock, Zap, Target, Award, RefreshCw, Download, Upload, Link as LinkIcon, UserCheck, UserX, Calendar, Bell, Play, Pause, RotateCcw } from 'lucide-react';
+import { MessageSquare, Users, Send, Copy, Phone, CheckCircle, XCircle, AlertCircle, Eye, Settings, TrendingUp, BarChart3, Clock, Zap, Target, Award, RefreshCw, Download, Upload, Link as LinkIcon, UserCheck, UserX, Calendar, Bell, Play, Pause, RotateCcw, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { format } from 'date-fns';
