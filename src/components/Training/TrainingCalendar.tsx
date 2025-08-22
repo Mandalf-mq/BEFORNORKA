@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, Users, Plus, Edit, Trash2, Eye, Copy, Grid, List, Save, X, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, Plus, Edit, Trash2, Eye, Copy, Grid, List, Save, X, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, XCircle, UserCheck } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '../../lib/supabase';
@@ -58,6 +58,10 @@ export const TrainingCalendar: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
   const [viewingSession, setViewingSession] = useState<TrainingSession | null>(null);
+  const [viewingAttendance, setViewingAttendance] = useState<TrainingSession | null>(null);
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
+  const [eligibleMembers, setEligibleMembers] = useState<any[]>([]);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -223,6 +227,69 @@ export const TrainingCalendar: React.FC = () => {
     );
   };
 
+  const fetchSessionAttendance = async (session: TrainingSession) => {
+    try {
+      setLoadingAttendance(true);
+      
+      // 1. Récupérer les réponses de présence
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from('attendance_records')
+        .select(`
+          *,
+          members (
+            id,
+            first_name,
+            last_name,
+            email,
+            phone,
+            category
+          )
+        `)
+        .eq('session_id', session.id)
+        .order('response_date', { ascending: false });
+
+      if (attendanceError) throw attendanceError;
+
+      // 2. Récupérer tous les membres éligibles (avec les catégories de la session)
+      const { data: eligibleData, error: eligibleError } = await supabase
+        .from('members')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          category,
+          status,
+          member_categories (
+            category_value,
+            is_primary
+          )
+        `)
+        .eq('status', 'season_validated');
+
+      if (eligibleError) throw eligibleError;
+
+      // 3. Filtrer les membres éligibles selon les catégories de la session
+      const filteredEligible = (eligibleData || []).filter(member => {
+        // Vérifier si le membre a une des catégories de la session
+        const memberCategories = member.member_categories?.map(mc => mc.category_value) || [];
+        if (member.category) memberCategories.push(member.category); // Fallback catégorie principale
+        
+        return session.category.some(sessionCat => memberCategories.includes(sessionCat));
+      });
+
+      setAttendanceData(attendanceData || []);
+      setEligibleMembers(filteredEligible);
+      setViewingAttendance(session);
+    } catch (error) {
+      console.error('Erreur chargement présences:', error);
+      alert('❌ Erreur lors du chargement des présences');
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
   const createSession = async () => {
     if (!newSession.title.trim() || !newSession.date || !newSession.start_time || !newSession.end_time || !newSession.location.trim() || !newSession.coach.trim()) {
       alert('Veuillez remplir tous les champs obligatoires');
@@ -291,9 +358,6 @@ export const TrainingCalendar: React.FC = () => {
     if (!editingSession.title.trim() || !editingSession.date || !editingSession.start_time || !editingSession.end_time || !editingSession.location.trim() || !editingSession.coach.trim()) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
-      console.log('🔄 [TrainingCalendar] Mise à jour session:', editingSession.id);
-      console.log('🏷️ [TrainingCalendar] Nouvelles catégories:', newSession.category);
-
     }
 
     if (editingSession.category.length === 0) {
@@ -303,6 +367,9 @@ export const TrainingCalendar: React.FC = () => {
 
     try {
       setUpdating(true);
+
+      console.log('🔄 [TrainingCalendar] Mise à jour session:', editingSession.id);
+      console.log('🏷️ [TrainingCalendar] Nouvelles catégories:', editingSession.category);
 
       const { error } = await supabase
         .from('training_sessions')
@@ -398,7 +465,7 @@ export const TrainingCalendar: React.FC = () => {
 
       if (error) throw error;
 
-      console.log('✅ [TrainingCalendar] Session créée avec succès');
+      console.log('✅ [TrainingCalendar] Réponse enregistrée avec succès');
       
       await loadAttendanceRecords();
       
@@ -744,6 +811,17 @@ export const TrainingCalendar: React.FC = () => {
                           <Eye className="w-5 h-5" />
                         </button>
                         
+                        {/* Bouton voir présences */}
+                        {canManageTrainings && (
+                          <button
+                            onClick={() => fetchSessionAttendance(session)}
+                            className="p-2 text-gray-400 hover:text-green-600 transition-colors"
+                            title="Voir les présences"
+                          >
+                            <UserCheck className="w-4 h-4" />
+                          </button>
+                        )}
+                        
                         {canManageTrainings && (
                           <>
                             <button
@@ -781,6 +859,257 @@ export const TrainingCalendar: React.FC = () => {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal des présences et membres éligibles */}
+      {viewingAttendance && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">
+                👥 Présences - {viewingAttendance.title}
+              </h3>
+              <button
+                onClick={() => {
+                  setViewingAttendance(null);
+                  setAttendanceData([]);
+                  setEligibleMembers([]);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {loadingAttendance ? (
+              <div className="text-center py-8">
+                <div className="w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Chargement des présences...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Colonne 1: Présences confirmées */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <span>Présences confirmées ({attendanceData.filter(a => a.status === 'present').length})</span>
+                  </h4>
+                  
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {attendanceData.filter(a => a.status === 'present').length === 0 ? (
+                      <div className="text-center py-6 bg-gray-50 rounded-lg">
+                        <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-gray-500">Aucune présence confirmée</p>
+                      </div>
+                    ) : (
+                      attendanceData
+                        .filter(a => a.status === 'present')
+                        .map((attendance) => (
+                          <div key={attendance.id} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-green-800">
+                                  {attendance.members.first_name} {attendance.members.last_name}
+                                </p>
+                                <p className="text-sm text-green-600">
+                                  {attendance.members.email}
+                                </p>
+                                <p className="text-xs text-green-500">
+                                  Catégorie: {attendance.members.category}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <CheckCircle className="w-5 h-5 text-green-600 mx-auto" />
+                                <p className="text-xs text-green-600 mt-1">
+                                  {new Date(attendance.response_date).toLocaleDateString('fr-FR')}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                    )}
+                  </div>
+
+                  {/* Absences */}
+                  <h4 className="text-lg font-semibold text-gray-900 flex items-center space-x-2 mt-6">
+                    <XCircle className="w-5 h-5 text-red-600" />
+                    <span>Absences confirmées ({attendanceData.filter(a => a.status === 'absent').length})</span>
+                  </h4>
+                  
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {attendanceData.filter(a => a.status === 'absent').length === 0 ? (
+                      <div className="text-center py-4 bg-gray-50 rounded-lg">
+                        <p className="text-gray-500 text-sm">Aucune absence confirmée</p>
+                      </div>
+                    ) : (
+                      attendanceData
+                        .filter(a => a.status === 'absent')
+                        .map((attendance) => (
+                          <div key={attendance.id} className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-red-800">
+                                  {attendance.members.first_name} {attendance.members.last_name}
+                                </p>
+                                <p className="text-sm text-red-600">
+                                  {attendance.members.email}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <XCircle className="w-5 h-5 text-red-600 mx-auto" />
+                                <p className="text-xs text-red-600 mt-1">
+                                  {new Date(attendance.response_date).toLocaleDateString('fr-FR')}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Colonne 2: Membres éligibles */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+                    <Users className="w-5 h-5 text-blue-600" />
+                    <span>Membres éligibles ({eligibleMembers.length})</span>
+                  </h4>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <h5 className="font-semibold text-blue-800 mb-2">🏷️ Catégories de cette séance</h5>
+                    <div className="flex flex-wrap gap-2">
+                      {viewingAttendance.category.map((cat) => (
+                        <span
+                          key={cat}
+                          className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                          style={{ backgroundColor: categories.find(c => c.value === cat)?.color || '#6366f1' }}
+                        >
+                          {categories.find(c => c.value === cat)?.label || cat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {eligibleMembers.length === 0 ? (
+                      <div className="text-center py-6 bg-gray-50 rounded-lg">
+                        <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-gray-500">Aucun membre éligible</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Vérifiez les catégories de la séance
+                        </p>
+                      </div>
+                    ) : (
+                      eligibleMembers.map((member) => {
+                        const hasResponded = attendanceData.some(a => a.member_id === member.id);
+                        const response = attendanceData.find(a => a.member_id === member.id);
+                        
+                        return (
+                          <div key={member.id} className={`border rounded-lg p-3 ${
+                            hasResponded 
+                              ? response?.status === 'present' 
+                                ? 'bg-green-50 border-green-200' 
+                                : 'bg-red-50 border-red-200'
+                              : 'bg-gray-50 border-gray-200'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {member.first_name} {member.last_name}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  {member.email}
+                                </p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {member.member_categories?.map((mc: any) => (
+                                    <span 
+                                      key={mc.category_value}
+                                      className={`text-xs px-2 py-0.5 rounded-full ${
+                                        mc.is_primary 
+                                          ? 'bg-blue-100 text-blue-700' 
+                                          : 'bg-gray-100 text-gray-600'
+                                      }`}
+                                    >
+                                      {categories.find(c => c.value === mc.category_value)?.label || mc.category_value}
+                                      {mc.is_primary && ' ⭐'}
+                                    </span>
+                                  ))}
+                                  {/* Fallback catégorie principale */}
+                                  {(!member.member_categories || member.member_categories.length === 0) && member.category && (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                      {categories.find(c => c.value === member.category)?.label || member.category}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                {hasResponded ? (
+                                  <div className="flex items-center space-x-2">
+                                    {response?.status === 'present' ? (
+                                      <>
+                                        <CheckCircle className="w-5 h-5 text-green-600" />
+                                        <span className="text-sm font-medium text-green-700">Présent</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <XCircle className="w-5 h-5 text-red-600" />
+                                        <span className="text-sm font-medium text-red-700">Absent</span>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center space-x-2">
+                                    <AlertCircle className="w-5 h-5 text-yellow-600" />
+                                    <span className="text-sm text-yellow-700">Pas de réponse</span>
+                                  </div>
+                                )}
+                                {hasResponded && response?.response_date && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {new Date(response.response_date).toLocaleDateString('fr-FR')}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  
+                  {/* Statistiques */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4">
+                    <h5 className="font-semibold text-gray-800 mb-3">📊 Statistiques</h5>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {attendanceData.filter(a => a.status === 'present').length}
+                        </div>
+                        <div className="text-xs text-green-600">Présents</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-red-600">
+                          {attendanceData.filter(a => a.status === 'absent').length}
+                        </div>
+                        <div className="text-xs text-red-600">Absents</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-yellow-600">
+                          {eligibleMembers.length - attendanceData.length}
+                        </div>
+                        <div className="text-xs text-yellow-600">Sans réponse</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-center">
+                      <p className="text-sm text-gray-600">
+                        Taux de réponse : {eligibleMembers.length > 0 ? Math.round((attendanceData.length / eligibleMembers.length) * 100) : 0}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1344,8 +1673,23 @@ export const TrainingCalendar: React.FC = () => {
 
               {/* Actions admin */}
               <div className="flex space-x-3 pt-6 border-t border-gray-200">
+                <button
+                  onClick={() => setViewingSession(null)}
+                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
+                >
+                  Fermer
+                </button>
+                
                 {canManageTrainings && (
                   <>
+                    <button
+                      onClick={() => fetchSessionAttendance(viewingSession)}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                      <span>Voir présences</span>
+                    </button>
+
                     <button
                       onClick={() => {
                         setViewingSession(null);
@@ -1368,12 +1712,6 @@ export const TrainingCalendar: React.FC = () => {
                     </button>
                   </>
                 )}
-                <button
-                  onClick={() => setViewingSession(null)}
-                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
-                >
-                  Fermer
-                </button>
               </div>
             </div>
           </div>
