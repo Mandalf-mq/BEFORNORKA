@@ -95,6 +95,10 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
     if (!selectedFile.name.endsWith('.csv')) {
       alert('❌ Veuillez sélectionner un fichier CSV');
       return;
+    }
+
+    setFile(selectedFile);
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const csvText = e.target?.result as string;
@@ -108,7 +112,6 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       }
     };
     reader.readAsText(selectedFile);
-    setFile(selectedFile);
   };
 
   const validateCSVData = (data: any[]) => {
@@ -367,12 +370,14 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
           <h4 className={`font-semibold mb-2 ${
             result.error_count === 0 ? 'text-green-800' : 'text-yellow-800'
           }`}>
-            📊 Résultats de l'import
+            📊 Résultats de l'import avec création de comptes
           </h4>
           <div className={`text-sm space-y-1 ${
             result.error_count === 0 ? 'text-green-700' : 'text-yellow-700'
           }`}>
-            <p>✅ Membres importés avec succès : {result.imported_count}</p>
+            <p>✅ Comptes membres créés : {result.imported_count}</p>
+            <p>🔐 Comptes Supabase créés : {result.accounts_created || result.imported_count}</p>
+            <p>📧 Emails à envoyer : {result.send_emails_requested ? 'Oui' : 'Non'}</p>
             {result.error_count > 0 && (
               <>
                 <p>❌ Erreurs : {result.error_count}</p>
@@ -386,10 +391,39 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
                 </div>
               </>
             )}
+            
+            {/* Afficher les identifiants si pas d'envoi email */}
+            {!result.send_emails_requested && result.credentials_to_send && result.credentials_to_send.length > 0 && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowCredentials(!showCredentials)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
+                >
+                  {showCredentials ? 'Masquer' : 'Voir'} les identifiants créés
+                </button>
+                
+                {showCredentials && (
+                  <div className="mt-3 bg-white border border-blue-200 rounded-lg p-3 max-h-48 overflow-y-auto">
+                    <h5 className="font-semibold text-blue-800 mb-2">🔑 Identifiants créés :</h5>
+                    {result.credentials_to_send.map((cred: any, index: number) => (
+                      <div key={index} className="text-xs bg-blue-50 p-2 rounded mb-2">
+                        <p><strong>{cred.name}</strong></p>
+                        <p>📧 {cred.email}</p>
+                        <p>🔑 {cred.password}</p>
+                      </div>
+                    ))}
+                    <p className="text-xs text-blue-600 mt-2">
+                      💡 Communiquez ces identifiants aux membres manuellement
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <button
             onClick={() => {
               setResult(null);
+              setShowCredentials(false);
               onClose();
             }}
             className="mt-3 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors"
@@ -405,15 +439,25 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         <div className="text-sm text-amber-700 space-y-1">
           <p>• <strong>Colonnes obligatoires :</strong> first_name, last_name, email, birth_date</p>
           <p>• <strong>Colonnes optionnelles :</strong> phone, family_head_email</p>
-          <p>• <strong>Colonne optionnelle :</strong> family_head_email (pour lier un enfant à un parent)</p>
+          <p>• <strong>Colonnes adresse :</strong> address, postal_code, city (optionnelles)</p>
           <p>• <strong>Format date :</strong> YYYY-MM-DD (ex: 1995-03-15)</p>
           <p>• <strong>Format téléphone :</strong> Minimum 8 chiffres (ex: 0612345678 ou 06 12 34 56 78)</p>
-          <p>• <strong>Catégorie :</strong> Calculée automatiquement selon l'âge</p>
-          <p>• <strong>Tarif :</strong> Calculé automatiquement selon la catégorie</p>
-          <p>• <strong>Statut initial :</strong> Tous les membres importés seront en "pending"</p>
+          <p>• <strong>🔐 Comptes Supabase :</strong> Créés automatiquement pour chaque membre</p>
+          <p>• <strong>📧 Identifiants :</strong> Envoyés par email OU affichés selon votre choix</p>
+          <p>• <strong>🔑 Mots de passe :</strong> Générés automatiquement (8 caractères)</p>
+          <p>• <strong>📋 Statut initial :</strong> "pending" - à valider par un admin</p>
           <p>• <strong>Gestion familiale :</strong> Si family_head_email renseigné, l'enfant sera lié au parent</p>
-          <p>• <strong>Réduction familiale :</strong> 10% automatique à partir du 2ème enfant</p>
           <p>• <strong>Guillemets :</strong> Utilisez des guillemets pour les valeurs contenant des virgules</p>
+        </div>
+        
+        <div className="mt-3 p-3 bg-amber-100 border border-amber-300 rounded-lg">
+          <h5 className="font-semibold text-amber-800 mb-1">🆕 Nouveauté : Création automatique de comptes</h5>
+          <div className="text-sm text-amber-700 space-y-1">
+            <p>• <strong>Chaque membre importé</strong> aura un compte pour se connecter</p>
+            <p>• <strong>Accès immédiat</strong> à son espace membre et documents</p>
+            <p>• <strong>Option email :</strong> Choisissez d'envoyer ou non les identifiants</p>
+            <p>• <strong>Sécurité :</strong> Mot de passe temporaire à changer à la première connexion</p>
+          </div>
         </div>
       </div>
     </div>
