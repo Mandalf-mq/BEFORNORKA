@@ -20,7 +20,6 @@ export const TrainingCalendar: React.FC = () => {
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
 
-  // ✅ PLUS DE CATÉGORIES HARDCODÉES !
   const [newSession, setNewSession] = useState({
     title: '',
     description: '',
@@ -28,131 +27,146 @@ export const TrainingCalendar: React.FC = () => {
     start_time: '',
     end_time: '',
     location: '',
-    category: [], // ✅ VIDE - sera rempli depuis la BDD
+    category: [] as string[],
     coach: '',
     max_participants: 20
   });
 
-  // ✅ CHARGEMENT DE L'UTILISATEUR ET PROFIL
+  // ✅ CHARGEMENT INITIAL
   useEffect(() => {
     getCurrentUser();
   }, []);
 
+  useEffect(() => {
+    if (user) {
+      loadSessions();
+      loadCategories();
+    }
+  }, [user, currentWeek]);
+
+  // ✅ FONCTION - Récupérer l'utilisateur actuel
   const getCurrentUser = async () => {
     try {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
 
       if (user) {
-        const { data: profileData } = await supabase
+        const { data: profileData, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single();
-        setProfile(profileData);
+        
+        if (error && error.code !== 'PGRST116') {
+          console.error('Erreur profil:', error);
+        } else {
+          setProfile(profileData);
+        }
       }
     } catch (error) {
-      console.error('Erreur lors du chargement du profil:', error);
-    }
-  };
-
-  // ✅ FONCTION POUR FILTRER LES SESSIONS SELON LE RÔLE
-  const getFilteredSessions = (allSessions: TrainingSession[]) => {
-    // Si admin/coach : voir tout
-    if (profile?.role === 'admin' || profile?.role === 'coach') {
-      return allSessions;
-    }
-
-    // Si membre : voir seulement ses catégories
-    if (profile?.role === 'member' && profile?.categories?.length > 0) {
-      return allSessions.filter(session => {
-        // Vérifier si au moins une catégorie du membre correspond
-        return session.category.some(sessionCat => 
-          profile.categories.includes(sessionCat)
-        );
-      });
-    }
-
-    // Par défaut : voir tout (sécurité)
-    return allSessions;
-  };
-
-  // ✅ VÉRIFICATION DES PERMISSIONS
-  const canManageTrainings = profile?.role === 'admin' || profile?.role === 'coach';
-
-  useEffect(() => {
-    fetchCategories();
-    fetchSessions();
-  }, [currentWeek]);
-
-  const fetchSessions = async () => {
-    try {
-      setLoading(true);
-      const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
-      
-      const { data, error } = await supabase
-        .from('training_sessions')
-        .select('*')
-        .gte('date', format(weekStart, 'yyyy-MM-dd'))
-        .lte('date', format(weekEnd, 'yyyy-MM-dd'))
-        .order('date', { ascending: true })
-        .order('start_time', { ascending: true });
-
-      if (error) throw error;
-      
-      // ✅ FILTRAGE SELON LE RÔLE
-      const filteredSessions = getFilteredSessions(data || []);
-      setSessions(filteredSessions);
-    } catch (error) {
-      console.error('Erreur lors du chargement des séances:', error);
+      console.error('Erreur getCurrentUser:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchCategories = async () => {
+  // ✅ FONCTION - Charger les catégories
+  const loadCategories = async () => {
     try {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .eq('is_active', true)
-        .order('display_order');
+        .order('name');
 
       if (error) throw error;
-      setCategories(data || []);
+
+      const formattedCategories = data?.map(cat => ({
+        value: cat.name.toLowerCase(),
+        label: cat.name,
+        color: cat.color
+      })) || [];
+
+      setCategories(formattedCategories);
     } catch (error) {
-      console.error('Erreur lors du chargement des catégories:', error);
-      // ✅ PAS DE FALLBACK HARDCODÉ - juste tableau vide
+      console.error('Erreur chargement catégories:', error);
       setCategories([]);
     }
   };
 
-  const createSession = async () => {
+  // ✅ FONCTION - Charger les sessions
+  const loadSessions = async () => {
     try {
-      setCreating(true);
+      const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+
       const { data, error } = await supabase
         .from('training_sessions')
-        .insert([{
-          title: newSession.title,
-          description: newSession.description,
-          date: newSession.date,
-          start_time: newSession.start_time,
-          end_time: newSession.end_time,
-          location: newSession.location,
-          category: newSession.category,
-          coach: newSession.coach,
-          max_participants: newSession.max_participants
-        }])
-        .select();
+        .select('*')
+        .gte('date', format(weekStart, 'yyyy-MM-dd'))
+        .lte('date', format(weekEnd, 'yyyy-MM-dd'))
+        .order('date')
+        .order('start_time');
 
       if (error) throw error;
-      
-      if (data) {
-        setSessions(prev => [...prev, ...data]);
-      }
-      
-      // ✅ RESET SANS CATÉGORIES HARDCODÉES
+
+      const filteredSessions = getFilteredSessions(data || []);
+      setSessions(filteredSessions);
+    } catch (error) {
+      console.error('Erreur chargement sessions:', error);
+      setSessions([]);
+    }
+  };
+
+  // ✅ FONCTION - Filtrer selon le rôle utilisateur
+  const getFilteredSessions = (allSessions: TrainingSession[]) => {
+    if (!profile) return [];
+    
+    // Admin/Coach voient tout
+    if (profile.role === 'admin' || profile.role === 'coach') {
+      return allSessions;
+    }
+    
+    // Membres voient seulement leurs catégories
+    const userCategories = profile.categories || [];
+    return allSessions.filter(session => 
+      session.category.some(cat => userCategories.includes(cat))
+    );
+  };
+
+  // ✅ FONCTION - Vérifier permissions de gestion
+  const canManageTrainings = profile?.role === 'admin' || profile?.role === 'coach';
+
+  // ✅ FONCTION - Créer une session
+  const createSession = async () => {
+    if (newSession.category.length === 0) {
+      alert('Veuillez sélectionner au moins une catégorie');
+      return;
+    }
+
+    try {
+      setCreating(true);
+
+      const sessionData = {
+        title: newSession.title.trim(),
+        description: newSession.description.trim(),
+        date: newSession.date,
+        start_time: newSession.start_time,
+        end_time: newSession.end_time,
+        location: newSession.location.trim(),
+        category: newSession.category,
+        coach: newSession.coach.trim(),
+        max_participants: newSession.max_participants,
+        created_by: user?.id
+      };
+
+      const { error } = await supabase
+        .from('training_sessions')
+        .insert([sessionData]);
+
+      if (error) throw error;
+
+      // Reset form
       setNewSession({
         title: '',
         description: '',
@@ -160,72 +174,87 @@ export const TrainingCalendar: React.FC = () => {
         start_time: '',
         end_time: '',
         location: '',
-        category: [], // ✅ VIDE
+        category: [],
         coach: '',
         max_participants: 20
       });
-      
+
       setShowAddForm(false);
+      loadSessions();
+
     } catch (error) {
-      console.error('Erreur lors de la création:', error);
+      console.error('Erreur création session:', error);
+      alert('Erreur lors de la création de la session');
     } finally {
       setCreating(false);
     }
   };
 
+  // ✅ FONCTION - Mettre à jour une session  
   const updateSession = async () => {
-    if (!editingSession) return;
-    
+    if (!editingSession || editingSession.category.length === 0) {
+      alert('Veuillez sélectionner au moins une catégorie');
+      return;
+    }
+
     try {
       setUpdating(true);
-      const { data, error } = await supabase
+
+      const { error } = await supabase
         .from('training_sessions')
         .update({
-          title: editingSession.title,
-          description: editingSession.description,
+          title: editingSession.title.trim(),
+          description: editingSession.description?.trim(),
           date: editingSession.date,
           start_time: editingSession.start_time,
           end_time: editingSession.end_time,
-          location: editingSession.location,
+          location: editingSession.location.trim(),
           category: editingSession.category,
-          coach: editingSession.coach,
-          max_participants: editingSession.max_participants
+          coach: editingSession.coach.trim(),
+          max_participants: editingSession.max_participants,
+          updated_at: new Date().toISOString()
         })
-        .eq('id', editingSession.id)
-        .select();
+        .eq('id', editingSession.id);
 
       if (error) throw error;
-      
-      if (data) {
-        setSessions(prev => prev.map(s => s.id === editingSession.id ? data[0] : s));
-      }
-      
+
       setEditingSession(null);
+      loadSessions();
+
     } catch (error) {
-      console.error('Erreur lors de la modification:', error);
+      console.error('Erreur mise à jour session:', error);
+      alert('Erreur lors de la mise à jour');
     } finally {
       setUpdating(false);
     }
   };
 
+  // ✅ FONCTION - Supprimer une session
   const deleteSession = async (sessionId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette session ?')) {
+      return;
+    }
+
     try {
       setDeleting(sessionId);
+
       const { error } = await supabase
         .from('training_sessions')
         .delete()
         .eq('id', sessionId);
 
       if (error) throw error;
-      
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
+
+      loadSessions();
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
+      console.error('Erreur suppression session:', error);
+      alert('Erreur lors de la suppression');
     } finally {
       setDeleting(null);
     }
   };
 
+  // ✅ FONCTION - Dupliquer une session
   const duplicateSession = (session: TrainingSession) => {
     setNewSession({
       title: `${session.title} (copie)`,
@@ -241,331 +270,304 @@ export const TrainingCalendar: React.FC = () => {
     setShowAddForm(true);
   };
 
-  // ✅ FONCTIONS POUR LES CATÉGORIES DYNAMIQUES
-  const getCategoryColor = (categoryValues: string[]) => {
-    const category = categories.find(cat => categoryValues.includes(cat.value));
-    const color = category?.color || '#3B82F6';
+  // ✅ FONCTION - Obtenir la couleur d'une catégorie
+  const getCategoryColor = (sessionCategories: string[]) => {
+    const category = categories.find(cat => 
+      sessionCategories.includes(cat.value)
+    );
     return {
-      backgroundColor: color + '20',
-      color: color,
-      borderColor: color + '40'
+      backgroundColor: category?.color || '#6366f1',
+      color: '#ffffff'
     };
   };
 
+  // ✅ FONCTION - Obtenir le label d'une catégorie
   const getCategoryLabel = (categoryValue: string) => {
     const category = categories.find(cat => cat.value === categoryValue);
     return category?.label || categoryValue;
   };
 
+  // ✅ NAVIGATION SEMAINE
+  const goToPreviousWeek = () => setCurrentWeek(subWeeks(currentWeek, 1));
+  const goToNextWeek = () => setCurrentWeek(addWeeks(currentWeek, 1));
+  const goToToday = () => setCurrentWeek(new Date());
+
+  // ✅ OBTENIR LES JOURS DE LA SEMAINE
   const weekDays = eachDayOfInterval({
     start: startOfWeek(currentWeek, { weekStartsOn: 1 }),
     end: endOfWeek(currentWeek, { weekStartsOn: 1 })
   });
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-xl p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-            <Calendar className="w-6 h-6 text-primary-600" />
-            <span>Calendrier des entraînements</span>
-          </h2>
-          <div className="flex items-center space-x-3">
-            {/* Toggle vue */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('calendar')}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'calendar' 
-                    ? 'bg-white text-primary-600 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Grid className="w-4 h-4 inline mr-1" />
-                Calendrier
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'list' 
-                    ? 'bg-white text-primary-600 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <List className="w-4 h-4 inline mr-1" />
-                Liste
-              </button>
-            </div>
-            
-            {/* ✅ BOUTON CRÉATION SEULEMENT SI AUTORISÉ */}
-            {canManageTrainings && (
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Nouvelle séance</span>
-              </button>
-            )}
-          </div>
+      {/* ✅ HEADER AVEC CONTRÔLES */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Calendrier d'entraînement</h2>
+          <p className="text-gray-600 mt-1">
+            Semaine du {format(weekDays[0], 'dd MMM', { locale: fr })} au {format(weekDays[6], 'dd MMM yyyy', { locale: fr })}
+          </p>
         </div>
 
-        {/* Navigation semaine */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setCurrentWeek(prev => subWeeks(prev, 1))}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          
-          <h3 className="text-lg font-semibold text-gray-900">
-            Semaine du {format(weekDays[0], 'dd MMMM', { locale: fr })} au {format(weekDays[6], 'dd MMMM yyyy', { locale: fr })}
-          </h3>
-          
-          <button
-            onClick={() => setCurrentWeek(prev => addWeeks(prev, 1))}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+        <div className="flex items-center gap-2">
+          {/* Navigation semaine */}
+          <div className="flex items-center bg-white rounded-xl border border-gray-200 p-1">
+            <button
+              onClick={goToPreviousWeek}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={goToToday}
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Aujourd'hui
+            </button>
+            <button
+              onClick={goToNextWeek}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Toggle vue */}
+          <div className="flex items-center bg-white rounded-xl border border-gray-200 p-1">
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`p-2 rounded-lg transition-colors ${
+                viewMode === 'calendar' ? 'bg-primary-100 text-primary-700' : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              <Grid className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-lg transition-colors ${
+                viewMode === 'list' ? 'bg-primary-100 text-primary-700' : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              <List className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Bouton Ajouter (si autorisé) */}
+          {canManageTrainings && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl flex items-center space-x-2 transition-colors font-semibold"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Ajouter</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {loading ? (
-        <div className="bg-white rounded-xl p-12 text-center">
-          <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Chargement des entraînements...</p>
-        </div>
-      ) : (
-        <>
-          {/* Vue Calendrier */}
-          {viewMode === 'calendar' && (
-            <div className="bg-white rounded-xl p-6 shadow-lg">
-              <div className="grid grid-cols-7 gap-4">
-                {/* En-têtes des jours */}
-                {weekDays.map((day) => (
-                  <div key={day.toISOString()} className="text-center pb-4 border-b border-gray-200">
-                    <h3 className="font-semibold text-gray-900 mb-1">
-                      {format(day, 'EEEE', { locale: fr })}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      {format(day, 'dd MMM', { locale: fr })}
-                    </p>
-                  </div>
-                ))}
-
-                {/* Sessions par jour */}
-                {weekDays.map((day) => {
-                  const daySessions = sessions.filter(session => 
-                    isSameDay(new Date(session.date), day)
-                  );
-
-                  return (
-                    <div key={day.toISOString()} className="min-h-[200px] pt-4 space-y-2">
-                      {daySessions.map((session) => (
-                        <div
-                          key={session.id}
-                          onClick={() => setViewingSession(session)}
-                          className="p-3 rounded-lg border cursor-pointer hover:shadow-md transition-all group"
-                          style={getCategoryColor(session.category)}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium text-sm truncate pr-2">
-                              {session.title}
-                            </h4>
-                            {/* ✅ ACTIONS SEULEMENT SI AUTORISÉ */}
-                            {canManageTrainings && (
-                              <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingSession(session);
-                                  }}
-                                  className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
-                                  title="Modifier"
-                                >
-                                  <Edit className="w-3 h-3" />
-                                </button>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    duplicateSession(session);
-                                  }}
-                                  className="p-1 text-gray-400 hover:text-green-600 transition-colors"
-                                  title="Dupliquer"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                </button>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteSession(session.id);
-                                  }}
-                                  disabled={deleting === session.id}
-                                  className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                                  title="Supprimer"
-                                >
-                                  {deleting === session.id ? (
-                                    <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                                  ) : (
-                                    <Trash2 className="w-3 h-3" />
-                                  )}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="space-y-1 text-xs text-gray-600">
-                            <div className="flex items-center space-x-1">
-                              <Clock className="w-3 h-3" />
-                              <span>{session.start_time} - {session.end_time}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <MapPin className="w-3 h-3" />
-                              <span className="truncate">{session.location}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Users className="w-3 h-3" />
-                              <span>{session.coach}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Vue Liste */}
-          {viewMode === 'list' && (
-            <div className="space-y-4">
-              {sessions.length === 0 ? (
-                <div className="bg-white rounded-xl p-12 text-center">
-                  <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Aucun entraînement programmé
-                  </h3>
-                  <p className="text-gray-600">
-                    {canManageTrainings 
-                      ? "Créez votre première séance d'entraînement." 
-                      : "Aucun entraînement pour vos catégories cette semaine."
-                    }
-                  </p>
+      {/* ✅ VUE CALENDRIER */}
+      {viewMode === 'calendar' && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {/* En-tête jours */}
+          <div className="grid grid-cols-7 border-b border-gray-200">
+            {weekDays.map((day, index) => (
+              <div key={index} className="p-4 text-center border-r border-gray-200 last:border-r-0">
+                <div className="text-sm font-semibold text-gray-900 mb-1">
+                  {format(day, 'EEEE', { locale: fr })}
                 </div>
-              ) : (
-                sessions.map((session) => (
-                  <div key={session.id} className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900">{session.title}</h3>
-                          {/* ✅ AFFICHAGE CORRIGÉ DES CATÉGORIES */}
-                          <div className="flex flex-wrap gap-1">
-                            {session.category.map((cat) => (
-                              <span
-                                key={cat}
-                                className="px-2 py-1 rounded-full text-xs font-medium"
-                                style={getCategoryColor([cat])}
-                              >
-                                {getCategoryLabel(cat)}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="w-4 h-4" />
-                            <span>{format(new Date(session.date), 'EEEE dd MMMM yyyy', { locale: fr })}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="w-4 h-4" />
-                            <span>{session.start_time} - {session.end_time}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <MapPin className="w-4 h-4" />
-                            <span>{session.location}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Users className="w-4 h-4" />
-                            <span>Coach: {session.coach}</span>
-                          </div>
-                        </div>
-                        
-                        {session.description && (
-                          <p className="text-sm text-gray-600 mt-2">{session.description}</p>
-                        )}
-                        
-                        {session.max_participants && (
-                          <p className="text-sm text-gray-500 mt-1">
-                            Maximum {session.max_participants} participants
-                          </p>
-                        )}
-                      </div>
+                <div className={`text-lg font-bold ${
+                  isSameDay(day, new Date()) ? 'text-primary-600' : 'text-gray-600'
+                }`}>
+                  {format(day, 'd')}
+                </div>
+              </div>
+            ))}
+          </div>
 
-                      <div className="flex items-center space-x-2 ml-4">
-                        <button
-                          onClick={() => setViewingSession(session)}
-                          className="p-2 text-gray-400 hover:text-primary-600 transition-colors"
-                          title="Voir détails"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        
-                        {/* ✅ ACTIONS SEULEMENT SI AUTORISÉ */}
-                        {canManageTrainings && (
-                          <>
-                            <button
-                              onClick={() => setEditingSession(session)}
-                              className="p-2 text-gray-400 hover:text-primary-600 transition-colors"
-                              title="Modifier"
-                            >
-                              <Edit className="w-5 h-5" />
-                            </button>
-                            
-                            <button
-                              onClick={() => duplicateSession(session)}
-                              className="p-2 text-gray-400 hover:text-green-600 transition-colors"
-                              title="Dupliquer"
-                            >
-                              <Copy className="w-5 h-5" />
-                            </button>
-                            
-                            <button
-                              onClick={() => deleteSession(session.id)}
-                              disabled={deleting === session.id}
-                              className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                              title="Supprimer"
-                            >
-                              {deleting === session.id ? (
-                                <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                              ) : (
-                                <Trash2 className="w-5 h-5" />
-                              )}
-                            </button>
-                          </>
-                        )}
+          {/* Sessions */}
+          <div className="grid grid-cols-7 min-h-96">
+            {weekDays.map((day, index) => {
+              const daySessions = sessions.filter(session => 
+                isSameDay(new Date(session.date), day)
+              );
+
+              return (
+                <div key={index} className="border-r border-gray-200 last:border-r-0 p-2 space-y-2">
+                  {daySessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className="p-3 rounded-lg cursor-pointer hover:shadow-md transition-shadow text-sm"
+                      style={getCategoryColor(session.category)}
+                      onClick={() => setViewingSession(session)}
+                    >
+                      <div className="font-semibold mb-1">{session.title}</div>
+                      <div className="text-xs opacity-90 flex items-center space-x-1">
+                        <Clock className="w-3 h-3" />
+                        <span>{session.start_time}</span>
                       </div>
+                      <div className="text-xs opacity-90 flex items-center space-x-1 mt-1">
+                        <MapPin className="w-3 h-3" />
+                        <span className="truncate">{session.location}</span>
+                      </div>
+                      
+                      {/* Actions rapides (si autorisé) */}
+                      {canManageTrainings && (
+                        <div className="flex justify-end space-x-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingSession(session);
+                            }}
+                            className="p-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteSession(session.id);
+                            }}
+                            className="p-1 bg-white/20 hover:bg-red-500 rounded transition-colors"
+                            disabled={deleting === session.id}
+                          >
+                            {deleting === session.id ? (
+                              <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
-      {/* ✅ MODAL DE CRÉATION - SEULEMENT SI AUTORISÉ */}
+      {/* ✅ VUE LISTE */}
+      {viewMode === 'list' && (
+        <div className="bg-white rounded-xl border border-gray-200">
+          {sessions.length === 0 ? (
+            <div className="p-12 text-center text-gray-500">
+              <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <h3 className="text-lg font-semibold mb-2">Aucune session cette semaine</h3>
+              <p>Aucune session d'entraînement prévue pour cette période.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {sessions.map((session) => (
+                <div key={session.id} className="p-6 hover:bg-gray-50 transition-colors group">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      {/* Ligne 1: Titre + Catégories */}
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{session.title}</h3>
+                        <div className="flex space-x-1">
+                          {session.category.map((cat) => (
+                            <span
+                              key={cat}
+                              className="px-2 py-1 rounded-full text-xs font-medium"
+                              style={getCategoryColor([cat])}
+                            >
+                              {getCategoryLabel(cat)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Ligne 2: Infos principales */}
+                      <div className="flex items-center space-x-6 text-sm text-gray-600 mb-2">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-4 h-4" />
+                          <span>{format(new Date(session.date), 'EEEE dd MMM', { locale: fr })}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-4 h-4" />
+                          <span>{session.start_time} - {session.end_time}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <MapPin className="w-4 h-4" />
+                          <span>{session.location}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Users className="w-4 h-4" />
+                          <span>Coach: {session.coach}</span>
+                        </div>
+                      </div>
+
+                      {/* Description si présente */}
+                      {session.description && (
+                        <p className="text-sm text-gray-700 line-clamp-2">{session.description}</p>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center space-x-2 ml-4">
+                      <button
+                        onClick={() => setViewingSession(session)}
+                        className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                        title="Voir détails"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+                      
+                      {canManageTrainings && (
+                        <>
+                          <button
+                            onClick={() => setEditingSession(session)}
+                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Modifier"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => duplicateSession(session)}
+                            className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="Dupliquer"
+                          >
+                            <Copy className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => deleteSession(session.id)}
+                            disabled={deleting === session.id}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Supprimer"
+                          >
+                            {deleting === session.id ? (
+                              <div className="w-5 h-5 border-2 border-gray-300 border-t-red-600 rounded-full animate-spin" />
+                            ) : (
+                              <Trash2 className="w-5 h-5" />
+                            )}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ✅ MODAL CRÉATION */}
       {showAddForm && canManageTrainings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">
-                Créer une nouvelle séance
+                Nouvelle séance d'entraînement
               </h3>
               <button
                 onClick={() => setShowAddForm(false)}
@@ -590,7 +592,7 @@ export const TrainingCalendar: React.FC = () => {
                     value={newSession.title}
                     onChange={(e) => setNewSession(prev => ({ ...prev, title: e.target.value }))}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
-                    placeholder="Entraînement..."
+                    placeholder="Ex: Entraînement U15"
                   />
                 </div>
 
@@ -661,7 +663,7 @@ export const TrainingCalendar: React.FC = () => {
                     value={newSession.location}
                     onChange={(e) => setNewSession(prev => ({ ...prev, location: e.target.value }))}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
-                    placeholder="Gymnase..."
+                    placeholder="Terrain, salle..."
                   />
                 </div>
 
@@ -678,8 +680,7 @@ export const TrainingCalendar: React.FC = () => {
                   />
                 </div>
               </div>
-
-                            {/* ✅ SÉLECTION DES CATÉGORIES DEPUIS LA BDD */}
+              {/* SÉLECTION CATÉGORIES */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Catégories concernées *
@@ -720,13 +721,11 @@ export const TrainingCalendar: React.FC = () => {
                           )}
                         </div>
                         <div className="flex items-center space-x-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
+                          <div
+                            className="w-3 h-3 rounded-full"
                             style={{ backgroundColor: cat.color }}
                           ></div>
-                          <span className="text-sm font-medium text-gray-700">
-                            {cat.label}
-                          </span>
+                          <span className="font-medium text-gray-700">{cat.label}</span>
                         </div>
                       </label>
                     ))}
@@ -741,33 +740,33 @@ export const TrainingCalendar: React.FC = () => {
                 <textarea
                   value={newSession.description}
                   onChange={(e) => setNewSession(prev => ({ ...prev, description: e.target.value }))}
-                  rows={3}
+                  rows={4}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200 resize-none"
-                  placeholder="Description de la séance..."
+                  placeholder="Description optionnelle de la séance..."
                 />
               </div>
 
-              <div className="flex space-x-3 pt-6 border-t border-gray-200">
+              <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
+                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  disabled={creating || newSession.category.length === 0}
-                  className="flex-1 px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-colors font-semibold flex items-center justify-center space-x-2"
+                  disabled={creating}
+                  className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl flex items-center space-x-2 transition-colors font-semibold"
                 >
                   {creating ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       <span>Création...</span>
                     </>
                   ) : (
                     <>
-                      <Save className="w-4 h-4" />
+                      <Save className="w-5 h-5" />
                       <span>Créer la séance</span>
                     </>
                   )}
@@ -778,7 +777,7 @@ export const TrainingCalendar: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ MODAL D'ÉDITION - SEULEMENT SI AUTORISÉ */}
+      {/* ✅ MODAL MODIFICATION */}
       {editingSession && canManageTrainings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -895,53 +894,57 @@ export const TrainingCalendar: React.FC = () => {
                 </div>
               </div>
 
-              {/* ✅ SÉLECTION DES CATÉGORIES POUR L'ÉDITION */}
+              {/* SÉLECTION CATÉGORIES POUR MODIFICATION */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Catégories concernées *
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {categories.map(cat => (
-                    <label key={cat.value} className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md ${
-                      editingSession.category.includes(cat.value)
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}>
-                      <input
-                        type="checkbox"
-                        checked={editingSession.category.includes(cat.value)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setEditingSession(prev => prev ? { ...prev, category: [...prev.category, cat.value] } : null);
-                          } else {
-                            setEditingSession(prev => prev ? { ...prev, category: prev.category.filter(c => c !== cat.value) } : null);
-                          }
-                        }}
-                        className="sr-only"
-                      />
-                      <div className={`w-4 h-4 rounded border-2 mr-3 flex items-center justify-center transition-colors ${
+                {categories.length === 0 ? (
+                  <p className="text-red-600 text-sm">
+                    Aucune catégorie disponible.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {categories.map(cat => (
+                      <label key={cat.value} className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md ${
                         editingSession.category.includes(cat.value)
-                          ? 'bg-primary-500 border-primary-500'
-                          : 'border-gray-300'
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}>
-                        {editingSession.category.includes(cat.value) && (
-                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: cat.color }}
-                        ></div>
-                        <span className="text-sm font-medium text-gray-700">
-                          {cat.label}
-                        </span>
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                        <input
+                          type="checkbox"
+                          checked={editingSession.category.includes(cat.value)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditingSession(prev => prev ? { ...prev, category: [...prev.category, cat.value] } : null);
+                            } else {
+                              setEditingSession(prev => prev ? { ...prev, category: prev.category.filter(c => c !== cat.value) } : null);
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                        <div className={`w-4 h-4 rounded border-2 mr-3 flex items-center justify-center transition-colors ${
+                          editingSession.category.includes(cat.value)
+                            ? 'bg-primary-500 border-primary-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {editingSession.category.includes(cat.value) && (
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: cat.color }}
+                          ></div>
+                          <span className="font-medium text-gray-700">{cat.label}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -951,33 +954,33 @@ export const TrainingCalendar: React.FC = () => {
                 <textarea
                   value={editingSession.description || ''}
                   onChange={(e) => setEditingSession(prev => prev ? { ...prev, description: e.target.value } : null)}
-                  rows={3}
+                  rows={4}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200 resize-none"
-                  placeholder="Description de la séance..."
+                  placeholder="Description optionnelle de la séance..."
                 />
               </div>
 
-              <div className="flex space-x-3 pt-6 border-t border-gray-200">
+              <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={() => setEditingSession(null)}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
+                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  disabled={updating || editingSession.category.length === 0}
-                  className="flex-1 px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-colors font-semibold flex items-center justify-center space-x-2"
+                  disabled={updating}
+                  className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl flex items-center space-x-2 transition-colors font-semibold"
                 >
                   {updating ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Modification...</span>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Mise à jour...</span>
                     </>
                   ) : (
                     <>
-                      <Save className="w-4 h-4" />
+                      <Save className="w-5 h-5" />
                       <span>Sauvegarder</span>
                     </>
                   )}
@@ -988,13 +991,13 @@ export const TrainingCalendar: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ MODAL DE VISUALISATION */}
+      {/* ✅ MODAL VISUALISATION */}
       {viewingSession && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">
-                {viewingSession.title}
+                📋 Détails de la séance
               </h3>
               <button
                 onClick={() => setViewingSession(null)}
@@ -1004,36 +1007,16 @@ export const TrainingCalendar: React.FC = () => {
               </button>
             </div>
 
-            <div className="space-y-4">
-              {/* Infos générales */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <Calendar className="w-4 h-4" />
-                  <span>{format(new Date(viewingSession.date), 'EEEE dd MMMM yyyy', { locale: fr })}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <Clock className="w-4 h-4" />
-                  <span>{viewingSession.start_time} - {viewingSession.end_time}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <MapPin className="w-4 h-4" />
-                  <span>{viewingSession.location}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <Users className="w-4 h-4" />
-                  <span>Coach: {viewingSession.coach}</span>
-                </div>
-              </div>
-
-              {/* Catégories */}
+            <div className="space-y-6">
+              {/* Titre & Badges */}
               <div>
-                <h4 className="font-semibold text-gray-800 mb-2">🎯 Catégories</h4>
+                <h4 className="text-2xl font-bold text-gray-900 mb-3">{viewingSession.title}</h4>
                 <div className="flex flex-wrap gap-2">
                   {viewingSession.category.map((cat) => (
                     <span
                       key={cat}
-                      className="px-3 py-1 rounded-full text-sm font-medium"
-                      style={getCategoryColor([cat])}
+                      className="px-3 py-1 rounded-full text-sm font-medium text-white"
+                      style={{ backgroundColor: categories.find(c => c.value === cat)?.color || '#6366f1' }}
                     >
                       {getCategoryLabel(cat)}
                     </span>
@@ -1041,13 +1024,36 @@ export const TrainingCalendar: React.FC = () => {
                 </div>
               </div>
 
-              {/* Participants max */}
-              {viewingSession.max_participants && (
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h4 className="font-semibold text-gray-800 mb-1">👥 Participants</h4>
-                  <p className="text-gray-700">Maximum {viewingSession.max_participants} participants</p>
+              {/* Infos principales */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <Calendar className="w-5 h-5 text-primary-600" />
+                    <span className="font-semibold">
+                      {format(new Date(viewingSession.date), 'EEEE dd MMMM yyyy', { locale: fr })}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <Clock className="w-5 h-5 text-primary-600" />
+                    <span>{viewingSession.start_time} - {viewingSession.end_time}</span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <MapPin className="w-5 h-5 text-primary-600" />
+                    <span>{viewingSession.location}</span>
+                  </div>
                 </div>
-              )}
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <Users className="w-5 h-5 text-primary-600" />
+                    <span>Coach: <strong>{viewingSession.coach}</strong></span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-gray-700">
+                    <Users className="w-5 h-5 text-primary-600" />
+                    <span>Max: <strong>{viewingSession.max_participants || 20} participants</strong></span>
+                  </div>
+                </div>
+              </div>
 
               {/* Description */}
               {viewingSession.description && (
@@ -1099,3 +1105,4 @@ export const TrainingCalendar: React.FC = () => {
 };
 
 export default TrainingCalendar;
+
