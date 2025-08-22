@@ -127,7 +127,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
         birthDate: '',
         category: 'senior',
         membershipFee: 250,
-        ffvbLicense: ''
+        ffvbLicense: '',
         additionalCategories: []
       });
 
