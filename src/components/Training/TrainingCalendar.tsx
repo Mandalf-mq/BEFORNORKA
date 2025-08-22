@@ -4,10 +4,10 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks,
 import { fr } from 'date-fns/locale';
 import { supabase } from '../../lib/supabase';
 import { TrainingSession } from '../../types';
-import { useAuth } from '../../hooks/useAuth';
 
 export const TrainingCalendar: React.FC = () => {
-  const { user, profile } = useAuth();
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +33,29 @@ export const TrainingCalendar: React.FC = () => {
     max_participants: 20
   });
 
+  // ✅ CHARGEMENT DE L'UTILISATEUR ET PROFIL
+  useEffect(() => {
+    getCurrentUser();
+  }, []);
+
+  const getCurrentUser = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+
+      if (user) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        setProfile(profileData);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement du profil:', error);
+    }
+  };
+
   // ✅ FONCTION POUR FILTRER LES SESSIONS SELON LE RÔLE
   const getFilteredSessions = (allSessions: TrainingSession[]) => {
     // Si admin/coach : voir tout
@@ -50,10 +73,18 @@ export const TrainingCalendar: React.FC = () => {
       });
     }
 
-    return [];
+    // Par défaut : voir tout (sécurité)
+    return allSessions;
   };
 
-  // ✅ FETCHSESSIONS AVEC FILTRAGE
+  // ✅ VÉRIFICATION DES PERMISSIONS
+  const canManageTrainings = profile?.role === 'admin' || profile?.role === 'coach';
+
+  useEffect(() => {
+    fetchCategories();
+    fetchSessions();
+  }, [currentWeek]);
+
   const fetchSessions = async () => {
     try {
       setLoading(true);
@@ -70,7 +101,7 @@ export const TrainingCalendar: React.FC = () => {
 
       if (error) throw error;
       
-      // ✅ FILTRER SELON LE RÔLE
+      // ✅ FILTRAGE SELON LE RÔLE
       const filteredSessions = getFilteredSessions(data || []);
       setSessions(filteredSessions);
     } catch (error) {
@@ -80,7 +111,6 @@ export const TrainingCalendar: React.FC = () => {
     }
   };
 
-  // ✅ FETCHCATEGORIES SANS FALLBACK HARDCODÉ
   const fetchCategories = async () => {
     try {
       const { data, error } = await supabase
@@ -93,49 +123,35 @@ export const TrainingCalendar: React.FC = () => {
       setCategories(data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des catégories:', error);
-      setCategories([]); // ✅ PAS DE FALLBACK - juste tableau vide
+      // ✅ PAS DE FALLBACK HARDCODÉ - juste tableau vide
+      setCategories([]);
     }
   };
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      fetchSessions();
-    }
-  }, [user, currentWeek, profile]);
-
-  // ✅ CREATESESSION CORRIGÉE
-  const createSession = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || newSession.category.length === 0) {
-      alert('Veuillez sélectionner au moins une catégorie');
-      return;
-    }
-
+  const createSession = async () => {
     try {
       setCreating(true);
       const { data, error } = await supabase
         .from('training_sessions')
         .insert([{
-          ...newSession,
-          created_by: user.id
+          title: newSession.title,
+          description: newSession.description,
+          date: newSession.date,
+          start_time: newSession.start_time,
+          end_time: newSession.end_time,
+          location: newSession.location,
+          category: newSession.category,
+          coach: newSession.coach,
+          max_participants: newSession.max_participants
         }])
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
-
-      // ✅ VÉRIFIER SI LA SESSION CRÉÉE DOIT ÊTRE AFFICHÉE
-      const filteredData = getFilteredSessions([data]);
-      if (filteredData.length > 0) {
-        setSessions(prev => [...prev, data].sort((a, b) => 
-          a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time)
-        ));
+      
+      if (data) {
+        setSessions(prev => [...prev, ...data]);
       }
-
+      
       // ✅ RESET SANS CATÉGORIES HARDCODÉES
       setNewSession({
         title: '',
@@ -148,22 +164,18 @@ export const TrainingCalendar: React.FC = () => {
         coach: '',
         max_participants: 20
       });
+      
       setShowAddForm(false);
     } catch (error) {
       console.error('Erreur lors de la création:', error);
-      alert('Erreur lors de la création de la séance');
     } finally {
       setCreating(false);
     }
   };
 
-  // ✅ UPDATESESSION CORRIGÉE
   const updateSession = async () => {
-    if (!editingSession || editingSession.category.length === 0) {
-      alert('Veuillez sélectionner au moins une catégorie');
-      return;
-    }
-
+    if (!editingSession) return;
+    
     try {
       setUpdating(true);
       const { data, error } = await supabase
@@ -180,29 +192,17 @@ export const TrainingCalendar: React.FC = () => {
           max_participants: editingSession.max_participants
         })
         .eq('id', editingSession.id)
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
-
-      // ✅ VÉRIFIER SI LA SESSION MODIFIÉE DOIT ÊTRE AFFICHÉE
-      const filteredData = getFilteredSessions([data]);
       
-      setSessions(prev => {
-        const updated = prev.filter(s => s.id !== editingSession.id);
-        if (filteredData.length > 0) {
-          updated.push(data);
-          return updated.sort((a, b) => 
-            a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time)
-          );
-        }
-        return updated;
-      });
-
+      if (data) {
+        setSessions(prev => prev.map(s => s.id === editingSession.id ? data[0] : s));
+      }
+      
       setEditingSession(null);
     } catch (error) {
       console.error('Erreur lors de la modification:', error);
-      alert('Erreur lors de la modification de la séance');
     } finally {
       setUpdating(false);
     }
@@ -257,22 +257,10 @@ export const TrainingCalendar: React.FC = () => {
     return category?.label || categoryValue;
   };
 
-  // ✅ NAVIGATION SEMAINE
   const weekDays = eachDayOfInterval({
     start: startOfWeek(currentWeek, { weekStartsOn: 1 }),
     end: endOfWeek(currentWeek, { weekStartsOn: 1 })
   });
-
-  // ✅ VÉRIFIER LES PERMISSIONS
-  const canManageTrainings = profile?.role === 'admin' || profile?.role === 'coach';
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -310,7 +298,7 @@ export const TrainingCalendar: React.FC = () => {
               </button>
             </div>
             
-            {/* ✅ BOUTON NOUVEAU SEULEMENT POUR ADMIN/COACH */}
+            {/* ✅ BOUTON CRÉATION SEULEMENT SI AUTORISÉ */}
             {canManageTrainings && (
               <button
                 onClick={() => setShowAddForm(true)}
@@ -324,18 +312,20 @@ export const TrainingCalendar: React.FC = () => {
         </div>
 
         {/* Navigation semaine */}
-        <div className="flex items-center justify-center space-x-4">
+        <div className="flex items-center justify-between">
           <button
-            onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
+            onClick={() => setCurrentWeek(prev => subWeeks(prev, 1))}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
+          
           <h3 className="text-lg font-semibold text-gray-900">
-            Semaine du {format(weekDays[0], 'dd', { locale: fr })} au {format(weekDays[6], 'dd MMMM yyyy', { locale: fr })}
+            Semaine du {format(weekDays[0], 'dd MMMM', { locale: fr })} au {format(weekDays[6], 'dd MMMM yyyy', { locale: fr })}
           </h3>
+          
           <button
-            onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
+            onClick={() => setCurrentWeek(prev => addWeeks(prev, 1))}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ChevronRight className="w-5 h-5" />
@@ -343,248 +333,239 @@ export const TrainingCalendar: React.FC = () => {
         </div>
       </div>
 
-      {/* Vue Calendrier */}
-      {viewMode === 'calendar' && (
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="grid grid-cols-7 gap-0">
-            {weekDays.map((day) => {
-              const daySessions = sessions.filter(session => isSameDay(new Date(session.date), day));
-              const isToday = isSameDay(day, new Date());
-              
-              return (
-                <div key={day.toISOString()} className="border-r border-b border-gray-200 last:border-r-0">
-                  <div className={`p-4 border-b border-gray-100 ${isToday ? 'bg-primary-50' : 'bg-gray-50'}`}>
-                    <div className="text-center">
-                      <div className="text-sm font-medium text-gray-600">
-                        {format(day, 'EEEE', { locale: fr })}
-                      </div>
-                      <div className={`text-lg font-bold ${isToday ? 'text-primary-600' : 'text-gray-900'}`}>
-                        {format(day, 'd')}
-                      </div>
-                    </div>
+      {loading ? (
+        <div className="bg-white rounded-xl p-12 text-center">
+          <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement des entraînements...</p>
+        </div>
+      ) : (
+        <>
+          {/* Vue Calendrier */}
+          {viewMode === 'calendar' && (
+            <div className="bg-white rounded-xl p-6 shadow-lg">
+              <div className="grid grid-cols-7 gap-4">
+                {/* En-têtes des jours */}
+                {weekDays.map((day) => (
+                  <div key={day.toISOString()} className="text-center pb-4 border-b border-gray-200">
+                    <h3 className="font-semibold text-gray-900 mb-1">
+                      {format(day, 'EEEE', { locale: fr })}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {format(day, 'dd MMM', { locale: fr })}
+                    </p>
                   </div>
-                  
-                  <div className="p-2 min-h-[300px] space-y-1">
-                    {daySessions.map((session) => (
-                      <div
-                        key={session.id}
-                        onClick={() => setViewingSession(session)}
-                        className="p-2 rounded-lg cursor-pointer hover:shadow-md transition-all duration-200 border"
-                        style={getCategoryColor(session.category)}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <h4 className="text-xs font-semibold truncate flex-1">
-                            {session.title}
-                          </h4>
+                ))}
+
+                {/* Sessions par jour */}
+                {weekDays.map((day) => {
+                  const daySessions = sessions.filter(session => 
+                    isSameDay(new Date(session.date), day)
+                  );
+
+                  return (
+                    <div key={day.toISOString()} className="min-h-[200px] pt-4 space-y-2">
+                      {daySessions.map((session) => (
+                        <div
+                          key={session.id}
+                          onClick={() => setViewingSession(session)}
+                          className="p-3 rounded-lg border cursor-pointer hover:shadow-md transition-all group"
+                          style={getCategoryColor(session.category)}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium text-sm truncate pr-2">
+                              {session.title}
+                            </h4>
+                            {/* ✅ ACTIONS SEULEMENT SI AUTORISÉ */}
+                            {canManageTrainings && (
+                              <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingSession(session);
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
+                                  title="Modifier"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    duplicateSession(session);
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-green-600 transition-colors"
+                                  title="Dupliquer"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteSession(session.id);
+                                  }}
+                                  disabled={deleting === session.id}
+                                  className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                                  title="Supprimer"
+                                >
+                                  {deleting === session.id ? (
+                                    <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                                  ) : (
+                                    <Trash2 className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                           
-                          {/* ✅ ACTIONS SEULEMENT POUR ADMIN/COACH */}
-                          {canManageTrainings && (
-                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingSession(session);
-                                }}
-                                className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
-                                title="Modifier"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  duplicateSession(session);
-                                }}
-                                className="p-1 text-gray-400 hover:text-green-600 transition-colors"
-                                title="Dupliquer"
-                              >
-                                <Copy className="w-3 h-3" />
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteSession(session.id);
-                                }}
-                                disabled={deleting === session.id}
-                                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                                title="Supprimer"
-                              >
-                                {deleting === session.id ? (
-                                  <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                                ) : (
-                                  <Trash2 className="w-3 h-3" />
-                                )}
-                              </button>
+                          <div className="space-y-1 text-xs text-gray-600">
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-3 h-3" />
+                              <span>{session.start_time} - {session.end_time}</span>
                             </div>
-                          )}
+                            <div className="flex items-center space-x-1">
+                              <MapPin className="w-3 h-3" />
+                              <span className="truncate">{session.location}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Users className="w-3 h-3" />
+                              <span>{session.coach}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Vue Liste */}
+          {viewMode === 'list' && (
+            <div className="space-y-4">
+              {sessions.length === 0 ? (
+                <div className="bg-white rounded-xl p-12 text-center">
+                  <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Aucun entraînement programmé
+                  </h3>
+                  <p className="text-gray-600">
+                    {canManageTrainings 
+                      ? "Créez votre première séance d'entraînement." 
+                      : "Aucun entraînement pour vos catégories cette semaine."
+                    }
+                  </p>
+                </div>
+              ) : (
+                sessions.map((session) => (
+                  <div key={session.id} className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">{session.title}</h3>
+                          {/* ✅ AFFICHAGE CORRIGÉ DES CATÉGORIES */}
+                          <div className="flex flex-wrap gap-1">
+                            {session.category.map((cat) => (
+                              <span
+                                key={cat}
+                                className="px-2 py-1 rounded-full text-xs font-medium"
+                                style={getCategoryColor([cat])}
+                              >
+                                {getCategoryLabel(cat)}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                         
-                        <div className="space-y-1 text-xs text-gray-600">
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-3 h-3" />
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="w-4 h-4" />
+                            <span>{format(new Date(session.date), 'EEEE dd MMMM yyyy', { locale: fr })}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Clock className="w-4 h-4" />
                             <span>{session.start_time} - {session.end_time}</span>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <MapPin className="w-3 h-3" />
-                            <span className="truncate">{session.location}</span>
+                          <div className="flex items-center space-x-2">
+                            <MapPin className="w-4 h-4" />
+                            <span>{session.location}</span>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <Users className="w-3 h-3" />
-                            <span>{session.coach}</span>
+                          <div className="flex items-center space-x-2">
+                            <Users className="w-4 h-4" />
+                            <span>Coach: {session.coach}</span>
                           </div>
                         </div>
+                        
+                        {session.description && (
+                          <p className="text-sm text-gray-600 mt-2">{session.description}</p>
+                        )}
+                        
+                        {session.max_participants && (
+                          <p className="text-sm text-gray-500 mt-1">
+                            Maximum {session.max_participants} participants
+                          </p>
+                        )}
+                      </div>
 
-                        {/* ✅ AFFICHAGE CORRIGÉ DES CATÉGORIES */}
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {session.category.map((cat) => (
-                            <span
-                              key={cat}
-                              className="px-2 py-1 rounded-full text-xs font-medium"
-                              style={getCategoryColor([cat])}
-                            >
-                              {getCategoryLabel(cat)}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {daySessions.length === 0 && (
-                      <div className="text-center py-8 text-gray-400">
-                        <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-xs">Aucun entraînement</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Vue Liste */}
-      {viewMode === 'list' && (
-        <div className="space-y-4">
-          {sessions.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center">
-              <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Aucun entraînement programmé
-              </h3>
-              <p className="text-gray-600">
-                {canManageTrainings 
-                  ? "Créez votre première séance d'entraînement." 
-                  : "Aucun entraînement n'est programmé pour vos catégories cette semaine."
-                }
-              </p>
-            </div>
-          ) : (
-            sessions.map((session) => (
-              <div key={session.id} className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{session.title}</h3>
-                      {/* ✅ AFFICHAGE CORRIGÉ DES CATÉGORIES */}
-                      <div className="flex flex-wrap gap-1">
-                        {session.category.map((cat) => (
-                          <span
-                            key={cat}
-                            className="px-2 py-1 rounded-full text-xs font-medium"
-                            style={getCategoryColor([cat])}
-                          >
-                            {getCategoryLabel(cat)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
-                      <div className="flex items-center space-x-2">
-                        <Calendar className="w-4 h-4" />
-                        <span>{format(new Date(session.date), 'EEEE dd MMMM yyyy', { locale: fr })}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4" />
-                        <span>{session.start_time} - {session.end_time}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <MapPin className="w-4 h-4" />
-                        <span>{session.location}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Users className="w-4 h-4" />
-                        <span>Coach: {session.coach}</span>
-                      </div>
-                    </div>
-                    
-                    {session.description && (
-                      <p className="text-sm text-gray-600 mt-2">{session.description}</p>
-                    )}
-                    
-                    {session.max_participants && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        Maximum {session.max_participants} participants
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setViewingSession(session)}
-                      className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                      title="Voir détails"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    
-                    {/* ✅ ACTIONS SEULEMENT POUR ADMIN/COACH */}
-                    {canManageTrainings && (
-                      <>
+                      <div className="flex items-center space-x-2 ml-4">
                         <button
-                          onClick={() => setEditingSession(session)}
+                          onClick={() => setViewingSession(session)}
                           className="p-2 text-gray-400 hover:text-primary-600 transition-colors"
-                          title="Modifier"
+                          title="Voir détails"
                         >
-                          <Edit className="w-4 h-4" />
+                          <Eye className="w-5 h-5" />
                         </button>
-                        <button
-                          onClick={() => duplicateSession(session)}
-                          className="p-2 text-gray-400 hover:text-green-600 transition-colors"
-                          title="Dupliquer"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteSession(session.id)}
-                          disabled={deleting === session.id}
-                          className="p-2 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                          title="Supprimer"
-                        >
-                          {deleting === session.id ? (
-                            <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </button>
-                      </>
-                    )}
+                        
+                        {/* ✅ ACTIONS SEULEMENT SI AUTORISÉ */}
+                        {canManageTrainings && (
+                          <>
+                            <button
+                              onClick={() => setEditingSession(session)}
+                              className="p-2 text-gray-400 hover:text-primary-600 transition-colors"
+                              title="Modifier"
+                            >
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            
+                            <button
+                              onClick={() => duplicateSession(session)}
+                              className="p-2 text-gray-400 hover:text-green-600 transition-colors"
+                              title="Dupliquer"
+                            >
+                              <Copy className="w-5 h-5" />
+                            </button>
+                            
+                            <button
+                              onClick={() => deleteSession(session.id)}
+                              disabled={deleting === session.id}
+                              className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                              title="Supprimer"
+                            >
+                              {deleting === session.id ? (
+                                <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <Trash2 className="w-5 h-5" />
+                              )}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))
+                ))
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
 
-      {/* ✅ MODAL DE CRÉATION - SEULEMENT SI ADMIN/COACH */}
+      {/* ✅ MODAL DE CRÉATION - SEULEMENT SI AUTORISÉ */}
       {showAddForm && canManageTrainings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">
-                Nouvelle séance d'entraînement
+                Créer une nouvelle séance
               </h3>
               <button
                 onClick={() => setShowAddForm(false)}
@@ -594,7 +575,10 @@ export const TrainingCalendar: React.FC = () => {
               </button>
             </div>
             
-            <form onSubmit={createSession} className="space-y-6">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              createSession();
+            }} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -740,7 +724,9 @@ export const TrainingCalendar: React.FC = () => {
                             className="w-3 h-3 rounded-full" 
                             style={{ backgroundColor: cat.color }}
                           ></div>
-                          <span className="text-sm font-medium text-gray-900">{cat.label}</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            {cat.label}
+                          </span>
                         </div>
                       </label>
                     ))}
@@ -755,24 +741,24 @@ export const TrainingCalendar: React.FC = () => {
                 <textarea
                   value={newSession.description}
                   onChange={(e) => setNewSession(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
                   rows={3}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200 resize-none"
                   placeholder="Description de la séance..."
                 />
               </div>
 
-              <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+              <div className="flex space-x-3 pt-6 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="px-6 py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-xl transition-colors font-semibold"
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={creating || newSession.category.length === 0}
-                  className="px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-xl transition-colors font-semibold flex items-center space-x-2"
+                  className="flex-1 px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-colors font-semibold flex items-center justify-center space-x-2"
                 >
                   {creating ? (
                     <>
@@ -782,7 +768,7 @@ export const TrainingCalendar: React.FC = () => {
                   ) : (
                     <>
                       <Save className="w-4 h-4" />
-                      <span>Créer</span>
+                      <span>Créer la séance</span>
                     </>
                   )}
                 </button>
@@ -792,7 +778,7 @@ export const TrainingCalendar: React.FC = () => {
         </div>
       )}
 
-      {/* ✅ MODAL DE MODIFICATION - SEULEMENT SI ADMIN/COACH */}
+      {/* ✅ MODAL D'ÉDITION - SEULEMENT SI AUTORISÉ */}
       {editingSession && canManageTrainings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -821,7 +807,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="text"
                     required
                     value={editingSession.title}
-                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, title: e.target.value }) : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, title: e.target.value } : null)}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
                   />
                 </div>
@@ -834,7 +820,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="text"
                     required
                     value={editingSession.coach}
-                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, coach: e.target.value }) : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, coach: e.target.value } : null)}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
                   />
                 </div>
@@ -849,7 +835,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="date"
                     required
                     value={editingSession.date}
-                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, date: e.target.value }) : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, date: e.target.value } : null)}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
                   />
                 </div>
@@ -862,7 +848,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="time"
                     required
                     value={editingSession.start_time}
-                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, start_time: e.target.value }) : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, start_time: e.target.value } : null)}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
                   />
                 </div>
@@ -875,7 +861,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="time"
                     required
                     value={editingSession.end_time}
-                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, end_time: e.target.value }) : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, end_time: e.target.value } : null)}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
                   />
                 </div>
@@ -890,7 +876,7 @@ export const TrainingCalendar: React.FC = () => {
                     type="text"
                     required
                     value={editingSession.location}
-                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, location: e.target.value }) : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, location: e.target.value } : null)}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
                   />
                 </div>
@@ -903,63 +889,59 @@ export const TrainingCalendar: React.FC = () => {
                     type="number"
                     min="1"
                     value={editingSession.max_participants || 20}
-                    onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, max_participants: parseInt(e.target.value) || 20 }) : null)}
+                    onChange={(e) => setEditingSession(prev => prev ? { ...prev, max_participants: parseInt(e.target.value) || 20 } : null)}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
                   />
                 </div>
               </div>
 
-              {/* ✅ CATÉGORIES POUR MODIFICATION */}
+              {/* ✅ SÉLECTION DES CATÉGORIES POUR L'ÉDITION */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Catégories concernées *
                 </label>
-                {categories.length === 0 ? (
-                  <p className="text-red-600 text-sm">
-                    Aucune catégorie disponible. Veuillez créer des catégories dans les paramètres.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {categories.map(cat => (
-                      <label key={cat.value} className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md ${
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {categories.map(cat => (
+                    <label key={cat.value} className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md ${
+                      editingSession.category.includes(cat.value)
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={editingSession.category.includes(cat.value)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditingSession(prev => prev ? { ...prev, category: [...prev.category, cat.value] } : null);
+                          } else {
+                            setEditingSession(prev => prev ? { ...prev, category: prev.category.filter(c => c !== cat.value) } : null);
+                          }
+                        }}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded border-2 mr-3 flex items-center justify-center transition-colors ${
                         editingSession.category.includes(cat.value)
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'bg-primary-500 border-primary-500'
+                          : 'border-gray-300'
                       }`}>
-                        <input
-                          type="checkbox"
-                          checked={editingSession.category.includes(cat.value)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditingSession(prev => prev ? ({ ...prev, category: [...prev.category, cat.value] }) : null);
-                            } else {
-                              setEditingSession(prev => prev ? ({ ...prev, category: prev.category.filter(c => c !== cat.value) }) : null);
-                            }
-                          }}
-                          className="sr-only"
-                        />
-                        <div className={`w-4 h-4 rounded border-2 mr-3 flex items-center justify-center transition-colors ${
-                          editingSession.category.includes(cat.value)
-                            ? 'bg-primary-500 border-primary-500'
-                            : 'border-gray-300'
-                        }`}>
-                          {editingSession.category.includes(cat.value) && (
-                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: cat.color }}
-                          ></div>
-                          <span className="text-sm font-medium text-gray-900">{cat.label}</span>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                )}
+                        {editingSession.category.includes(cat.value) && (
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: cat.color }}
+                        ></div>
+                        <span className="text-sm font-medium text-gray-700">
+                          {cat.label}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -968,33 +950,34 @@ export const TrainingCalendar: React.FC = () => {
                 </label>
                 <textarea
                   value={editingSession.description || ''}
-                  onChange={(e) => setEditingSession(prev => prev ? ({ ...prev, description: e.target.value }) : null)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200"
+                  onChange={(e) => setEditingSession(prev => prev ? { ...prev, description: e.target.value } : null)}
                   rows={3}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200 resize-none"
+                  placeholder="Description de la séance..."
                 />
               </div>
 
-              <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+              <div className="flex space-x-3 pt-6 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={() => setEditingSession(null)}
-                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={updating || editingSession.category.length === 0}
-                  className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl flex items-center space-x-2 transition-all font-semibold disabled:opacity-50"
+                  className="flex-1 px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-colors font-semibold flex items-center justify-center space-x-2"
                 >
                   {updating ? (
                     <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       <span>Modification...</span>
                     </>
                   ) : (
                     <>
-                      <Save className="w-5 h-5" />
+                      <Save className="w-4 h-4" />
                       <span>Sauvegarder</span>
                     </>
                   )}
@@ -1005,10 +988,10 @@ export const TrainingCalendar: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de visualisation */}
+      {/* ✅ MODAL DE VISUALISATION */}
       {viewingSession && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">
                 {viewingSession.title}
@@ -1022,36 +1005,34 @@ export const TrainingCalendar: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              {/* Informations principales */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h4 className="font-semibold text-gray-800 mb-3">📅 Date et horaires</h4>
-                  <div className="space-y-2 text-gray-700">
-                    <p>{format(new Date(viewingSession.date), 'EEEE dd MMMM yyyy', { locale: fr })}</p>
-                    <p>{viewingSession.start_time} - {viewingSession.end_time}</p>
-                  </div>
+              {/* Infos générales */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="flex items-center space-x-2 text-gray-600">
+                  <Calendar className="w-4 h-4" />
+                  <span>{format(new Date(viewingSession.date), 'EEEE dd MMMM yyyy', { locale: fr })}</span>
                 </div>
-
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h4 className="font-semibold text-gray-800 mb-3">📍 Lieu et coach</h4>
-                  <div className="space-y-2 text-gray-700">
-                    <p>{viewingSession.location}</p>
-                    <p>Coach: {viewingSession.coach}</p>
-                    {viewingSession.max_participants && (
-                      <p>Max: {viewingSession.max_participants} participants</p>
-                    )}
-                  </div>
+                <div className="flex items-center space-x-2 text-gray-600">
+                  <Clock className="w-4 h-4" />
+                  <span>{viewingSession.start_time} - {viewingSession.end_time}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-gray-600">
+                  <MapPin className="w-4 h-4" />
+                  <span>{viewingSession.location}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-gray-600">
+                  <Users className="w-4 h-4" />
+                  <span>Coach: {viewingSession.coach}</span>
                 </div>
               </div>
 
               {/* Catégories */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h4 className="font-semibold text-gray-800 mb-3">🏐 Catégories concernées</h4>
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-2">🎯 Catégories</h4>
                 <div className="flex flex-wrap gap-2">
                   {viewingSession.category.map((cat) => (
                     <span
                       key={cat}
-                      className="px-4 py-2 rounded-full text-sm font-medium"
+                      className="px-3 py-1 rounded-full text-sm font-medium"
                       style={getCategoryColor([cat])}
                     >
                       {getCategoryLabel(cat)}
@@ -1059,6 +1040,14 @@ export const TrainingCalendar: React.FC = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Participants max */}
+              {viewingSession.max_participants && (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h4 className="font-semibold text-gray-800 mb-1">👥 Participants</h4>
+                  <p className="text-gray-700">Maximum {viewingSession.max_participants} participants</p>
+                </div>
+              )}
 
               {/* Description */}
               {viewingSession.description && (
@@ -1110,4 +1099,3 @@ export const TrainingCalendar: React.FC = () => {
 };
 
 export default TrainingCalendar;
-
