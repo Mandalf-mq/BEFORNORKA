@@ -28,18 +28,23 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
   const [showCredentials, setShowCredentials] = useState(false);
 
   const downloadTemplate = () => {
-    const csvTemplate = `"first_name","last_name","email","phone","birth_date","family_head_email"
-"Sophie","Martin","sophie.martin@email.com","0612345678","1995-03-15",""
-"Lucas","Dubois","lucas.dubois@email.com","0623456789","2010-07-22","sophie.martin@email.com"
-"Emma","Leroy","emma.leroy@email.com","","2008-11-08","sophie.martin@email.com"
-"Pierre","Dupont","pierre.dupont@email.com","0645678901","1988-12-05",""
-"Marie","Dupont","marie.dupont@email.com","0656789012","2012-06-18","pierre.dupont@email.com"`;
+    const csvTemplate = `"first_name","last_name","email","phone","birth_date","address","postal_code","city","category","membership_fee","ffvb_license","family_head_email","emergency_contact","emergency_phone","notes"
+"Sophie","Martin","sophie.martin@email.com","0612345678","1995-03-15","123 Rue de la République","75001","Paris","senior","250","","","Marie Martin","0687654321","Mère de Lucas et Emma"
+"Lucas","Dubois","lucas.dubois@email.com","0623456789","2010-07-22","123 Rue de la République","75001","Paris","benjamin","160","12345678","sophie.martin@email.com","Sophie Martin","0612345678","Fils de Sophie - Très motivé"
+"Emma","Leroy","emma.leroy@email.com","","2008-11-08","123 Rue de la République","75001","Paris","minime","180","87654321","sophie.martin@email.com","Sophie Martin","0612345678","Fille de Sophie - Débutante"
+"Pierre","Dupont","pierre.dupont@email.com","0645678901","1988-12-05","456 Avenue des Sports","92100","Boulogne","senior","250","11223344","","Claire Dupont","0698765432","Joueur expérimenté - Capitaine potentiel"
+"Marie","Dupont","marie.dupont@email.com","0656789012","2012-06-18","456 Avenue des Sports","92100","Boulogne","cadet","200","55667788","pierre.dupont@email.com","Pierre Dupont","0645678901","Fille de Pierre - Très sportive"
+"Jean","Moreau","jean.moreau@email.com","0634567890","1975-09-30","789 Boulevard du Volleyball","94200","Ivry","veteran","200","99887766","","Sylvie Moreau","0676543210","Ancien joueur professionnel - Entraîneur bénévole"
+"Camille","Bernard","camille.bernard@email.com","0667890123","2005-04-12","321 Rue du Sport","75015","Paris","junior","220","44556677","","Paul Bernard","0689012345","Joueuse prometteuse - Équipe de France jeunes"
+"Thomas","Petit","thomas.petit@email.com","","1992-11-25","654 Allée des Champions","93200","Saint-Denis","senior","250","","","","","Étudiant - Tarif réduit possible"
+"Léa","Roux","lea.roux@email.com","0678901234","2009-08-07","987 Rue de la Victoire","75009","Paris","minime","180","33445566","","Anne Roux","0690123456","Très technique - Potentiel libéro"
+"Antoine","Blanc","antoine.blanc@email.com","0689012345","1985-01-18","147 Avenue de la Paix","75020","Paris","senior","300","22334455","","","","Cotisation premium - Accès prioritaire"`;
 
     const blob = new Blob([csvTemplate], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'modele_import_membres.csv';
+    link.download = 'modele_import_membres_complet.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -405,15 +410,17 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         <h4 className="font-semibold text-amber-800 mb-2">💡 Instructions</h4>
         <div className="text-sm text-amber-700 space-y-1">
           <p>• <strong>Colonnes obligatoires :</strong> first_name, last_name, email, birth_date</p>
-          <p>• <strong>Colonnes optionnelles :</strong> phone, family_head_email</p>
-          <p>• <strong>Colonne optionnelle :</strong> family_head_email (pour lier un enfant à un parent)</p>
+          <p>• <strong>Colonnes optionnelles :</strong> phone, address, postal_code, city, category, membership_fee, ffvb_license, family_head_email, emergency_contact, emergency_phone, notes</p>
           <p>• <strong>Format date :</strong> YYYY-MM-DD (ex: 1995-03-15)</p>
           <p>• <strong>Format téléphone :</strong> Minimum 8 chiffres (ex: 0612345678 ou 06 12 34 56 78)</p>
-          <p>• <strong>Catégorie :</strong> Calculée automatiquement selon l'âge</p>
-          <p>• <strong>Tarif :</strong> Calculé automatiquement selon la catégorie</p>
+          <p>• <strong>Catégorie :</strong> Si vide, calculée automatiquement selon l'âge (baby, poussin, benjamin, minime, cadet, junior, senior, veteran)</p>
+          <p>• <strong>Tarif :</strong> Si vide, calculé automatiquement selon la catégorie (120€-250€)</p>
+          <p>• <strong>Licence FFVB :</strong> Numéro de licence officielle (optionnel)</p>
           <p>• <strong>Statut initial :</strong> Tous les membres importés seront en "pending"</p>
           <p>• <strong>Gestion familiale :</strong> Si family_head_email renseigné, l'enfant sera lié au parent</p>
           <p>• <strong>Réduction familiale :</strong> 10% automatique à partir du 2ème enfant</p>
+          <p>• <strong>Contact d'urgence :</strong> emergency_contact et emergency_phone pour les mineurs</p>
+          <p>• <strong>Notes :</strong> Informations complémentaires sur le membre</p>
           <p>• <strong>Guillemets :</strong> Utilisez des guillemets pour les valeurs contenant des virgules</p>
         </div>
       </div>
