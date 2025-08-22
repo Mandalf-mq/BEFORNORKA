@@ -4,7 +4,7 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks,
 import { fr } from 'date-fns/locale';
 import { supabase } from '../../lib/supabase';
 import { TrainingSession } from '../../types';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const TrainingCalendar: React.FC = () => {
   const { user, profile } = useAuth();
