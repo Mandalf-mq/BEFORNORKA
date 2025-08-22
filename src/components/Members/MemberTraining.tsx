@@ -193,7 +193,7 @@ export const MemberTraining: React.FC = () => {
       console.log('📅 [MemberTraining] Sessions trouvées:', data?.length || 0);
       
       // Filtrer les séances selon les catégories du membre avec logging détaillé
-      const filteredSessions = (data || []).filter(session => 
+      const filteredSessions = (data || []).filter(session => {
         const sessionCategories = session.category || [];
         const hasMatchingCategory = sessionCategories.some(cat => memberCategories.includes(cat));
         
@@ -204,7 +204,7 @@ export const MemberTraining: React.FC = () => {
         });
         
         return hasMatchingCategory;
-      );
+      });
       
       setSessions(filteredSessions);
     } catch (error) {
