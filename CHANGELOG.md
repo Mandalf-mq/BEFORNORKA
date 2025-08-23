@@ -2,6 +2,51 @@
 
 Toutes les modifications notables de ce projet seront documentées dans ce fichier.
 
+## [1.2.0] - 2025-01-23
+
+### Corrigé
+- 🐛 **Erreur "Object not found"** : Correction du système de stockage des modèles de documents
+- 🐛 **Erreur "gwzgoyfoinrmpnksdbtx.supabase.co n'autorise pas la connexion"** : Guide de configuration CORS
+- 🔧 **Types de documents incohérents** : Migration complète vers les nouveaux noms standardisés
+- 🔧 **Modèles inaccessibles** : Création de modèles par défaut avec URLs externes
+- 🔧 **Catégories invalides** : Nettoyage et synchronisation des catégories membres
+- 🔧 **Fonction WhatsApp** : Correction définitive avec support catégories multiples
+
+### Ajouté
+- 📱 **Réponse "Peut-être"** aux entraînements (en plus de Présent/Absent)
+- 🤖 **Système de sondage WhatsApp automatique** avec programmation
+- 📊 **Statistiques d'engagement WhatsApp** et suivi des réponses
+- 📥 **Import CSV avec création de comptes** et envoi d'identifiants
+- 🏗️ **Buckets de stockage Supabase** configurés automatiquement
+- 📋 **Modèles de documents par défaut** avec URLs officielles
+- 🔧 **Fonctions de diagnostic** pour identifier les problèmes
+- 📱 **Templates WhatsApp intelligents** avec variables dynamiques
+- 🎯 **Validation automatique des numéros** de téléphone français
+
+### Modifié
+- 🔄 **Noms de documents standardisés** : `registration_form`, `medical_certificate`, `photo`, `parental_authorization`, `identity_copy`
+- 📱 **Interface WhatsApp améliorée** avec prévisualisation style WhatsApp
+- 🎨 **Affichage des catégories** avec badges visuels et hiérarchie
+- 📊 **Dashboard enrichi** avec statistiques détaillées et diagnostics
+- 🔧 **Gestion des erreurs** améliorée avec messages explicites
+- 📱 **Compatibilité mobile** optimisée pour tous les écrans
+- 🎯 **Workflow de validation** simplifié et plus intuitif
+
+### Technique
+- 🗄️ **Migration des types de documents** vers noms standardisés
+- 🔧 **Fonctions PostgreSQL** pour import CSV et création de comptes
+- 📱 **Système de sondages WhatsApp** avec base de données dédiée
+- 🛡️ **Buckets de stockage** avec permissions appropriées
+- 🔍 **Fonctions de diagnostic** pour troubleshooting
+- 📊 **Statistiques temps réel** avec subscriptions Supabase
+- 🎯 **Validation des données** renforcée côté serveur
+
+### Sécurité
+- 🔒 **Configuration CORS** documentée pour Supabase
+- 🛡️ **Politiques RLS** sur toutes les nouvelles tables
+- 🔐 **Validation des uploads** avec types MIME autorisés
+- 📧 **Gestion des identifiants** temporaires sécurisés
+
 ## [1.1.0] - 2025-01-19
 
 ### Corrigé

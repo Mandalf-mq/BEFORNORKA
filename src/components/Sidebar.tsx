@@ -396,7 +396,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
           </button>
           
           <div className="text-center mt-3">
-            <p className="text-xs text-gray-500">BE FOR NOR KA v1.0</p>
+            <p className="text-xs text-gray-500">BE FOR NOR KA v1.2</p>
             <p className="text-xs text-gray-400">Gestion d'association</p>
           </div>
         </div>
