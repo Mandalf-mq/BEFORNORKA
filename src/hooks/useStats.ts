@@ -11,6 +11,7 @@ interface DashboardStats {
   pendingRevenue: number;
   membersByCategory: Array<{
     category: string;
+    categoryLabel: string;
     count: number;
     revenue: number;
   }>;
@@ -43,10 +44,29 @@ export const useStats = () => {
 
       console.log('🔍 [useStats] Début du chargement des statistiques...');
       
-      // Chargement direct des membres
+      // 1. Charger les catégories depuis la DB
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('value, label, color')
+        .eq('is_active', true);
+
+      if (categoriesError) {
+        console.error('❌ [useStats] Erreur catégories:', categoriesError);
+        throw categoriesError;
+      }
+
+      console.log('✅ [useStats] Catégories chargées:', categoriesData?.length || 0);
+      
+      // 2. Chargement des membres avec leurs catégories
       const { data: members, error: membersError } = await supabase
         .from('members')
-        .select('*');
+        .select(`
+          *,
+          member_categories (
+            category_value,
+            is_primary
+          )
+        `);
 
       if (membersError) {
         console.error('❌ [useStats] Erreur membres:', membersError);
@@ -73,7 +93,7 @@ export const useStats = () => {
         return;
       }
 
-      // Chargement des documents avec gestion d'erreur
+      // 3. Chargement des documents avec gestion d'erreur
       let documents = null;
       try {
         const { data: documentsData, error: documentsError } = await supabase
@@ -90,36 +110,82 @@ export const useStats = () => {
         console.warn('⚠️ [useStats] Erreur documents (on continue):', docError);
       }
 
-      // Calculer les statistiques
+      // 4. Calculer les statistiques de base
       const totalMembers = members?.length || 0;
       const validatedMembers = members?.filter(m => m.status === 'validated').length || 0;
       const pendingMembers = members?.filter(m => m.status === 'pending').length || 0;
       const rejectedMembers = members?.filter(m => m.status === 'rejected').length || 0;
 
-      const totalRevenue = members?.reduce((sum, m) => sum + (m.membership_fee || 0), 0) || 0;
+      // 5. Calculer les revenus avec validation
+      const totalRevenue = members?.reduce((sum, m) => {
+        const fee = typeof m.membership_fee === 'number' ? m.membership_fee : 0;
+        return sum + fee;
+      }, 0) || 0;
+      
       const paidRevenue = members?.filter(m => m.payment_status === 'paid')
-        .reduce((sum, m) => sum + (m.membership_fee || 0), 0) || 0;
+        .reduce((sum, m) => {
+          const fee = typeof m.membership_fee === 'number' ? m.membership_fee : 0;
+          return sum + fee;
+        }, 0) || 0;
+        
       const pendingRevenue = members?.filter(m => m.payment_status === 'pending')
-        .reduce((sum, m) => sum + (m.membership_fee || 0), 0) || 0;
+        .reduce((sum, m) => {
+          const fee = typeof m.membership_fee === 'number' ? m.membership_fee : 0;
+          return sum + fee;
+        }, 0) || 0;
 
-      // Statistiques par catégorie
-      const categoryStats = members?.reduce((acc, member) => {
-        const category = member.category || 'unknown';
-        if (!acc[category]) {
-          acc[category] = { count: 0, revenue: 0 };
+      // 6. Statistiques par catégorie avec support des catégories multiples
+      const categoryStats = new Map<string, { count: number; revenue: number; label: string }>();
+      
+      members?.forEach(member => {
+        // Récupérer toutes les catégories du membre
+        const memberCategories = [];
+        
+        // Catégorie principale
+        if (member.category) {
+          memberCategories.push(member.category);
         }
-        acc[category].count++;
-        acc[category].revenue += member.membership_fee || 0;
-        return acc;
-      }, {} as Record<string, { count: number; revenue: number }>);
+        
+        // Catégories supplémentaires
+        if (member.member_categories?.length > 0) {
+          member.member_categories.forEach(mc => {
+            if (!memberCategories.includes(mc.category_value)) {
+              memberCategories.push(mc.category_value);
+            }
+          });
+        }
+        
+        // Si aucune catégorie, utiliser 'unknown'
+        if (memberCategories.length === 0) {
+          memberCategories.push('unknown');
+        }
+        
+        // Compter pour chaque catégorie (un membre peut être compté plusieurs fois)
+        memberCategories.forEach(categoryValue => {
+          if (!categoryStats.has(categoryValue)) {
+            const categoryInfo = categoriesData?.find(cat => cat.value === categoryValue);
+            categoryStats.set(categoryValue, {
+              count: 0,
+              revenue: 0,
+              label: categoryInfo?.label || categoryValue
+            });
+          }
+          
+          const stats = categoryStats.get(categoryValue)!;
+          stats.count++;
+          stats.revenue += typeof member.membership_fee === 'number' ? member.membership_fee : 0;
+        });
+      });
 
-      const membersByCategory = Object.entries(categoryStats || {}).map(([category, data]) => ({
+      // 7. Convertir en array pour l'affichage
+      const membersByCategory = Array.from(categoryStats.entries()).map(([category, data]) => ({
         category,
+        categoryLabel: data.label,
         count: data.count,
         revenue: data.revenue
-      }));
+      })).sort((a, b) => b.count - a.count); // Trier par nombre de membres
 
-      // Membres récents
+      // 8. Membres récents (les 5 derniers)
       const recentMembers = members?.slice(0, 5).map(m => ({
         id: m.id,
         first_name: m.first_name,
@@ -129,7 +195,7 @@ export const useStats = () => {
         created_at: m.created_at
       })) || [];
 
-      // Statistiques des documents
+      // 9. Statistiques des documents avec gestion d'erreur
       const docStats = documents?.reduce((acc, doc) => {
         const type = doc.document_type;
         if (!acc[type]) {
@@ -149,36 +215,34 @@ export const useStats = () => {
         completion_rate: Math.round((data.total_validated / data.total_uploaded) * 100) || 0
       }));
 
-      setStats({
+      // 10. Validation finale des données
+      const finalStats = {
         totalMembers,
         validatedMembers,
         pendingMembers,
         rejectedMembers,
-        totalRevenue,
-        paidRevenue,
-        pendingRevenue,
+        totalRevenue: Math.round(totalRevenue * 100) / 100, // Arrondir à 2 décimales
+        paidRevenue: Math.round(paidRevenue * 100) / 100,
+        pendingRevenue: Math.round(pendingRevenue * 100) / 100,
         membersByCategory,
         recentMembers,
         documentStats
+      };
+      
+      console.log('✅ [useStats] Statistiques calculées:', {
+        totalMembers: finalStats.totalMembers,
+        categories: finalStats.membersByCategory.length,
+        revenue: finalStats.totalRevenue
+      });
+      
+      setStats({
+        ...finalStats
       });
 
-      console.log('✅ [useStats] Statistiques calculées avec succès');
     } catch (err: any) {
-      console.error('❌ [useStats] Erreur finale:', err);
-      // Ne pas définir d'erreur pour éviter les boucles, juste logger
-      console.warn('Statistiques non disponibles:', err.message);
-      setStats({
-        totalMembers: 0,
-        validatedMembers: 0,
-        pendingMembers: 0,
-        rejectedMembers: 0,
-        totalRevenue: 0,
-        paidRevenue: 0,
-        pendingRevenue: 0,
-        membersByCategory: [],
-        recentMembers: [],
-        documentStats: []
-      });
+      console.error('❌ [useStats] Erreur critique:', err);
+      setError(`Erreur lors du chargement des statistiques: ${err.message}`);
+      setStats(null);
     } finally {
       setLoading(false);
     }
@@ -187,10 +251,10 @@ export const useStats = () => {
   useEffect(() => {
     fetchStats();
     
-    // Optionnel : rafraîchir toutes les 30 secondes
-    const interval = setInterval(fetchStats, 30000);
+    // Rafraîchir toutes les 60 secondes (moins agressif)
+    const interval = setInterval(fetchStats, 60000);
     return () => clearInterval(interval);
-  }, []); // Exécuter une seule fois au montage puis toutes les 30s
+  }, []); // Exécuter une seule fois au montage puis toutes les 60s
 
   return {
     stats,

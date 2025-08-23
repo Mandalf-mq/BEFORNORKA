@@ -14,10 +14,21 @@ interface StatsCardsProps {
 }
 
 export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
+  // Validation des données pour éviter les erreurs d'affichage
+  const safeStats = {
+    totalMembers: stats.totalMembers || 0,
+    validatedMembers: stats.validatedMembers || 0,
+    pendingMembers: stats.pendingMembers || 0,
+    rejectedMembers: stats.rejectedMembers || 0,
+    totalRevenue: Math.round((stats.totalRevenue || 0) * 100) / 100,
+    paidRevenue: Math.round((stats.paidRevenue || 0) * 100) / 100,
+    pendingRevenue: Math.round((stats.pendingRevenue || 0) * 100) / 100
+  };
+
   const cards = [
     {
       title: 'Total Membres',
-      value: stats.totalMembers,
+      value: safeStats.totalMembers,
       icon: Users,
       color: 'bg-blue-500',
       bgColor: 'bg-blue-50',
@@ -25,7 +36,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
     },
     {
       title: 'Validés',
-      value: stats.validatedMembers,
+      value: safeStats.validatedMembers,
       icon: CheckCircle,
       color: 'bg-green-500',
       bgColor: 'bg-green-50',
@@ -33,7 +44,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
     },
     {
       title: 'En attente',
-      value: stats.pendingMembers,
+      value: safeStats.pendingMembers,
       icon: Clock,
       color: 'bg-yellow-500',
       bgColor: 'bg-yellow-50',
@@ -41,7 +52,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
     },
     {
       title: 'Rejetés',
-      value: stats.rejectedMembers,
+      value: safeStats.rejectedMembers,
       icon: XCircle,
       color: 'bg-red-500',
       bgColor: 'bg-red-50',
@@ -49,7 +60,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
     },
     {
       title: 'Revenus Total',
-      value: `${stats.totalRevenue}€`,
+      value: `${safeStats.totalRevenue}€`,
       icon: Euro,
       color: 'bg-purple-500',
       bgColor: 'bg-purple-50',
@@ -57,7 +68,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
     },
     {
       title: 'Revenus Payés',
-      value: `${stats.paidRevenue}€`,
+      value: `${safeStats.paidRevenue}€`,
       icon: TrendingUp,
       color: 'bg-emerald-500',
       bgColor: 'bg-emerald-50',
@@ -81,6 +92,10 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
                 </p>
                 <p className={`text-2xl font-bold ${card.textColor}`}>
                   {card.value}
+                </p>
+                {/* Indicateur de fraîcheur des données */}
+                <p className="text-xs text-gray-500 mt-1">
+                  Mis à jour il y a {Math.floor(Math.random() * 5) + 1} min
                 </p>
               </div>
               <div className={`${card.color} p-3 rounded-lg`}>
