@@ -240,10 +240,10 @@ const MultiCategorySelector: React.FC<{
       <div className="space-y-2">
         {categories.map(category => {
           const isSelected = memberCategories.some(mc => 
-            mc.category_id === category.id || mc.category_value === category.value
+            mc.category_value === category.value
           );
           const isPrimary = memberCategories.find(mc => 
-            mc.category_id === category.id || mc.category_value === category.value
+            mc.category_value === category.value
           )?.is_primary;
           
           return (
@@ -261,7 +261,7 @@ const MultiCategorySelector: React.FC<{
               {isSelected && (
                 <button
                   type="button"
-                  onClick={() => setPrimaryCategory(category.id)}
+                  onClick={() => setPrimaryCategory(category.value)}
                   className={`px-2 py-1 text-xs rounded-full transition-colors
                     ${isPrimary 
                       ? 'bg-primary-100 text-primary-800 font-medium'
@@ -341,7 +341,6 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
 
         const categoriesToInsert = memberCategories.map(mc => ({
           member_id: member.id,
-          category_id: mc.category_id,
           category_value: mc.category_value,
           is_primary: mc.is_primary || false
         }));
@@ -688,9 +687,9 @@ const MembersManagement: React.FC = () => {
         if (error) throw error;
         
         console.log('📋 Catégories chargées depuis la DB:', data);
-        setCategories(data || []);
-        
-        if (!data || data.length === 0) {
+        if (data && data.length > 0) {
+          setCategories(data);
+        } else {
           console.warn('⚠️ Aucune catégorie active trouvée');
         }
       } catch (error: any) {
