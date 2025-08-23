@@ -173,8 +173,6 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
 
       // Import via nouvelle fonction avec création de comptes
       const { data, error } = await supabase.rpc('import_members_with_accounts', {
-        p_csv_data: csvData,
-        p_send_emails: sendEmails
       });
 
       if (error) throw error;
