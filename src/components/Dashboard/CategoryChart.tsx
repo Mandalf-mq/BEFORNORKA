@@ -36,12 +36,24 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ data }) => {
   const total = data.reduce((sum, item) => sum + item.count, 0);
   
   const getCategoryLabel = (categoryValue: string, fallbackLabel?: string) => {
-    // Utiliser le label fourni par useStats en priorité
-    if (fallbackLabel) return fallbackLabel;
+    // Utiliser le label fourni par useStats en priorité (mais vérifier qu'il n'est pas vide)
+    if (fallbackLabel && fallbackLabel !== categoryValue) return fallbackLabel;
     
     // Sinon chercher dans les catégories chargées
     const category = categories.find(cat => cat.value === categoryValue);
-    return category?.label || categoryValue;
+    const label = category?.label || categoryValue;
+    
+    // Debug pour identifier les catégories problématiques
+    if (categoryValue === '2 vs 2 Competition' || categoryValue.includes('Competition')) {
+      console.warn('🚨 [CategoryChart] Catégorie invalide détectée:', {
+        categoryValue,
+        fallbackLabel,
+        foundInDB: !!category,
+        finalLabel: label
+      });
+    }
+    
+    return label;
   };
 
   const getCategoryColor = (categoryValue: string) => {

@@ -138,43 +138,46 @@ export const useStats = () => {
       const categoryStats = new Map<string, { count: number; revenue: number; label: string }>();
       
       members?.forEach(member => {
-        // Récupérer toutes les catégories du membre
-        const memberCategories = [];
+        // Récupérer la catégorie principale du membre
+        let primaryCategory = null;
         
-        // Catégorie principale
-        if (member.category) {
-          memberCategories.push(member.category);
-        }
-        
-        // Catégories supplémentaires
+        // 1. Chercher dans member_categories (priorité)
         if (member.member_categories?.length > 0) {
-          member.member_categories.forEach(mc => {
-            if (!memberCategories.includes(mc.category_value)) {
-              memberCategories.push(mc.category_value);
-            }
-          });
+          const primaryMC = member.member_categories.find(mc => mc.is_primary);
+          if (primaryMC) {
+            primaryCategory = primaryMC.category_value;
+          }
         }
         
-        // Si aucune catégorie, utiliser 'unknown'
-        if (memberCategories.length === 0) {
-          memberCategories.push('unknown');
+        // 2. Fallback sur member.category
+        if (!primaryCategory && member.category) {
+          primaryCategory = member.category;
         }
         
-        // Compter pour chaque catégorie (un membre peut être compté plusieurs fois)
-        memberCategories.forEach(categoryValue => {
-          if (!categoryStats.has(categoryValue)) {
-            const categoryInfo = categoriesData?.find(cat => cat.value === categoryValue);
-            categoryStats.set(categoryValue, {
+        // 3. Vérifier que la catégorie existe dans les catégories valides
+        const isValidCategory = categoriesData?.some(cat => cat.value === primaryCategory);
+        
+        if (!isValidCategory) {
+          console.warn(`⚠️ [useStats] Catégorie invalide pour membre ${member.email}:`, primaryCategory);
+          // Utiliser la première catégorie valide comme fallback
+          primaryCategory = categoriesData?.[0]?.value || 'unknown';
+        }
+        
+        // Compter seulement la catégorie principale pour éviter les doublons
+        if (primaryCategory) {
+          if (!categoryStats.has(primaryCategory)) {
+            const categoryInfo = categoriesData?.find(cat => cat.value === primaryCategory);
+            categoryStats.set(primaryCategory, {
               count: 0,
               revenue: 0,
-              label: categoryInfo?.label || categoryValue
+              label: categoryInfo?.label || primaryCategory
             });
           }
           
-          const stats = categoryStats.get(categoryValue)!;
+          const stats = categoryStats.get(primaryCategory)!;
           stats.count++;
           stats.revenue += typeof member.membership_fee === 'number' ? member.membership_fee : 0;
-        });
+        }
       });
 
       // 7. Convertir en array pour l'affichage
