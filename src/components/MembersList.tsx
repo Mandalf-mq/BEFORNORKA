@@ -148,24 +148,41 @@ const MultiCategorySelector: React.FC<{
   useEffect(() => {
     if (member.member_categories?.length > 0) {
       setMemberCategories(member.member_categories);
-    } else if (member.category) {
-      const category = categories.find(c => c.value === member.category || c.name === member.category);
+    } else if (member.category && categories.length > 0) {
+      // Chercher la catégorie par value (pas par name)
+      const category = categories.find(c => c.value === member.category);
       if (category) {
         setMemberCategories([{
           category_id: category.id,
-          category_value: category.name,
+          category_value: category.value, // Utiliser value, pas name
           is_primary: true,
           categories: category
         }]);
+      } else {
+        console.warn('Catégorie non trouvée pour membre:', member.category);
+        // Utiliser la première catégorie disponible comme fallback
+        const fallbackCategory = categories[0];
+        if (fallbackCategory) {
+          setMemberCategories([{
+            category_id: fallbackCategory.id,
+            category_value: fallbackCategory.value,
+            is_primary: true,
+            categories: fallbackCategory
+          }]);
+        }
       }
     }
   }, [member, categories]);
 
   const handleCategoryToggle = (category: any) => {
-    const isSelected = memberCategories.some(mc => mc.category_id === category.id);
+    const isSelected = memberCategories.some(mc => 
+      mc.category_id === category.id || mc.category_value === category.value
+    );
     
     if (isSelected) {
-      const updated = memberCategories.filter(mc => mc.category_id !== category.id);
+      const updated = memberCategories.filter(mc => 
+        mc.category_id !== category.id && mc.category_value !== category.value
+      );
       if (updated.length > 0 && !updated.some(mc => mc.is_primary)) {
         updated[0].is_primary = true;
       }
@@ -174,7 +191,7 @@ const MultiCategorySelector: React.FC<{
     } else {
       const updated = [...memberCategories, {
         category_id: category.id,
-        category_value: category.name,
+        category_value: category.value, // Utiliser value, pas name
         is_primary: memberCategories.length === 0,
         categories: category
       }];
@@ -225,8 +242,12 @@ const MultiCategorySelector: React.FC<{
       <label className="block text-sm font-medium text-gray-700 mb-2">🏐 Catégories</label>
       <div className="space-y-2">
         {categories.map(category => {
-          const isSelected = memberCategories.some(mc => mc.category_id === category.id);
-          const isPrimary = memberCategories.find(mc => mc.category_id === category.id)?.is_primary;
+          const isSelected = memberCategories.some(mc => 
+            mc.category_id === category.id || mc.category_value === category.value
+          );
+          const isPrimary = memberCategories.find(mc => 
+            mc.category_id === category.id || mc.category_value === category.value
+          )?.is_primary;
           
           return (
             <div key={category.id} className="flex items-center justify-between p-2 border rounded-lg">
