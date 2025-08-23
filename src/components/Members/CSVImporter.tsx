@@ -27,18 +27,47 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
   const [sendEmails, setSendEmails] = useState(true);
   const [showCredentials, setShowCredentials] = useState(false);
 
+  // Charger les catégories réelles depuis la DB
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Erreur chargement catégories:', error);
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
   const downloadTemplate = () => {
+    // Utiliser les vraies catégories de la DB ou des valeurs par défaut
+    const defaultCategory = categories.length > 0 ? categories[0].value : 'senior';
+    const seniorCategory = categories.find(c => c.value === 'senior') || categories[0];
+    const juniorCategory = categories.find(c => c.age_range?.includes('junior') || c.label?.toLowerCase().includes('junior')) || categories[1];
+    const minorCategory = categories.find(c => c.age_range?.includes('mineur') || c.label?.toLowerCase().includes('mineur')) || categories[2];
+    
+    // Générer des exemples avec les vraies catégories
     const csvTemplate = `"first_name","last_name","email","phone","birth_date","address","postal_code","city","category","membership_fee","ffvb_license","family_head_email","emergency_contact","emergency_phone","notes"
-"Sophie","Martin","sophie.martin@email.com","0612345678","1995-03-15","123 Rue de la République","75001","Paris","senior","250","","","Marie Martin","0687654321","Mère de Lucas et Emma"
-"Lucas","Dubois","lucas.dubois@email.com","0623456789","2010-07-22","123 Rue de la République","75001","Paris","benjamin","160","12345678","sophie.martin@email.com","Sophie Martin","0612345678","Fils de Sophie - Très motivé"
-"Emma","Leroy","emma.leroy@email.com","","2008-11-08","123 Rue de la République","75001","Paris","minime","180","87654321","sophie.martin@email.com","Sophie Martin","0612345678","Fille de Sophie - Débutante"
-"Pierre","Dupont","pierre.dupont@email.com","0645678901","1988-12-05","456 Avenue des Sports","92100","Boulogne","senior","250","11223344","","Claire Dupont","0698765432","Joueur expérimenté - Capitaine potentiel"
-"Marie","Dupont","marie.dupont@email.com","0656789012","2012-06-18","456 Avenue des Sports","92100","Boulogne","cadet","200","55667788","pierre.dupont@email.com","Pierre Dupont","0645678901","Fille de Pierre - Très sportive"
-"Jean","Moreau","jean.moreau@email.com","0634567890","1975-09-30","789 Boulevard du Volleyball","94200","Ivry","veteran","200","99887766","","Sylvie Moreau","0676543210","Ancien joueur professionnel - Entraîneur bénévole"
-"Camille","Bernard","camille.bernard@email.com","0667890123","2005-04-12","321 Rue du Sport","75015","Paris","junior","220","44556677","","Paul Bernard","0689012345","Joueuse prometteuse - Équipe de France jeunes"
-"Thomas","Petit","thomas.petit@email.com","","1992-11-25","654 Allée des Champions","93200","Saint-Denis","senior","250","","","","","Étudiant - Tarif réduit possible"
-"Léa","Roux","lea.roux@email.com","0678901234","2009-08-07","987 Rue de la Victoire","75009","Paris","minime","180","33445566","","Anne Roux","0690123456","Très technique - Potentiel libéro"
-"Antoine","Blanc","antoine.blanc@email.com","0689012345","1985-01-18","147 Avenue de la Paix","75020","Paris","senior","300","22334455","","","","Cotisation premium - Accès prioritaire"`;
+"Sophie","Martin","sophie.martin@email.com","0612345678","1995-03-15","123 Rue de la République","75001","Paris","${seniorCategory?.value || 'senior'}","${seniorCategory?.membership_fee || 250}","","","Marie Martin","0687654321","Mère de Lucas et Emma"
+"Lucas","Dubois","lucas.dubois@email.com","0623456789","2010-07-22","123 Rue de la République","75001","Paris","${minorCategory?.value || defaultCategory}","${minorCategory?.membership_fee || 160}","12345678","sophie.martin@email.com","Sophie Martin","0612345678","Fils de Sophie - Très motivé"
+"Emma","Leroy","emma.leroy@email.com","","2008-11-08","123 Rue de la République","75001","Paris","${minorCategory?.value || defaultCategory}","${minorCategory?.membership_fee || 180}","87654321","sophie.martin@email.com","Sophie Martin","0612345678","Fille de Sophie - Débutante"
+"Pierre","Dupont","pierre.dupont@email.com","0645678901","1988-12-05","456 Avenue des Sports","92100","Boulogne","${seniorCategory?.value || 'senior'}","${seniorCategory?.membership_fee || 250}","11223344","","Claire Dupont","0698765432","Joueur expérimenté - Capitaine potentiel"
+"Marie","Dupont","marie.dupont@email.com","0656789012","2012-06-18","456 Avenue des Sports","92100","Boulogne","${juniorCategory?.value || defaultCategory}","${juniorCategory?.membership_fee || 200}","55667788","pierre.dupont@email.com","Pierre Dupont","0645678901","Fille de Pierre - Très sportive"
+"Jean","Moreau","jean.moreau@email.com","0634567890","1975-09-30","789 Boulevard du Volleyball","94200","Ivry","${seniorCategory?.value || 'senior'}","${seniorCategory?.membership_fee || 200}","99887766","","Sylvie Moreau","0676543210","Ancien joueur professionnel"
+"Thomas","Petit","thomas.petit@email.com","","1992-11-25","654 Allée des Champions","93200","Saint-Denis","${seniorCategory?.value || 'senior'}","${seniorCategory?.membership_fee || 250}","","","","","Étudiant - Tarif réduit possible"`;
 
     const blob = new Blob([csvTemplate], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -207,15 +236,31 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       {/* Étape 1: Télécharger le modèle */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="font-semibold text-blue-800 mb-2">1. Téléchargez le modèle CSV</h4>
-        <p className="text-sm text-blue-700 mb-3">
-          Utilisez notre modèle pour formater correctement vos données
-        </p>
+        <div className="text-sm text-blue-700 mb-3">
+          <p>Utilisez notre modèle pour formater correctement vos données</p>
+          {loadingCategories ? (
+            <p className="text-xs mt-1">⏳ Chargement des catégories...</p>
+          ) : categories.length === 0 ? (
+            <p className="text-xs mt-1 text-red-600">
+              ⚠️ Aucune catégorie trouvée ! Créez d'abord des catégories dans Paramètres → Catégories
+            </p>
+          ) : (
+            <p className="text-xs mt-1 text-green-600">
+              ✅ Modèle généré avec vos {categories.length} catégories actives
+            </p>
+          )}
+        </div>
         <button
           onClick={downloadTemplate}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+          disabled={loadingCategories || categories.length === 0}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Download className="w-4 h-4" />
-          <span>Télécharger le modèle</span>
+          <span>
+            {loadingCategories ? 'Chargement...' : 
+             categories.length === 0 ? 'Créez d\'abord des catégories' :
+             'Télécharger le modèle'}
+          </span>
         </button>
       </div>
 
