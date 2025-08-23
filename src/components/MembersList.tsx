@@ -341,6 +341,7 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
 
         const categoriesToInsert = memberCategories.map(mc => ({
           member_id: member.id,
+          category_id: mc.category_id,
           category_value: mc.category_value,
           is_primary: mc.is_primary || false
         }));
