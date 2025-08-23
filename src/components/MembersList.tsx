@@ -178,7 +178,7 @@ const MultiCategorySelector: React.FC<{
     
     if (isSelected) {
       const updated = memberCategories.filter(mc => 
-       mc.category_value === category.value
+        mc.category_value !== category.value
       );
       if (updated.length > 0 && !updated.some(mc => mc.is_primary)) {
         updated[0].is_primary = true;
@@ -240,10 +240,10 @@ const MultiCategorySelector: React.FC<{
       <div className="space-y-2">
         {categories.map(category => {
           const isSelected = memberCategories.some(mc => 
-           mc.category_value === category.value
+            mc.category_value === category.value
           );
           const isPrimary = memberCategories.find(mc => 
-           mc.category_value === category.value
+            mc.category_value === category.value
           )?.is_primary;
           
           return (
@@ -261,7 +261,7 @@ const MultiCategorySelector: React.FC<{
               {isSelected && (
                 <button
                   type="button"
-                 onClick={() => setPrimaryCategory(category.value)}
+                  onClick={() => setPrimaryCategory(category.value)}
                   className={`px-2 py-1 text-xs rounded-full transition-colors
                     ${isPrimary 
                       ? 'bg-primary-100 text-primary-800 font-medium'
@@ -687,25 +687,18 @@ const MembersManagement: React.FC = () => {
         if (error) throw error;
         
         console.log('📋 Catégories chargées depuis la DB:', data);
-         mc.category_value !== category.value
-         category_value: category.value,
+        setCategories(data || []);
+        
+        if (!data || data.length === 0) {
           console.warn('⚠️ Aucune catégorie active trouvée');
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Erreur lors du chargement des catégories:', error);
         setCategories([]);
       }
     };
 
     fetchCategories();
-  }, []);
-       is_primary: mc.category_value === categoryValue
-        console.error('❌ Erreur lors du chargement des catégories:', error);
-        setCategories([]);
-      }
-    };
-
-   const setPrimaryCategory = (categoryValue: string) => {
   }, []);
 
   // Filtrage des membres
