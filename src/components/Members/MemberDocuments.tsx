@@ -163,13 +163,27 @@ export const MemberDocuments: React.FC = () => {
 
   const downloadTemplate = async (template: Template) => {
     try {
+      // Gérer les URLs externes (modèles par défaut)
+      if (template.file_path?.startsWith('external:')) {
+        const externalUrl = template.file_path.replace('external:', '');
+        window.open(externalUrl, '_blank');
+        
+        // Incrémenter le compteur de téléchargement
+        await supabase
+          .from('document_templates')
+          .update({ download_count: ((template as any).download_count || 0) + 1 })
+          .eq('id', template.id);
+        
+        return;
+      }
+      
       if (!template.file_path) {
-        alert('Fichier non disponible');
+        alert('❌ Fichier non disponible');
         return;
       }
 
       const { data, error } = await supabase.storage
-        .from('document_templates')
+        .from('templates')
         .createSignedUrl(template.file_path, 3600); // 1 heure
 
       if (error) throw error;
@@ -178,7 +192,7 @@ export const MemberDocuments: React.FC = () => {
         // Incrémenter le compteur de téléchargement
         await supabase
           .from('document_templates')
-          .update({ download_count: (template as any).download_count + 1 })
+          .update({ download_count: ((template as any).download_count || 0) + 1 })
           .eq('id', template.id);
 
         // Créer un lien temporaire pour télécharger
@@ -191,7 +205,7 @@ export const MemberDocuments: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Erreur lors du téléchargement:', error);
-      alert(`❌ Erreur: ${error.message}`);
+      alert(`❌ Erreur lors du téléchargement: ${error.message}\n\nLe fichier n'existe peut-être pas dans le stockage Supabase.`);
     }
   };
 
