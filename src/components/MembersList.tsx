@@ -687,9 +687,9 @@ const MembersManagement: React.FC = () => {
         if (error) throw error;
         
         console.log('📋 Catégories chargées depuis la DB:', data);
-        if (data && data.length > 0) {
-          setCategories(data);
-        } else {
+        setCategories(data || []);
+        
+        if (!data || data.length === 0) {
           console.warn('⚠️ Aucune catégorie active trouvée');
         }
       } catch (error: any) {
