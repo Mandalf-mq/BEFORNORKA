@@ -692,7 +692,7 @@ const MembersManagement: React.FC = () => {
         if (!data || data.length === 0) {
           console.warn('⚠️ Aucune catégorie active trouvée');
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error('❌ Erreur lors du chargement des catégories:', error);
         setCategories([]);
       }
