@@ -147,19 +147,45 @@ export const MemberDocuments: React.FC = () => {
       // Déterminer la saison à utiliser
       const seasonId = selectedSeason === 'current' ? currentSeason.id : selectedSeason;
 
-      const { data, error } = await supabase
-        .from('document_templates')
-        .select('*')
-        .eq('is_active', true)
-        .eq('season_id', seasonId)
-        .order('document_type');
+     // Récupérer TOUS les templates (anciens ET nouveaux noms)
+     const { data, error } = await supabase
+       .from('document_templates')
+       .select('*')
+       .eq('is_active', true)
+       .eq('season_id', seasonId)
+       .order('document_type');
 
       if (error) throw error;
-      setTemplates(data || []);
+     
+     // Mapper les anciens noms vers les nouveaux pour compatibilité
+     const mappedTemplates = (data || []).map(template => ({
+       ...template,
+       mapped_document_type: mapDocumentType(template.document_type)
+     }));
+     
+     setTemplates(mappedTemplates);
     } catch (error) {
       console.error('Erreur lors du chargement des modèles:', error);
     }
   };
+
+   // Fonction pour mapper les anciens noms vers les nouveaux
+   const mapDocumentType = (oldType: string): string => {
+     const mapping: { [key: string]: string } = {
+       'ffvbForm': 'registration_form',
+       'medicalCertificate': 'medical_certificate',
+       'idPhoto': 'photo',
+       'parentalConsent': 'parental_authorization',
+       'identityCopy': 'identity_copy',
+       // Les nouveaux noms restent inchangés
+       'registration_form': 'registration_form',
+       'medical_certificate': 'medical_certificate',
+       'photo': 'photo',
+       'parental_authorization': 'parental_authorization',
+       'identity_copy': 'identity_copy'
+     };
+     return mapping[oldType] || oldType;
+   };
 
   const downloadTemplate = async (template: Template) => {
     try {
@@ -359,10 +385,10 @@ console.log('🔍 Valeur exacte:', JSON.stringify(documentType));
   
   const age = calculateAge(memberData.birth_date);
   const baseDocuments = [
-  'medical_certificate',
-  'photo',
-  'registration_form',
-  'identity_copy'
+     'medical_certificate',
+     'photo', 
+     'registration_form',
+     'identity_copy'
 ];
 
 if (age < 18) {
@@ -374,7 +400,7 @@ if (age < 18) {
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
-    const k = 1024;
+     baseDocuments.push('parental_authorization');
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
@@ -480,7 +506,11 @@ if (age < 18) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {requiredDocuments.map((docType) => {
               const existingDoc = documents.find(d => d.document_type === docType);
-              const template = templates.find(t => t.document_type === docType);
+             // Chercher le template avec ancien OU nouveau nom
+             const template = templates.find(t => 
+               t.document_type === docType || 
+               mapDocumentType(t.document_type) === docType
+             );
               
               const getDocumentTitle = (type: string) => {
                 const titles: { [key: string]: string } = {
