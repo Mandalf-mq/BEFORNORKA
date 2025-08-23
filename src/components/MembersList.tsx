@@ -169,8 +169,6 @@ const MultiCategorySelector: React.FC<{
         }
       }
     }
-      }
-    }
   }, [member, categories]);
 
   const handleCategoryToggle = (category: any) => {
