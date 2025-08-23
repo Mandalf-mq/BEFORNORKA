@@ -138,46 +138,58 @@ export const useStats = () => {
       const categoryStats = new Map<string, { count: number; revenue: number; label: string }>();
       
       members?.forEach(member => {
-        // Récupérer la catégorie principale du membre
-        let primaryCategory = null;
+        // Récupérer TOUTES les catégories du membre (principale + supplémentaires)
+        const memberCategories: string[] = [];
         
-        // 1. Chercher dans member_categories (priorité)
+        // 1. Ajouter toutes les catégories depuis member_categories
         if (member.member_categories?.length > 0) {
-          const primaryMC = member.member_categories.find(mc => mc.is_primary);
-          if (primaryMC) {
-            primaryCategory = primaryMC.category_value;
+          member.member_categories.forEach(mc => {
+            if (mc.category_value) {
+              memberCategories.push(mc.category_value);
+            }
+          });
+        }
+        
+        // 2. Fallback sur member.category si aucune catégorie trouvée
+        if (memberCategories.length === 0 && member.category) {
+          memberCategories.push(member.category);
+        }
+        
+        // 3. Si toujours aucune catégorie, utiliser une catégorie par défaut
+        if (memberCategories.length === 0) {
+          const defaultCategory = categoriesData?.[0]?.value || 'unknown';
+          memberCategories.push(defaultCategory);
+          console.warn(`⚠️ [useStats] Aucune catégorie pour membre ${member.email}, utilisation de:`, defaultCategory);
+        }
+        
+        // 4. Compter le membre dans TOUTES ses catégories
+        memberCategories.forEach(categoryValue => {
+          // Vérifier que la catégorie existe dans les catégories valides
+          const isValidCategory = categoriesData?.some(cat => cat.value === categoryValue);
+          
+          if (!isValidCategory) {
+            console.warn(`⚠️ [useStats] Catégorie invalide pour membre ${member.email}:`, categoryValue);
+            return; // Ignorer cette catégorie invalide
           }
-        }
-        
-        // 2. Fallback sur member.category
-        if (!primaryCategory && member.category) {
-          primaryCategory = member.category;
-        }
-        
-        // 3. Vérifier que la catégorie existe dans les catégories valides
-        const isValidCategory = categoriesData?.some(cat => cat.value === primaryCategory);
-        
-        if (!isValidCategory) {
-          console.warn(`⚠️ [useStats] Catégorie invalide pour membre ${member.email}:`, primaryCategory);
-          // Utiliser la première catégorie valide comme fallback
-          primaryCategory = categoriesData?.[0]?.value || 'unknown';
-        }
-        
-        // Compter seulement la catégorie principale pour éviter les doublons
-        if (primaryCategory) {
-          if (!categoryStats.has(primaryCategory)) {
-            const categoryInfo = categoriesData?.find(cat => cat.value === primaryCategory);
-            categoryStats.set(primaryCategory, {
+          
+          // Initialiser les stats de la catégorie si nécessaire
+          if (!categoryStats.has(categoryValue)) {
+            const categoryInfo = categoriesData?.find(cat => cat.value === categoryValue);
+            categoryStats.set(categoryValue, {
               count: 0,
               revenue: 0,
-              label: categoryInfo?.label || primaryCategory
+              label: categoryInfo?.label || categoryValue
             });
           }
           
-          const stats = categoryStats.get(primaryCategory)!;
+          // Incrémenter les stats
+          const stats = categoryStats.get(categoryValue)!;
           stats.count++;
-          stats.revenue += typeof member.membership_fee === 'number' ? member.membership_fee : 0;
-        }
+          
+          // Pour les revenus, on divise par le nombre de catégories pour éviter de compter plusieurs fois
+          const memberFee = typeof member.membership_fee === 'number' ? member.membership_fee : 0;
+          stats.revenue += memberFee / memberCategories.length;
+        });
       });
 
       // 7. Convertir en array pour l'affichage
