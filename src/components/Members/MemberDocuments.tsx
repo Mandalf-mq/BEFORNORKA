@@ -345,14 +345,14 @@ console.log('🔍 Valeur exacte:', JSON.stringify(documentType));
   
   const age = calculateAge(memberData.birth_date);
   const baseDocuments = [
-  'medicalCertificate',    // au lieu de 'medical_certificate'
-  'idPhoto',               // au lieu de 'photo'  
-  'ffvbForm',              // au lieu de 'registration_form'
-  'identityCopy'           // ✅ déjà corrigé
+  'medical_certificate',
+  'photo',
+  'registration_form',
+  'identity_copy'
 ];
 
 if (age < 18) {
-  baseDocuments.push('parentalConsent');  // au lieu de 'parental_authorization'
+  baseDocuments.push('parental_authorization');
 }
 
   return baseDocuments;
@@ -470,11 +470,16 @@ if (age < 18) {
               
               const getDocumentTitle = (type: string) => {
                 const titles: { [key: string]: string } = {
-                  medical_certificate: '🏥 Certificat médical',
-                  photo: '📸 Photo d\'identité',
-                  registration_form: '📝 Formulaire d\'inscription',
-                  parental_authorization: '👨‍👩‍👧‍👦 Autorisation parentale',
-                  identity_copy: '🆔 Copie pièce d\'identité'
+                  'medical_certificate': '🏥 Certificat médical',
+                  'photo': '📸 Photo d\'identité',
+                  'registration_form': '📝 Formulaire d\'inscription',
+                  'parental_authorization': '👨‍👩‍👧‍👦 Autorisation parentale',
+                  'identity_copy': '🆔 Copie pièce d\'identité',
+                  'ffvbForm': '📋 Formulaire FFVB',
+                  'medicalCertificate': '🏥 Certificat médical',
+                  'idPhoto': '📸 Photo d\'identité',
+                  'parentalConsent': '👨‍👩‍👧‍👦 Autorisation parentale',
+                  'identityCopy': '🆔 Copie pièce d\'identité'
                 };
                 return titles[type] || type;
               };

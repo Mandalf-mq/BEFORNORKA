@@ -28,9 +28,11 @@ export const ValidationWorkflow: React.FC = () => {
   const [currentSeason, setCurrentSeason] = useState<any>(null);
   const [selectedSeason, setSelectedSeason] = useState<string>('current');
   const [allSeasons, setAllSeasons] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
     fetchSeasons();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -39,6 +41,58 @@ export const ValidationWorkflow: React.FC = () => {
     }
   }, [currentSeason, selectedSeason]);
 
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Erreur chargement catégories:', error);
+      setCategories([]);
+    }
+  };
+
+  const getCategoryLabel = (categoryValue: string) => {
+    const category = categories.find(cat => cat.value === categoryValue);
+    return category?.label || categoryValue;
+  };
+
+  const getMemberCategoriesDisplay = (member: any) => {
+    if (member.member_categories?.length > 0) {
+      const primaryCategory = member.member_categories.find(mc => mc.is_primary);
+      const additionalCategories = member.member_categories.filter(mc => !mc.is_primary);
+      
+      return (
+        <div className="space-y-1">
+          <div>
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+              ⭐ {getCategoryLabel(primaryCategory?.category_value || member.category)}
+            </span>
+          </div>
+          {additionalCategories.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {additionalCategories.map((mc, index) => (
+                <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                  {getCategoryLabel(mc.category_value)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          {getCategoryLabel(member.category)}
+        </span>
+      );
+    }
+  };
   const fetchSeasons = async () => {
     try {
       const { data, error } = await supabase
@@ -363,7 +417,9 @@ export const ValidationWorkflow: React.FC = () => {
                       {member.first_name} {member.last_name}
                     </h3>
                     <p className="text-sm text-gray-600">{member.email}</p>
-                    <p className="text-sm text-gray-600">{member.category}</p>
+                    <div className="mt-1">
+                      {getMemberCategoriesDisplay(member)}
+                    </div>
                   </div>
                 </div>
                 
@@ -567,7 +623,7 @@ export const ValidationWorkflow: React.FC = () => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="font-semibold text-gray-800 mb-3">📄 Documents requis</h4>
                 <div className="space-y-2">
-            {['ffvbForm', 'medicalCertificate', 'idPhoto', 'parentalConsent', 'identityCopy'].map((docType: string) => {
+            {['medical_certificate', 'photo', 'registration_form', 'parental_authorization', 'identity_copy'].map((docType: string) => {
                     const memberDoc = selectedMemberDocs.find(doc => doc.document_type === docType);
                     const isUploaded = !!memberDoc;
                     const isValidated = memberDoc?.status === 'validated';
@@ -577,12 +633,12 @@ export const ValidationWorkflow: React.FC = () => {
                     return (
                       <div key={docType} className="flex items-center justify-between p-2 bg-white rounded">
                         <span className="text-sm text-gray-700">
-                         {docType === 'ffvbForm' ? '📋 Formulaire FFVB' :
- docType === 'medicalCertificate' ? '🏥 Certificat médical' :
- docType === 'idPhoto' ? '📷 Photo d\'identité' :
- docType === 'parentalConsent' ? '👨‍👩‍👧‍👦 Autorisation parentale' :
- docType === 'identityCopy' ? '🪪 Pièce d\'identité' :
- docType}
+                         {docType === 'medical_certificate' ? '🏥 Certificat médical' :
+                          docType === 'photo' ? '📷 Photo d\'identité' :
+                          docType === 'registration_form' ? '📋 Formulaire d\'inscription' :
+                          docType === 'parental_authorization' ? '👨‍👩‍👧‍👦 Autorisation parentale' :
+                          docType === 'identity_copy' ? '🆔 Pièce d\'identité' :
+                          docType}
 
                         </span>
                         <div className="flex items-center space-x-2">
