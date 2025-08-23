@@ -240,10 +240,10 @@ const MultiCategorySelector: React.FC<{
       <div className="space-y-2">
         {categories.map(category => {
           const isSelected = memberCategories.some(mc => 
-            mc.category_value === category.value
+            mc.category_id === category.id || mc.category_value === category.value
           );
           const isPrimary = memberCategories.find(mc => 
-            mc.category_value === category.value
+            mc.category_id === category.id || mc.category_value === category.value
           )?.is_primary;
           
           return (
@@ -261,7 +261,7 @@ const MultiCategorySelector: React.FC<{
               {isSelected && (
                 <button
                   type="button"
-                  onClick={() => setPrimaryCategory(category.value)}
+                  onClick={() => setPrimaryCategory(category.id)}
                   className={`px-2 py-1 text-xs rounded-full transition-colors
                     ${isPrimary 
                       ? 'bg-primary-100 text-primary-800 font-medium'
