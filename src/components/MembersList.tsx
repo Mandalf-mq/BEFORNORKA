@@ -166,6 +166,8 @@ const MultiCategorySelector: React.FC<{
             is_primary: true,
             categories: fallbackCategory
           }]);
+        }
+      }
       }
     }
   }, [member, categories]);
