@@ -691,6 +691,14 @@ const MembersManagement: React.FC = () => {
          category_value: category.value,
           console.warn('⚠️ Aucune catégorie active trouvée');
         }
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement des catégories:', error);
+        setCategories([]);
+      }
+    };
+
+    fetchCategories();
+  }, []);
        is_primary: mc.category_value === categoryValue
         console.error('❌ Erreur lors du chargement des catégories:', error);
         setCategories([]);
