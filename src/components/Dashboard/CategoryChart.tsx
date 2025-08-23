@@ -43,15 +43,14 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ data }) => {
     const category = categories.find(cat => cat.value === categoryValue);
     const label = category?.label || categoryValue;
     
-    // Debug pour identifier les catégories problématiques
-    if (categoryValue === '2 vs 2 Competition' || categoryValue.includes('Competition')) {
-      console.warn('🚨 [CategoryChart] Catégorie invalide détectée:', {
-        categoryValue,
-        fallbackLabel,
-        foundInDB: !!category,
-        finalLabel: label
-      });
-    }
+    // Debug pour toutes les catégories
+    console.log('🔍 [CategoryChart] Mapping catégorie:', {
+      categoryValue,
+      fallbackLabel,
+      foundInDB: !!category,
+      finalLabel: label,
+      availableCategories: categories.map(c => c.value)
+    });
     
     return label;
   };
