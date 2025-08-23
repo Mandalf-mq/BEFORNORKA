@@ -168,6 +168,7 @@ const MultiCategorySelector: React.FC<{
           }]);
         }
       }
+    }
       }
     }
   }, [member, categories]);
