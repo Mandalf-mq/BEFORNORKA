@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, Download, FileText, CheckCircle, XCircle, AlertCircle, X, Users, Baby, Crown, Link } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -53,21 +54,25 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
     }
   };
   const downloadTemplate = () => {
-    // Utiliser les vraies catégories de la DB ou des valeurs par défaut
-    const defaultCategory = categories.length > 0 ? categories[0].value : 'senior';
-    const seniorCategory = categories.find(c => c.value === 'senior') || categories[0];
-    const juniorCategory = categories.find(c => c.age_range?.includes('junior') || c.label?.toLowerCase().includes('junior')) || categories[1];
-    const minorCategory = categories.find(c => c.age_range?.includes('mineur') || c.label?.toLowerCase().includes('mineur')) || categories[2];
+    if (categories.length === 0) {
+      alert('❌ Aucune catégorie disponible !\n\nVeuillez d\'abord créer des catégories dans Paramètres → Catégories');
+      return;
+    }
+
+    // Utiliser les vraies catégories de votre base de données
+    const cat1 = categories[0] || { value: 'senior', label: 'Senior', membership_fee: 250 };
+    const cat2 = categories[1] || cat1;
+    const cat3 = categories[2] || cat1;
     
-    // Générer des exemples avec les vraies catégories
+    // Générer des exemples avec VOS vraies catégories configurées
     const csvTemplate = `"first_name","last_name","email","phone","birth_date","address","postal_code","city","category","membership_fee","ffvb_license","family_head_email","emergency_contact","emergency_phone","notes"
-"Sophie","Martin","sophie.martin@email.com","0612345678","1995-03-15","123 Rue de la République","75001","Paris","${seniorCategory?.value || 'senior'}","${seniorCategory?.membership_fee || 250}","","","Marie Martin","0687654321","Mère de Lucas et Emma"
-"Lucas","Dubois","lucas.dubois@email.com","0623456789","2010-07-22","123 Rue de la République","75001","Paris","${minorCategory?.value || defaultCategory}","${minorCategory?.membership_fee || 160}","12345678","sophie.martin@email.com","Sophie Martin","0612345678","Fils de Sophie - Très motivé"
-"Emma","Leroy","emma.leroy@email.com","","2008-11-08","123 Rue de la République","75001","Paris","${minorCategory?.value || defaultCategory}","${minorCategory?.membership_fee || 180}","87654321","sophie.martin@email.com","Sophie Martin","0612345678","Fille de Sophie - Débutante"
-"Pierre","Dupont","pierre.dupont@email.com","0645678901","1988-12-05","456 Avenue des Sports","92100","Boulogne","${seniorCategory?.value || 'senior'}","${seniorCategory?.membership_fee || 250}","11223344","","Claire Dupont","0698765432","Joueur expérimenté - Capitaine potentiel"
-"Marie","Dupont","marie.dupont@email.com","0656789012","2012-06-18","456 Avenue des Sports","92100","Boulogne","${juniorCategory?.value || defaultCategory}","${juniorCategory?.membership_fee || 200}","55667788","pierre.dupont@email.com","Pierre Dupont","0645678901","Fille de Pierre - Très sportive"
-"Jean","Moreau","jean.moreau@email.com","0634567890","1975-09-30","789 Boulevard du Volleyball","94200","Ivry","${seniorCategory?.value || 'senior'}","${seniorCategory?.membership_fee || 200}","99887766","","Sylvie Moreau","0676543210","Ancien joueur professionnel"
-"Thomas","Petit","thomas.petit@email.com","","1992-11-25","654 Allée des Champions","93200","Saint-Denis","${seniorCategory?.value || 'senior'}","${seniorCategory?.membership_fee || 250}","","","","","Étudiant - Tarif réduit possible"`;
+"Sophie","Martin","sophie.martin@email.com","0612345678","1995-03-15","123 Rue de la République","75001","Paris","${cat1.value}","${cat1.membership_fee}","","","Marie Martin","0687654321","Mère de Lucas et Emma"
+"Lucas","Dubois","lucas.dubois@email.com","0623456789","2010-07-22","123 Rue de la République","75001","Paris","${cat2.value}","${cat2.membership_fee}","12345678","sophie.martin@email.com","Sophie Martin","0612345678","Fils de Sophie - Très motivé"
+"Emma","Leroy","emma.leroy@email.com","","2008-11-08","123 Rue de la République","75001","Paris","${cat3.value}","${cat3.membership_fee}","87654321","sophie.martin@email.com","Sophie Martin","0612345678","Fille de Sophie - Débutante"
+"Pierre","Dupont","pierre.dupont@email.com","0645678901","1988-12-05","456 Avenue des Sports","92100","Boulogne","${cat1.value}","${cat1.membership_fee}","11223344","","Claire Dupont","0698765432","Joueur expérimenté - Capitaine potentiel"
+"Marie","Dupont","marie.dupont@email.com","0656789012","2012-06-18","456 Avenue des Sports","92100","Boulogne","${cat2.value}","${cat2.membership_fee}","55667788","pierre.dupont@email.com","Pierre Dupont","0645678901","Fille de Pierre - Très sportive"
+"Jean","Moreau","jean.moreau@email.com","0634567890","1975-09-30","789 Boulevard du Volleyball","94200","Ivry","${cat1.value}","${cat1.membership_fee}","99887766","","Sylvie Moreau","0676543210","Ancien joueur professionnel"
+"Thomas","Petit","thomas.petit@email.com","","1992-11-25","654 Allée des Champions","93200","Saint-Denis","${cat1.value}","${cat1.membership_fee}","","","","","Étudiant - Tarif réduit possible"`;
 
     const blob = new Blob([csvTemplate], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -272,7 +277,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors cursor-pointer">
               <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm text-gray-600">
-                Cliquez pour sélectionner votre fichier CSV
+                ✅ Modèle généré avec vos {categories.length} catégories actives : {categories.map(c => c.label).join(', ')}
               </p>
               <input
                 type="file"
