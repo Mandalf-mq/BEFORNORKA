@@ -270,40 +270,24 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         console.log(`🔍 Ligne ${lineNumber}: Recherche catégorie pour "${originalCategory}"`);
         console.log(`🔍 Catégories disponibles:`, categories.map(c => ({ value: c.value, label: c.label })));
         
-        // 1. Recherche exacte par label
-        let foundCategory = categories.find(cat => 
-          cat.label.toLowerCase() === originalCategory.toLowerCase()
+        // VALIDATION STRICTE : La catégorie DOIT exister exactement
+        const foundCategory = categories.find(cat => 
+          cat.label === originalCategory || cat.value === originalCategory
         );
         
-        // 2. Recherche exacte par value
-        if (!foundCategory) {
-          foundCategory = categories.find(cat => 
-            cat.value.toLowerCase() === originalCategory.toLowerCase()
-          );
-        }
-        
-        // 3. Recherche partielle (pour "2 VS 2 COMPETITION" → "2 vs 2 Competition - Mixte")
-        if (!foundCategory) {
-          foundCategory = categories.find(cat => 
-            cat.label.toLowerCase().includes(originalCategory.toLowerCase()) ||
-            originalCategory.toLowerCase().includes(cat.label.toLowerCase())
-          );
-        }
-        
         if (foundCategory) {
+          // Garder la catégorie trouvée (utiliser sa value)
           row.category = foundCategory.value;
           console.log(`✅ Ligne ${lineNumber}: "${originalCategory}" → "${foundCategory.label}" (${foundCategory.value})`);
         } else {
-          // 4. Catégorie non trouvée - laisser tel quel et signaler l'erreur
-          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${originalCategory}" non trouvée`);
-          errors.push(`Ligne ${lineNumber}: Catégorie "${originalCategory}" non trouvée dans la base de données`);
+          // Catégorie non trouvée → ERREUR
+          console.error(`❌ Ligne ${lineNumber}: Catégorie "${originalCategory}" non trouvée`);
+          errors.push(`Ligne ${lineNumber}: Catégorie "${originalCategory}" n'existe pas. Catégories disponibles: ${categories.map(c => c.label).join(', ')}`);
         }
-      } else if (categories.length > 0) {
-        // Catégorie vide → utiliser la première catégorie disponible
-        row.category = categories[0].value;
-        console.log(`ℹ️ Ligne ${lineNumber}: Aucune catégorie spécifiée, utilisation de "${categories[0].label}"`);
       } else {
-        errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible dans la base de données`);
+        // Colonne vide → LAISSER VIDE (pas de défaut)
+        row.category = '';
+        console.log(`ℹ️ Ligne ${lineNumber}: Aucune catégorie spécifiée, laissée vide`);
       }
     });
     
