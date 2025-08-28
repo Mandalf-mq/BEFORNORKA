@@ -87,6 +87,10 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
   const parseCSV = (csvText: string) => {
     const lines = csvText.split('\n').filter(line => line.trim());
     
+    if (lines.length < 2) {
+      throw new Error('Le fichier CSV doit contenir au moins une ligne d\'en-tête et une ligne de données');
+    }
+    
     // Parser CSV avec gestion des guillemets
     const parseCSVLine = (line: string): string[] => {
       const result: string[] = [];
@@ -112,6 +116,8 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
     
     const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
     
+    console.log('🔍 [CSVImporter] Headers détectés:', headers);
+    
     const data = lines.slice(1).map(line => {
       const values = parseCSVLine(line).map(v => v.replace(/"/g, '').trim());
       const row: any = {};
@@ -120,9 +126,11 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         row[header] = values[index] || '';
       });
       
+      console.log('🔍 [CSVImporter] Ligne parsée:', row);
       return row;
     });
     
+    console.log('🔍 [CSVImporter] Données complètes:', data);
     return data;
   };
 
@@ -134,32 +142,46 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       alert('❌ Veuillez sélectionner un fichier CSV');
       return;
     }
+    
+    setFile(selectedFile);
+    
     const reader = new FileReader();
     reader.onload = (e) => {
       const csvText = e.target?.result as string;
       try {
+        console.log('🔍 [CSVImporter] Contenu CSV brut:', csvText.substring(0, 500));
         const parsedData = parseCSV(csvText);
+        console.log('🔍 [CSVImporter] Données parsées:', parsedData);
         setCsvData(parsedData);
         setShowPreview(true);
       } catch (error) {
         console.error('Erreur parsing CSV:', error);
-        alert('❌ Erreur lors de la lecture du fichier CSV');
+        alert(`❌ Erreur lors de la lecture du fichier CSV: ${error.message}`);
       }
     };
     reader.readAsText(selectedFile);
-    setFile(selectedFile);
   };
 
   const validateCSVData = (data: any[]) => {
     const errors: string[] = [];
     const requiredFields = ['first_name', 'last_name', 'email', 'birth_date']; // Téléphone maintenant optionnel
     
+    if (data.length === 0) {
+      errors.push('Le fichier CSV est vide ou mal formaté');
+      return errors;
+    }
+    
+    console.log('🔍 [CSVImporter] Validation de', data.length, 'lignes');
+    console.log('🔍 [CSVImporter] Première ligne:', data[0]);
+    
     data.forEach((row, index) => {
       const lineNumber = index + 2; // +2 car index 0 = ligne 2 (après header)
       
+      console.log(`🔍 [CSVImporter] Validation ligne ${lineNumber}:`, row);
+      
       requiredFields.forEach(field => {
         if (!row[field] || row[field].trim() === '') {
-          errors.push(`Ligne ${lineNumber}: Champ "${field}" manquant`);
+          errors.push(`Ligne ${lineNumber}: Champ "${field}" manquant (valeur: "${row[field] || 'vide'}")`);
         }
       });
       
@@ -190,6 +212,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       }
     });
     
+    console.log('🔍 [CSVImporter] Erreurs de validation:', errors);
     return errors;
   };
 
@@ -200,19 +223,27 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       // Validation des données
       const validationErrors = validateCSVData(csvData);
       if (validationErrors.length > 0) {
-        alert(`❌ Erreurs de validation :\n${validationErrors.slice(0, 5).join('\n')}${validationErrors.length > 5 ? '\n...' : ''}`);
+        const errorMessage = `❌ Erreurs de validation détectées :\n\n${validationErrors.slice(0, 10).join('\n')}${validationErrors.length > 10 ? `\n\n... et ${validationErrors.length - 10} autres erreurs` : ''}`;
+        alert(errorMessage);
         return;
       }
 
+      console.log('🔍 [CSVImporter] Données à importer:', csvData);
+      console.log('🔍 [CSVImporter] Envoi emails:', sendEmails);
+      
       // Import via nouvelle fonction avec création de comptes
       const { data, error } = await supabase.rpc('import_members_with_accounts', {
+        p_csv_data: csvData,
+        p_send_emails: sendEmails
       });
 
       if (error) throw error;
 
+      console.log('🔍 [CSVImporter] Résultat import:', data);
       setResult(data);
       
       if (data.imported_count > 0) {
+        alert(`✅ Import réussi !\n\n📊 ${data.imported_count} membres importés\n🔑 ${data.accounts_created || 0} comptes créés\n${data.error_count > 0 ? `⚠️ ${data.error_count} erreurs` : ''}`);
         onSuccess();
       }
     } catch (error: any) {
@@ -313,17 +344,23 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
                     <th className="px-3 py-2 text-left font-medium text-gray-700">Email</th>
                     <th className="px-3 py-2 text-left font-medium text-gray-700">Téléphone</th>
                     <th className="px-3 py-2 text-left font-medium text-gray-700">Naissance</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-700">Catégorie</th>
                     <th className="px-3 py-2 text-left font-medium text-gray-700">Famille</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {csvData.slice(0, 5).map((row, index) => (
                     <tr key={index}>
-                      <td className="px-3 py-2">{row.first_name}</td>
-                      <td className="px-3 py-2">{row.last_name}</td>
-                      <td className="px-3 py-2">{row.email}</td>
-                      <td className="px-3 py-2">{row.phone}</td>
-                      <td className="px-3 py-2">{row.birth_date}</td>
+                      <td className="px-3 py-2">{row.first_name || '❌ Manquant'}</td>
+                      <td className="px-3 py-2">{row.last_name || '❌ Manquant'}</td>
+                      <td className="px-3 py-2">{row.email || '❌ Manquant'}</td>
+                      <td className="px-3 py-2">{row.phone || '📞 Optionnel'}</td>
+                      <td className="px-3 py-2">{row.birth_date || '❌ Manquant'}</td>
+                      <td className="px-3 py-2">
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                          {row.category || 'senior'}
+                        </span>
+                      </td>
                       <td className="px-3 py-2">
                         {row.family_head_email ? (
                           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
@@ -331,7 +368,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
                           </span>
                         ) : (
                           <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                            👨‍👩 Chef de famille
+                            👨‍👩 Indépendant
                           </span>
                         )}
                       </td>
@@ -346,9 +383,30 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
               </div>
             )}
           </div>
-          <p className="text-sm text-gray-600 mt-2">
-            {csvData.length} membre{csvData.length > 1 ? 's' : ''} à importer
-          </p>
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="bg-white rounded-lg p-3">
+              <div className="text-lg font-bold text-blue-600">{csvData.length}</div>
+              <div className="text-xs text-gray-600">Total lignes</div>
+            </div>
+            <div className="bg-white rounded-lg p-3">
+              <div className="text-lg font-bold text-green-600">
+                {csvData.filter(row => row.first_name && row.last_name && row.email && row.birth_date).length}
+              </div>
+              <div className="text-xs text-gray-600">Lignes valides</div>
+            </div>
+            <div className="bg-white rounded-lg p-3">
+              <div className="text-lg font-bold text-purple-600">
+                {csvData.filter(row => row.family_head_email && row.family_head_email.trim() !== '').length}
+              </div>
+              <div className="text-xs text-gray-600">Enfants</div>
+            </div>
+            <div className="bg-white rounded-lg p-3">
+              <div className="text-lg font-bold text-orange-600">
+                {csvData.filter(row => row.phone && row.phone.trim() !== '').length}
+              </div>
+              <div className="text-xs text-gray-600">Avec téléphone</div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -356,6 +414,30 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       {showPreview && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <h4 className="font-semibold text-green-800 mb-2">4. Lancer l'import</h4>
+          
+          {/* Validation avant import */}
+          {(() => {
+            const validationErrors = validateCSVData(csvData);
+            if (validationErrors.length > 0) {
+              return (
+                <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                  <h5 className="font-semibold text-red-800 mb-2">❌ Erreurs détectées :</h5>
+                  <div className="text-sm text-red-700 max-h-32 overflow-y-auto space-y-1">
+                    {validationErrors.slice(0, 10).map((error, index) => (
+                      <p key={index}>• {error}</p>
+                    ))}
+                    {validationErrors.length > 10 && (
+                      <p className="font-medium">... et {validationErrors.length - 10} autres erreurs</p>
+                    )}
+                  </div>
+                  <p className="text-xs text-red-600 mt-2 font-medium">
+                    ⚠️ Corrigez ces erreurs dans votre fichier CSV avant l'import
+                  </p>
+                </div>
+              );
+            }
+            return null;
+          })()}
           
           {/* Option envoi d'emails */}
           <div className="mb-4">
@@ -406,13 +488,18 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
           <div className="flex space-x-3">
             <button
               onClick={importMembers}
-              disabled={importing}
+              disabled={importing || validateCSVData(csvData).length > 0}
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
             >
               {importing ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   <span>Création des comptes...</span>
+                </>
+              ) : validateCSVData(csvData).length > 0 ? (
+                <>
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Corrigez les erreurs d'abord</span>
                 </>
               ) : (
                 <>
@@ -479,19 +566,20 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
         <h4 className="font-semibold text-amber-800 mb-2">💡 Instructions</h4>
         <div className="text-sm text-amber-700 space-y-1">
-          <p>• <strong>Colonnes obligatoires :</strong> first_name, last_name, email, birth_date</p>
+          <p>• <strong>Colonnes obligatoires :</strong> <code>first_name</code>, <code>last_name</code>, <code>email</code>, <code>birth_date</code></p>
           <p>• <strong>Colonnes optionnelles :</strong> phone, address, postal_code, city, category, membership_fee, ffvb_license, family_head_email, emergency_contact, emergency_phone, notes</p>
-          <p>• <strong>Format date :</strong> YYYY-MM-DD (ex: 1995-03-15)</p>
-          <p>• <strong>Format téléphone :</strong> Minimum 8 chiffres (ex: 0612345678 ou 06 12 34 56 78)</p>
-          <p>• <strong>Catégorie :</strong> Si vide, calculée automatiquement selon l'âge (baby, poussin, benjamin, minime, cadet, junior, senior, veteran)</p>
-          <p>• <strong>Tarif :</strong> Si vide, calculé automatiquement selon la catégorie (120€-250€)</p>
-          <p>• <strong>Licence FFVB :</strong> Numéro de licence officielle (optionnel)</p>
-          <p>• <strong>Statut initial :</strong> Tous les membres importés seront en "pending"</p>
-          <p>• <strong>Gestion familiale :</strong> Si family_head_email renseigné, l'enfant sera lié au parent</p>
-          <p>• <strong>Réduction familiale :</strong> 10% automatique à partir du 2ème enfant</p>
-          <p>• <strong>Contact d'urgence :</strong> emergency_contact et emergency_phone pour les mineurs</p>
-          <p>• <strong>Notes :</strong> Informations complémentaires sur le membre</p>
-          <p>• <strong>Guillemets :</strong> Utilisez des guillemets pour les valeurs contenant des virgules</p>
+          <p>• <strong>Format date :</strong> <code>YYYY-MM-DD</code> (ex: <code>1995-03-15</code>)</p>
+          <p>• <strong>Format téléphone :</strong> Minimum 8 chiffres (ex: <code>0612345678</code>)</p>
+          <p>• <strong>Encodage :</strong> UTF-8 recommandé pour les accents</p>
+          <p>• <strong>Séparateur :</strong> Virgule <code>,</code> obligatoire</p>
+          <p>• <strong>Guillemets :</strong> Utilisez <code>"</code> pour les valeurs avec virgules</p>
+        </div>
+        
+        <div className="mt-3 p-3 bg-amber-100 rounded-lg">
+          <h5 className="font-semibold text-amber-800 mb-1">🔍 Exemple de ligne valide :</h5>
+          <code className="text-xs text-amber-700 block">
+            "Sophie","Martin","sophie@email.com","0612345678","1995-03-15","senior","250"
+          </code>
         </div>
       </div>
     </div>
