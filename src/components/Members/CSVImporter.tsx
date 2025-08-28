@@ -9,8 +9,14 @@ interface CSVImporterProps {
 
 interface ImportResult {
   success: boolean;
-  imported_count: number;
-  errors: string[];
+  total_processed: number;
+  members_created: number;
+  accounts_created: number;
+  families_linked: number;
+  errors: Array<{
+    line: number;
+    message: string;
+  }>;
 }
 
 interface ParsedMember {
@@ -310,95 +316,21 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
     setUploadProgress(0);
     
     try {
-      const errors: string[] = [];
-      let importedCount = 0;
+      // Utiliser la fonction RPC pour l'import
+      const { data: result, error } = await supabase.rpc('import_members_with_accounts', {
+        members_data: csvData,
+        create_accounts: createAccounts
+      });
       
-      // Import membre par membre pour un meilleur contrôle
-      for (let i = 0; i < csvData.length; i++) {
-        const member = csvData[i];
-        setUploadProgress((i / csvData.length) * 100);
-        
-        try {
-          // Préparer les données du membre
-          const memberData: any = {
-            first_name: member.first_name?.trim(),
-            last_name: member.last_name?.trim(),
-            email: member.email?.trim(),
-            phone: member.phone?.trim() || null,
-            birth_date: member.birth_date?.trim() || null,
-            address: member.address?.trim() || null,
-            postal_code: member.postal_code?.trim() || null,
-            city: member.city?.trim() || null,
-            membership_fee: member.membership_fee || null,
-            ffvb_license: member.ffvb_license?.trim() || null,
-            family_head_email: member.family_head_email?.trim() || null,
-            emergency_contact: member.emergency_contact?.trim() || null,
-            emergency_phone: member.emergency_phone?.trim() || null,
-            notes: member.notes?.trim() || null,
-            status: 'active',
-            payment_status: 'pending'
-          };
-          
-          // Ajouter la catégorie si elle existe
-          if (member.category?.trim()) {
-            const category = categories.find(cat => cat.name === member.category.trim());
-            if (category) {
-              memberData.category_id = category.id;
-            }
-          }
-          
-          // Insérer le membre
-          const { data: insertedMember, error: memberError } = await supabase
-            .from('members')
-            .insert(memberData)
-            .select('id, email')
-            .single();
-          
-          if (memberError) {
-            errors.push(`Ligne ${i + 2}: ${memberError.message}`);
-            continue;
-          }
-          
-          // Créer un compte utilisateur si demandé
-          if (createAccounts && insertedMember.email) {
-            try {
-              const tempPassword = Math.random().toString(36).slice(-8);
-              const { error: authError } = await supabase.auth.admin.createUser({
-                email: insertedMember.email,
-                password: tempPassword,
-                email_confirm: true,
-                user_metadata: {
-                  member_id: insertedMember.id,
-                  temp_password: tempPassword
-                }
-              });
-              
-              if (authError) {
-                console.warn(`Compte non créé pour ${insertedMember.email}:`, authError.message);
-              }
-            } catch (authError) {
-              console.warn(`Erreur création compte ${insertedMember.email}:`, authError);
-            }
-          }
-          
-          importedCount++;
-          
-        } catch (error) {
-          errors.push(`Ligne ${i + 2}: Erreur inattendue - ${error}`);
-        }
+      if (error) {
+        throw error;
       }
       
       setUploadProgress(100);
       
-      const result: ImportResult = {
-        success: importedCount > 0,
-        imported_count: importedCount,
-        errors
-      };
-      
       setImportResult(result);
       
-      if (result.success && result.errors.length === 0) {
+      if (result.success && (!result.errors || result.errors.length === 0)) {
         setTimeout(() => {
           onSuccess();
         }, 2000);
@@ -408,8 +340,11 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
       console.error('Erreur lors de l\'import:', error);
       setImportResult({
         success: false,
-        imported_count: 0,
-        errors: [`Erreur générale: ${error}`]
+        total_processed: 0,
+        members_created: 0,
+        accounts_created: 0,
+        families_linked: 0,
+        errors: [{ line: 0, message: `Erreur générale: ${error}` }]
       });
     } finally {
       setIsLoading(false);
@@ -649,7 +584,7 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
                     <>
                       <CheckCircle className="w-5 h-5 text-green-500" />
                       <span className="font-medium text-green-800">
-                        Import réussi ! {importResult.imported_count} membre(s) importé(s)
+                        Import réussi ! {importResult.members_created} membre(s) importé(s)
                       </span>
                     </>
                   ) : (
@@ -667,7 +602,7 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
                       {importResult.errors.map((error, index) => (
                         <li key={index} className="flex items-start space-x-2">
                           <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                          <span>{error}</span>
+                          <span>Ligne {error.line}: {error.message}</span>
                         </li>
                       ))}
                     </ul>
