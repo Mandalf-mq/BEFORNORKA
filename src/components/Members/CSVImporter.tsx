@@ -216,7 +216,7 @@ Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;S
 
   const validateCSVData = (data: any[]) => {
     const errors: string[] = [];
-    const requiredFields = ['first_name', 'last_name', 'email']; // birth_date optionnel aussi
+    const requiredFields = ['first_name', 'last_name', 'email']; // birth_date devient optionnel
     
     if (data.length === 0) {
       errors.push('Le fichier CSV est vide ou mal formaté');
@@ -232,14 +232,15 @@ Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;S
       console.log(`🔍 [CSVImporter] Validation ligne ${lineNumber}:`, row);
       
       requiredFields.forEach(field => {
-        if (!row[field] || row[field].trim() === '') {
-          errors.push(`Ligne ${lineNumber}: Champ "${field}" manquant (valeur: "${row[field] || 'vide'}")`);
+        const value = row[field];
+        if (!value || value.toString().trim() === '') {
+          errors.push(`Ligne ${lineNumber}: Champ "${field}" manquant`);
         }
       });
       
       // Validation email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (row.email && !emailRegex.test(row.email)) {
+      if (row.email && row.email.trim() !== '' && !emailRegex.test(row.email.trim())) {
         errors.push(`Ligne ${lineNumber}: Email invalide`);
       }
       
@@ -247,47 +248,36 @@ Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;S
       if (row.phone && row.phone.trim() !== '') {
         const phoneRegex = /^[0-9\s\-\+\(\)\.]{8,}$/;
         if (!phoneRegex.test(row.phone.replace(/\s/g, ''))) {
-          errors.push(`Ligne ${lineNumber}: Téléphone invalide (minimum 8 chiffres)`);
+          // Téléphone invalide mais pas bloquant
+          console.warn(`⚠️ Ligne ${lineNumber}: Téléphone "${row.phone}" pourrait être invalide`);
         }
       }
       
-      // Validation date
+      // Validation date (optionnelle)
       if (row.birth_date && row.birth_date.trim() !== '') {
-        // Essayer de parser différents formats de date
-        const dateFormats = [
-          row.birth_date, // Format original
-          convertFrenchDate(row.birth_date), // Conversion française
-        ];
-        
-        let validDate = false;
-        for (const dateFormat of dateFormats) {
-          if (dateFormat && !isNaN(Date.parse(dateFormat))) {
-            validDate = true;
-            break;
-          }
+        const convertedDate = convertFrenchDate(row.birth_date);
+        const validDate = convertedDate && !isNaN(Date.parse(convertedDate));
+        // Mapper "Loisirs" vers "senior"
+        if (row.category.toLowerCase() === 'loisirs') {
+          row.category = 'senior';
         }
         
-        if (!validDate) {
-          errors.push(`Ligne ${lineNumber}: Date de naissance invalide "${row.birth_date}" (formats acceptés: YYYY-MM-DD, DD/MM/YYYY, DD/MM/YY)`);
-        }
-      }
-      
-      // Validation catégorie
-      if (row.category && row.category.trim() !== '' && categories.length > 0) {
         const validCategory = categories.some(cat => 
           cat.value === row.category || 
           cat.label.toLowerCase() === row.category.toLowerCase()
         );
         if (!validCategory) {
           const availableCategories = categories.map(c => c.label).join(', ');
-          errors.push(`Ligne ${lineNumber}: Catégorie "${row.category}" invalide. Catégories disponibles: ${availableCategories}`);
+      // Validation catégorie (avec mapping automatique)
+          // Ne pas bloquer l'import pour les dates invalides
         }
       }
-      
+          cat.label.toLowerCase() === row.category.toLowerCase() ||
+          row.category.toLowerCase() === 'loisirs' // Accepter "Loisirs"
       // Validation family_head_email (optionnel mais doit être valide si fourni)
       if (row.family_head_email && row.family_head_email.trim() !== '') {
-        if (!emailRegex.test(row.family_head_email)) {
-          errors.push(`Ligne ${lineNumber}: Email chef de famille invalide`);
+          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" sera mappée vers "senior"`);
+          // Ne pas bloquer, mapper automatiquement
         }
       }
     });
