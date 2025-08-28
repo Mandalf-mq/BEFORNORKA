@@ -276,7 +276,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         if (foundCategory) {
           // Utiliser la valeur technique de la catégorie trouvée
           row.category = foundCategory.value;
-          console.log(`✅ Ligne ${lineNumber}: Catégorie "${categoryLower}" mappée vers "${foundCategory.value}"`);
+         const categoryLower = row.category.toLowerCase().trim();
         } else if (categories.length > 0) {
           // Chercher une correspondance partielle ou utiliser la première catégorie "Loisirs" si disponible
           const loisirCategory = categories.find(cat => 
