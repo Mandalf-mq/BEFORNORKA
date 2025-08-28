@@ -164,7 +164,7 @@ Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;S
 
   const validateCSVData = (data: any[]) => {
     const errors: string[] = [];
-    const requiredFields = ['first_name', 'last_name', 'email', 'birth_date']; // Téléphone maintenant optionnel
+    const requiredFields = ['first_name', 'last_name', 'email']; // birth_date optionnel aussi
     
     if (data.length === 0) {
       errors.push('Le fichier CSV est vide ou mal formaté');
@@ -200,8 +200,36 @@ Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;S
       }
       
       // Validation date
-      if (row.birth_date && isNaN(Date.parse(row.birth_date))) {
-        errors.push(`Ligne ${lineNumber}: Date de naissance invalide (format: YYYY-MM-DD)`);
+      if (row.birth_date && row.birth_date.trim() !== '') {
+        // Essayer de parser différents formats de date
+        const dateFormats = [
+          row.birth_date, // Format original
+          convertFrenchDate(row.birth_date), // Conversion française
+        ];
+        
+        let validDate = false;
+        for (const dateFormat of dateFormats) {
+          if (dateFormat && !isNaN(Date.parse(dateFormat))) {
+            validDate = true;
+            break;
+          }
+        }
+        
+        if (!validDate) {
+          errors.push(`Ligne ${lineNumber}: Date de naissance invalide "${row.birth_date}" (formats acceptés: YYYY-MM-DD, DD/MM/YYYY, DD/MM/YY)`);
+        }
+      }
+      
+      // Validation catégorie
+      if (row.category && row.category.trim() !== '' && categories.length > 0) {
+        const validCategory = categories.some(cat => 
+          cat.value === row.category || 
+          cat.label.toLowerCase() === row.category.toLowerCase()
+        );
+        if (!validCategory) {
+          const availableCategories = categories.map(c => c.label).join(', ');
+          errors.push(`Ligne ${lineNumber}: Catégorie "${row.category}" invalide. Catégories disponibles: ${availableCategories}`);
+        }
       }
       
       // Validation family_head_email (optionnel mais doit être valide si fourni)
