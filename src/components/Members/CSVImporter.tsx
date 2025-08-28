@@ -88,7 +88,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(/[;,]/).map(h => h.replace(/"/g, '').trim());
+    const headers = lines[0].split(/[;,]/).map(h => h.replace(/"/g, '').trim().toLowerCase());
     const data = [];
 
     for (let i = 1; i < lines.length; i++) {
@@ -113,7 +113,41 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
 
       const row: any = {};
       headers.forEach((header, index) => {
-        row[header] = values[index] || '';
+        // Mapper les en-têtes vers les noms de champs attendus
+        const fieldMapping: { [key: string]: string } = {
+          'prénom': 'first_name',
+          'first_name': 'first_name',
+          'nom': 'last_name', 
+          'last_name': 'last_name',
+          'email': 'email',
+          'téléphone': 'phone',
+          'phone': 'phone',
+          'naissance': 'birth_date',
+          'birth_date': 'birth_date',
+          'date_naissance': 'birth_date',
+          'adresse': 'address',
+          'address': 'address',
+          'code_postal': 'postal_code',
+          'postal_code': 'postal_code',
+          'ville': 'city',
+          'city': 'city',
+          'catégorie': 'category',
+          'category': 'category',
+          'cotisation': 'membership_fee',
+          'membership_fee': 'membership_fee',
+          'licence': 'ffvb_license',
+          'ffvb_license': 'ffvb_license',
+          'famille': 'family_head_email',
+          'family_head_email': 'family_head_email',
+          'contact_urgence': 'emergency_contact',
+          'emergency_contact': 'emergency_contact',
+          'tel_urgence': 'emergency_phone',
+          'emergency_phone': 'emergency_phone',
+          'notes': 'notes'
+        };
+        
+        const fieldName = fieldMapping[header] || header;
+        row[fieldName] = values[index] || '';
       });
 
       data.push(row);
@@ -510,11 +544,16 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
                         </td>
                         <td className="px-3 py-2 text-sm text-gray-900">{row.birth_date}</td>
                         <td className="px-3 py-2 text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            row.category && row.category.trim() !== '' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-                          }`}>
-                            {row.category && row.category.trim() !== '' ? row.category : '(Vide)'}
-                          </span>
+                          <div>
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              row.category && row.category.trim() !== '' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {row.category && row.category.trim() !== '' ? row.category : '(Vide)'}
+                            </span>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Ville: {row.city || 'Non renseignée'}
+                            </div>
+                          </div>
                         </td>
                         <td className="px-3 py-2 text-sm">
                           <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs">
