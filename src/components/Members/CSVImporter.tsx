@@ -35,7 +35,7 @@ interface Category {
   id: string;
   value: string;
   label: string;
-  type: 'competition' | 'leisure' | 'youth';
+  color: string;
   icon?: React.ComponentType;
 }
 
@@ -58,15 +58,14 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
     try {
       const { data, error } = await supabase
         .from('categories')
-        .select('id, value, label, type')
+        .select('id, value, label, color')
         .order('label');
       
       if (error) throw error;
       
       const categoriesWithIcons = data.map(cat => ({
         ...cat,
-        icon: cat.type === 'competition' ? Crown : 
-              cat.type === 'youth' ? Baby : Users
+        icon: Users
       }));
       
       setCategories(categoriesWithIcons);
@@ -82,14 +81,9 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
 
   const getCategoryBadgeColor = (categoryName: string) => {
     const category = categories.find(cat => cat.value === categoryName);
-    if (!category) return 'bg-red-100 text-red-800';
+    if (!category) return 'bg-gray-100 text-gray-800';
     
-    switch (category.type) {
-      case 'competition': return 'bg-yellow-100 text-yellow-800';
-      case 'youth': return 'bg-pink-100 text-pink-800';
-      case 'leisure': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+    return category.color ? `bg-${category.color}-100 text-${category.color}-800` : 'bg-blue-100 text-blue-800';
   };
 
   const parseCSV = (content: string) => {
