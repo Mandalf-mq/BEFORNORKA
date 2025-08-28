@@ -266,13 +266,20 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       // Validation catégorie (avec mapping automatique)
       if (row.category && row.category.trim() !== '') {
         const categoryLower = row.category.toLowerCase().trim();
-        const validCategory = categories.some(cat => 
-          cat.value === row.category || 
-          cat.label.toLowerCase() === categoryLower
+        
+        // Chercher la catégorie par label OU par value
+        const foundCategory = categories.find(cat => 
+          cat.label.toLowerCase() === categoryLower ||
+          cat.value.toLowerCase() === categoryLower
         );
-        if (!validCategory && categories.length > 0) {
-          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" non trouvée dans la base`);
-          // Ne pas mapper automatiquement - laisser l'erreur pour que l'admin crée la catégorie
+        
+        if (foundCategory) {
+          // Utiliser la valeur technique de la catégorie trouvée
+          row.category = foundCategory.value;
+          console.log(`✅ Ligne ${lineNumber}: Catégorie "${row.category}" mappée vers "${foundCategory.value}"`);
+        } else if (categories.length > 0) {
+          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" non trouvée, utilisation de la première catégorie`);
+          row.category = categories[0].value;
         }
       }
     });
