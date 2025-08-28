@@ -65,14 +65,14 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
     
     // FORMAT FRANÇAIS avec point-virgule (;) - Compatible Excel France
     const csvTemplate = `first_name;last_name;email;phone;birth_date;address;postal_code;city;category;membership_fee;ffvb_license;family_head_email;emergency_contact;emergency_phone;notes
-Sophie;Martin;sophie.martin@email.com;0612345678;15/03/1995;123 Rue de la République;75001;Paris;${cat1.value};${cat1.membership_fee};;Marie Martin;0687654321;M
-  }
-}ère de Lucas et Emma
+Sophie;Martin;sophie.martin@email.com;0612345678;15/03/1995;123 Rue de la République;75001;Paris;${cat1.value};${cat1.membership_fee};;Marie Martin;0687654321;Mère de Lucas et Emma
 Lucas;Dubois;lucas.dubois@email.com;0623456789;22/07/2010;123 Rue de la République;75001;Paris;${cat2.value};${cat2.membership_fee};12345678;sophie.martin@email.com;Sophie Martin;0612345678;Fils de Sophie - Très motivé
 Emma;Leroy;emma.leroy@email.com;;08/11/2008;123 Rue de la République;75001;Paris;${cat3.value};${cat3.membership_fee};87654321;sophie.martin@email.com;Sophie Martin;0612345678;Fille de Sophie - Débutante
 Pierre;Dupont;pierre.dupont@email.com;0645678901;05/12/1988;456 Avenue des Sports;92100;Boulogne;${cat1.value};${cat1.membership_fee};11223344;;Claire Dupont;0698765432;Joueur expérimenté - Capitaine potentiel
 Marie;Dupont;marie.dupont@email.com;0656789012;18/06/2012;456 Avenue des Sports;92100;Boulogne;${cat2.value};${cat2.membership_fee};55667788;pierre.dupont@email.com;Pierre Dupont;0645678901;Fille de Pierre - Très sportive
-Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyball;94200;Ivry;${cat1.value};${cat1.membership_fee};99887766;;Sylvie Moreau;0676543210;Ancien joueur professionnel
+Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyball;94200;Ivry;${cat1
+  }
+}.value};${cat1.membership_fee};99887766;;Sylvie Moreau;0676543210;Ancien joueur professionnel
 
     const blob = new Blob([csvTemplate], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -257,28 +257,23 @@ Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyb
       // Validation date (optionnelle)
       if (row.birth_date && row.birth_date.trim() !== '') {
         const convertedDate = convertFrenchDate(row.birth_date);
-        const validDate = convertedDate && !isNaN(Date.parse(convertedDate));
-        // Mapper "Loisirs" vers "senior"
-        if (row.category.toLowerCase() === 'loisirs') {
-          row.category = 'senior';
-        }
-        
-        const validCategory = categories.some(cat => 
-          cat.value === row.category || 
-          cat.label.toLowerCase() === row.category.toLowerCase()
-        );
-        if (!validCategory) {
-          const availableCategories = categories.map(c => c.label).join(', ');
-      // Validation catégorie (avec mapping automatique)
-          // Ne pas bloquer l'import pour les dates invalides
+        if (!convertedDate || isNaN(Date.parse(convertedDate))) {
+          console.warn(`⚠️ Ligne ${lineNumber}: Date "${row.birth_date}" invalide, sera ignorée`);
+          row.birth_date = ''; // Vider la date invalide
         }
       }
-          cat.label.toLowerCase() === row.category.toLowerCase() ||
-          row.category.toLowerCase() === 'loisirs' // Accepter "Loisirs"
-      // Validation family_head_email (optionnel mais doit être valide si fourni)
-      if (row.family_head_email && row.family_head_email.trim() !== '') {
-          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" sera mappée vers "senior"`);
-          // Ne pas bloquer, mapper automatiquement
+      
+      // Validation catégorie (avec mapping automatique)
+      if (row.category && row.category.trim() !== '') {
+        const categoryLower = row.category.toLowerCase().trim();
+        const validCategory = categories.some(cat => 
+          cat.value === row.category || 
+          cat.label.toLowerCase() === categoryLower ||
+          categoryLower === 'loisirs' || categoryLower === 'loisir'
+        );
+        if (!validCategory && categories.length > 0) {
+          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" sera mappée vers "${categories[0].value}"`);
+          row.category = categories[0].value; // Mapper vers la première catégorie disponible
         }
       }
     });
