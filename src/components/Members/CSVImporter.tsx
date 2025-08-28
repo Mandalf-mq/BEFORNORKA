@@ -359,14 +359,8 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
           // Déterminer la catégorie (loisirs par défaut)
           const category = member.category && member.category.trim() ? member.category.trim() : 'loisirs';
           
-          // Récupérer le tarif de la catégorie
-          const { data: categoryData } = await supabase
-            .from('categories')
-            .select('membership_fee')
-            .eq('value', category)
-            .single();
-          
-          const membership_fee = member.membership_fee || categoryData?.membership_fee || 200;
+          // Utiliser seulement le tarif spécifié dans le CSV (pas de tarif par défaut)
+          const membership_fee = member.membership_fee || 0;
           
           // Créer le membre
           const { data: newMember, error: memberError } = await supabase
