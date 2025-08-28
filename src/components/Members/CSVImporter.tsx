@@ -317,6 +317,135 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
     }
   };
 
+  // Fonction d'import direct sans RPC personnalisée
+  const importMembersDirectly = async (membersData: ParsedMember[]) => {
+    try {
+      console.log('🚀 [CSVImporter] Début import direct de', membersData.length, 'membres');
+      
+      let imported_count = 0;
+      let error_count = 0;
+      const errors: string[] = [];
+      
+      // Récupérer la saison courante
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+      
+      if (seasonError || !currentSeason) {
+        throw new Error('Aucune saison courante trouvée');
+      }
+      
+      // Traiter chaque membre individuellement
+      for (let i = 0; i < membersData.length; i++) {
+        const member = membersData[i];
+        setUploadProgress((i / membersData.length) * 100);
+        
+        try {
+          // Vérifier si le membre existe déjà
+          const { data: existingMember } = await supabase
+            .from('members')
+            .select('id')
+            .eq('email', member.email)
+            .single();
+          
+          if (existingMember) {
+            errors.push(`${member.email}: Membre déjà existant`);
+            error_count++;
+            continue;
+          }
+          
+          // Déterminer la catégorie (loisirs par défaut)
+          const category = member.category && member.category.trim() ? member.category.trim() : 'loisirs';
+          
+          // Récupérer le tarif de la catégorie
+          const { data: categoryData } = await supabase
+            .from('categories')
+            .select('membership_fee')
+            .eq('value', category)
+            .single();
+          
+          const membership_fee = member.membership_fee || categoryData?.membership_fee || 200;
+          
+          // Créer le membre
+          const { data: newMember, error: memberError } = await supabase
+            .from('members')
+            .insert({
+              first_name: member.first_name,
+              last_name: member.last_name,
+              email: member.email,
+              phone: member.phone || null, // Explicitement NULL si vide
+              birth_date: member.birth_date || null,
+              address: member.address || null,
+              postal_code: member.postal_code || null,
+              city: member.city || null,
+              category: category,
+              membership_fee: membership_fee,
+              ffvb_license: member.ffvb_license || null,
+              emergency_contact: member.emergency_contact || null,
+              emergency_phone: member.emergency_phone || null,
+              notes: member.notes || null,
+              status: 'pending',
+              payment_status: 'pending',
+              season_id: currentSeason.id
+            })
+            .select('id')
+            .single();
+          
+          if (memberError) {
+            console.error('❌ Erreur création membre:', memberError);
+            errors.push(`${member.email}: ${memberError.message}`);
+            error_count++;
+            continue;
+          }
+          
+          // Ajouter la catégorie principale dans member_categories
+          const { error: categoryError } = await supabase
+            .from('member_categories')
+            .insert({
+              member_id: newMember.id,
+              category_value: category,
+              is_primary: true
+            });
+          
+          if (categoryError) {
+            console.warn('⚠️ Erreur ajout catégorie:', categoryError);
+            // Ne pas bloquer l'import pour cette erreur
+          }
+          
+          imported_count++;
+          console.log(`✅ Membre créé: ${member.first_name} ${member.last_name}`);
+          
+        } catch (memberError: any) {
+          console.error('❌ Erreur membre individuel:', memberError);
+          errors.push(`${member.email}: ${memberError.message}`);
+          error_count++;
+        }
+      }
+      
+      return {
+        success: true,
+        imported_count,
+        error_count,
+        errors,
+        accounts_created: 0, // Pas de comptes auth créés
+        message: `Import terminé. ${imported_count} profils membres créés.`
+      };
+      
+    } catch (error: any) {
+      console.error('❌ Erreur générale import:', error);
+      return {
+        success: false,
+        imported_count: 0,
+        error_count: 1,
+        errors: [error.message],
+        accounts_created: 0,
+        message: `Erreur d'import: ${error.message}`
+      };
+    }
+  };
+
   const handleImport = async () => {
     if (!csvData.length || validationErrors.length > 0) return;
     
