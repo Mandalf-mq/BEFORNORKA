@@ -64,13 +64,13 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
     const cat3 = categories[2] || cat1;
     
     // FORMAT FRANÇAIS avec point-virgule (;) - Compatible Excel France
-    const csvTemplate = `first_name;last_name;email;phone;birth_date;address;postal_code;city;category;membership_fee;ffvb_license;family_head_email;emergency_contact;emergency_phone;notes
-Sophie;Martin;sophie.martin@email.com;0612345678;15/03/1995;123 Rue de la République;75001;Paris;${cat1.value};${cat1.membership_fee};;Marie Martin;0687654321;Mère de Lucas et Emma
-Lucas;Dubois;lucas.dubois@email.com;0623456789;22/07/2010;123 Rue de la République;75001;Paris;${cat2.value};${cat2.membership_fee};12345678;sophie.martin@email.com;Sophie Martin;0612345678;Fils de Sophie - Très motivé
-Emma;Leroy;emma.leroy@email.com;;08/11/2008;123 Rue de la République;75001;Paris;${cat3.value};${cat3.membership_fee};87654321;sophie.martin@email.com;Sophie Martin;0612345678;Fille de Sophie - Débutante
-Pierre;Dupont;pierre.dupont@email.com;0645678901;05/12/1988;456 Avenue des Sports;92100;Boulogne;${cat1.value};${cat1.membership_fee};11223344;;Claire Dupont;0698765432;Joueur expérimenté - Capitaine potentiel
-Marie;Dupont;marie.dupont@email.com;0656789012;18/06/2012;456 Avenue des Sports;92100;Boulogne;${cat2.value};${cat2.membership_fee};55667788;pierre.dupont@email.com;Pierre Dupont;0645678901;Fille de Pierre - Très sportive
-Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyball;94200;Ivry;${cat1.value};${cat1.membership_fee};99887766;;Sylvie Moreau;0676543210;Ancien joueur professionnel`;
+    const csvTemplate = 'first_name;last_name;email;phone;birth_date;address;postal_code;city;category;membership_fee;ffvb_license;family_head_email;emergency_contact;emergency_phone;notes\n' +
+      'Sophie;Martin;sophie.martin@email.com;0612345678;15/03/1995;123 Rue de la République;75001;Paris;' + cat1.value + ';' + cat1.membership_fee + ';;Marie Martin;0687654321;Mère de Lucas et Emma\n' +
+      'Lucas;Dubois;lucas.dubois@email.com;0623456789;22/07/2010;123 Rue de la République;75001;Paris;' + cat2.value + ';' + cat2.membership_fee + ';12345678;sophie.martin@email.com;Sophie Martin;0612345678;Fils de Sophie - Très motivé\n' +
+      'Emma;Leroy;emma.leroy@email.com;;08/11/2008;123 Rue de la République;75001;Paris;' + cat3.value + ';' + cat3.membership_fee + ';87654321;sophie.martin@email.com;Sophie Martin;0612345678;Fille de Sophie - Débutante\n' +
+      'Pierre;Dupont;pierre.dupont@email.com;0645678901;05/12/1988;456 Avenue des Sports;92100;Boulogne;' + cat1.value + ';' + cat1.membership_fee + ';11223344;;Claire Dupont;0698765432;Joueur expérimenté - Capitaine potentiel\n' +
+      'Marie;Dupont;marie.dupont@email.com;0656789012;18/06/2012;456 Avenue des Sports;92100;Boulogne;' + cat2.value + ';' + cat2.membership_fee + ';55667788;pierre.dupont@email.com;Pierre Dupont;0645678901;Fille de Pierre - Très sportive\n' +
+      'Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyball;94200;Ivry;' + cat1.value + ';' + cat1.membership_fee + ';99887766;;Sylvie Moreau;0676543210;Ancien joueur professionnel';
 
     const blob = new Blob([csvTemplate], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -87,7 +87,7 @@ Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyb
   const convertFrenchDate = (dateStr: string): string => {
     if (!dateStr || dateStr.trim() === '') return '';
     
-    // Format DD/MM/YY ou DD/MM/YYYY
+    // Format DD/MM/YY ou DD/MM/YYYY (support années 2 chiffres)
     const frenchDateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/;
     const match = dateStr.match(frenchDateRegex);
     
@@ -97,12 +97,12 @@ Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyb
       // Convertir année 2 chiffres en 4 chiffres
       if (year.length === 2) {
         const yearNum = parseInt(year);
-        // Si > 50, c'est 19XX, sinon 20XX
-        year = yearNum > 50 ? `19${year}` : `20${year}`;
+        // Si > 30, c'est 19XX, sinon 20XX (pour gérer 1981 = 81)
+        year = yearNum > 30 ? '19' + year : '20' + year;
       }
       
       // Retourner au format ISO (YYYY-MM-DD)
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      return year + '-' + month.padStart(2, '0') + '-' + day.padStart(2, '0');
     }
     
     // Si déjà au bon format, retourner tel quel
