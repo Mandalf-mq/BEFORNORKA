@@ -170,6 +170,9 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       }
       
       // Mapper la catégorie "Loisirs" vers une catégorie valide
+      if (row.category === 'Loisirs' || row.category === 'loisirs') {
+        row.category = 'senior'; // Mapper vers senior par défaut
+      }
       
       console.log('🔍 [CSVImporter] Ligne parsée:', row);
       return row;
@@ -435,7 +438,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
                       <td className="px-3 py-2">{row.birth_date || '❌ Manquant'}</td>
                       <td className="px-3 py-2">
                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                          {row.category || 'senior'}
+                          {row.category || 'Aucune'}
                         </span>
                       </td>
                       <td className="px-3 py-2">
