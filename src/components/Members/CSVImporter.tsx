@@ -265,39 +265,53 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       
       // Validation catégorie (avec mapping automatique)
       if (row.category && row.category.trim() !== '') {
-        const categoryLower = row.category.toLowerCase().trim();
+        const categoryInput = row.category.trim();
         
-        // Chercher la catégorie par label OU par value
-        const foundCategory = categories.find(cat => 
-          cat.label.toLowerCase() === categoryLower ||
-          cat.value.toLowerCase() === categoryLower
+        console.log(`🔍 Ligne ${lineNumber}: Recherche catégorie pour "${categoryInput}"`);
+        console.log(`🔍 Catégories disponibles:`, categories.map(c => ({ value: c.value, label: c.label })));
+        
+        // 1. Recherche exacte par label (insensible à la casse)
+        let foundCategory = categories.find(cat => 
+          cat.label.toLowerCase() === categoryInput.toLowerCase()
         );
         
-        if (foundCategory) {
-          // Utiliser la valeur technique de la catégorie trouvée
-          row.category = foundCategory.value;
-         const categoryLower = row.category.toLowerCase().trim();
-        } else if (categories.length > 0) {
-          // Chercher une correspondance partielle ou utiliser la première catégorie "Loisirs" si disponible
-          const loisirCategory = categories.find(cat => 
-            cat.label.toLowerCase().includes(categoryLower) || 
-            cat.value.toLowerCase().includes(categoryLower)
+        // 2. Si pas trouvé, recherche exacte par value
+        if (!foundCategory) {
+          foundCategory = categories.find(cat => 
+            cat.value.toLowerCase() === categoryInput.toLowerCase()
           );
-          
-          if (loisirCategory) {
-            row.category = loisirCategory.value;
-            console.log(`✅ Ligne ${lineNumber}: Catégorie "${categoryLower}" mappée partiellement vers "${partialMatch.value}"`);
-          } else if (categories.length > 0) {
-            row.category = categories[0].value;
-            console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${categoryLower}" non trouvée, utilisation de "${categories[0].label}"`);
-          } else {
-            errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour mapper "${categoryLower}"`);
-          }
+        }
+        
+        // 3. Si pas trouvé, recherche partielle dans le label
+        if (!foundCategory) {
+          foundCategory = categories.find(cat => 
+            cat.label.toLowerCase().includes(categoryInput.toLowerCase()) ||
+            categoryInput.toLowerCase().includes(cat.label.toLowerCase())
+          );
+        }
+        
+        if (foundCategory) {
+          row.category = foundCategory.value;
+            if (partialMatch) {
+              row.category = partialMatch.value;
+              console.log(`✅ Ligne ${lineNumber}: "${categoryInput}" → "${partialMatch.value}" (correspondance partielle)`);
+            } else {
+              // 4. Utiliser la première catégorie disponible
+              if (categories.length > 0) {
+                row.category = categories[0].value;
+                console.warn(`⚠️ Ligne ${lineNumber}: "${categoryInput}" non trouvée, utilisation de "${categories[0].label}"`);
+              } else {
+                errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour "${categoryInput}"`);
+              }
+            }
+          console.log(`✅ Ligne ${lineNumber}: "${categoryInput}" → "${foundCategory.label}" (${foundCategory.value})`);
         }
       } else if (categories.length > 0) {
-        // Si pas de catégorie spécifiée, utiliser la première disponible
+        // Catégorie vide → utiliser la première disponible
         row.category = categories[0].value;
         console.log(`ℹ️ Ligne ${lineNumber}: Aucune catégorie spécifiée, utilisation de "${categories[0].label}"`);
+      } else {
+        errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible dans la base de données`);
       }
     });
     
