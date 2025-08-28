@@ -339,11 +339,16 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
      console.log('🔍 [CSVImporter] Données à envoyer:', cleanedData.slice(0, 2));
      console.log('🔍 [CSVImporter] Nombre de membres:', cleanedData.length);
      console.log('🔍 [CSVImporter] Créer comptes:', createAccounts);
-      // Utiliser la fonction RPC pour l'import avec données nettoyées
-      const { data: result, error } = await supabase.rpc('import_members_with_accounts', {
-        p_csv_data: cleanedData,
-        p_send_emails: createAccounts
-      });
+      
+      // Utiliser la fonction appropriée selon le choix
+      const { data: result, error } = createAccounts 
+        ? await supabase.rpc('import_members_with_accounts', {
+            p_csv_data: cleanedData,
+            p_send_emails: true
+          })
+        : await supabase.rpc('import_members_profiles_only', {
+            p_csv_data: cleanedData
+          });
       
      console.log('🔍 [CSVImporter] Résultat RPC:', result);
      console.log('🔍 [CSVImporter] Erreur RPC:', error);
@@ -574,9 +579,17 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
                     className="w-4 h-4 text-blue-600"
                   />
                   <span className="text-sm text-gray-700">
-                    Créer automatiquement des comptes utilisateurs (avec mots de passe temporaires)
+                    Créer des comptes de connexion (expérimental - peut échouer)
                   </span>
                 </label>
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <h4 className="font-semibold text-yellow-800 mb-1">⚠️ Options d'import</h4>
+                  <div className="text-sm text-yellow-700 space-y-1">
+                    <p>• <strong>Non coché (recommandé) :</strong> Crée seulement les profils membres</p>
+                    <p>• <strong>Coché :</strong> Tente de créer des comptes de connexion (peut échouer)</p>
+                    <p>• <strong>Après import :</strong> Les membres peuvent s'inscrire manuellement via la page d'authentification</p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
