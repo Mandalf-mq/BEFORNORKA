@@ -292,19 +292,15 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         
         if (foundCategory) {
           row.category = foundCategory.value;
-            if (partialMatch) {
-              row.category = partialMatch.value;
-              console.log(`✅ Ligne ${lineNumber}: "${categoryInput}" → "${partialMatch.value}" (correspondance partielle)`);
-            } else {
-              // 4. Utiliser la première catégorie disponible
-              if (categories.length > 0) {
-                row.category = categories[0].value;
-                console.warn(`⚠️ Ligne ${lineNumber}: "${categoryInput}" non trouvée, utilisation de "${categories[0].label}"`);
-              } else {
-                errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour "${categoryInput}"`);
-              }
-            }
           console.log(`✅ Ligne ${lineNumber}: "${categoryInput}" → "${foundCategory.label}" (${foundCategory.value})`);
+        } else {
+          // 4. Utiliser la première catégorie disponible
+          if (categories.length > 0) {
+            row.category = categories[0].value;
+            console.warn(`⚠️ Ligne ${lineNumber}: "${categoryInput}" non trouvée, utilisation de "${categories[0].label}"`);
+          } else {
+            errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour "${categoryInput}"`);
+          }
         }
       } else if (categories.length > 0) {
         // Catégorie vide → utiliser la première disponible
