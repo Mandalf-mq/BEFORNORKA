@@ -33,7 +33,8 @@ interface ParsedMember {
 
 interface Category {
   id: string;
-  name: string;
+  value: string;
+  label: string;
   type: 'competition' | 'leisure' | 'youth';
   icon?: React.ComponentType;
 }
@@ -57,8 +58,8 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
     try {
       const { data, error } = await supabase
         .from('categories')
-        .select('id, name, type')
-        .order('name');
+        .select('id, value, label, type')
+        .order('label');
       
       if (error) throw error;
       
@@ -75,14 +76,12 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
   };
 
   const getCategoryIcon = (categoryName: string) => {
-    const category = categories.find(cat => cat.name === categoryName);
-    if (!category?.icon) return Users;
-    const IconComponent = category.icon;
-    return <IconComponent className="w-4 h-4" />;
+    const category = categories.find(cat => cat.value === categoryName);
+    return category?.icon || Users;
   };
 
   const getCategoryBadgeColor = (categoryName: string) => {
-    const category = categories.find(cat => cat.name === categoryName);
+    const category = categories.find(cat => cat.value === categoryName);
     if (!category) return 'bg-red-100 text-red-800';
     
     switch (category.type) {
@@ -248,9 +247,10 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
       
       // Validation catégorie - STRICTE
       if (row.category && row.category.trim()) {
-        const categoryExists = categoryNames.includes(row.category.trim());
+        const categoryExists = categories.some(cat => cat.value === row.category.trim());
         if (!categoryExists) {
-          errors.push(`Ligne ${lineNum}: Catégorie "${row.category}" introuvable. Catégories disponibles: ${categoryNames.join(', ')}`);
+          const availableCategories = categories.map(cat => cat.value).join(', ');
+          errors.push(`Ligne ${lineNum}: Catégorie "${row.category}" introuvable. Catégories disponibles: ${availableCategories}`);
         }
       }
       
@@ -611,7 +611,7 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
                           <td className="px-4 py-3">
                             {member.category ? (
                               <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getCategoryBadgeColor(member.category)}`}>
-                                {getCategoryIcon(member.category)}
+                                {React.createElement(getCategoryIcon(member.category), { className: "w-4 h-4" })}
                                 <span>{member.category}</span>
                               </span>
                             ) : (
