@@ -84,6 +84,32 @@ Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;S
     URL.revokeObjectURL(url);
   };
 
+  // Fonction pour convertir les dates françaises
+  const convertFrenchDate = (dateStr: string): string => {
+    if (!dateStr || dateStr.trim() === '') return '';
+    
+    // Format DD/MM/YY ou DD/MM/YYYY
+    const frenchDateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/;
+    const match = dateStr.match(frenchDateRegex);
+    
+    if (match) {
+      let [, day, month, year] = match;
+      
+      // Convertir année 2 chiffres en 4 chiffres
+      if (year.length === 2) {
+        const yearNum = parseInt(year);
+        // Si > 50, c'est 19XX, sinon 20XX
+        year = yearNum > 50 ? `19${year}` : `20${year}`;
+      }
+      
+      // Retourner au format ISO (YYYY-MM-DD)
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    
+    // Si déjà au bon format, retourner tel quel
+    return dateStr;
+  };
+
   const parseCSV = (csvText: string) => {
     const lines = csvText.split('\n').filter(line => line.trim());
     
@@ -95,14 +121,30 @@ Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;S
     const parseCSVLine = (line: string): string[] => {
       const result: string[] = [];
       let current = '';
+  // Fonction pour convertir les dates françaises
+  const convertFrenchDate = (dateStr: string): string => {
+    if (!dateStr) return '';
+    
+    // Format DD/MM/YY ou DD/MM/YYYY
+    const frenchDateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/;
+    const match = dateStr.match(frenchDateRegex);
+    
+    if (match) {
+      let [, day, month, year] = match;
+      
+      // Convertir année 2 chiffres en 4 chiffres
+      if (year.length === 2) {
+        const yearNum = parseInt(year);
+        // Si > 50, c'est 19XX, sinon 20XX
       let inQuotes = false;
+      const separator = line.includes(';') ? ';' : ',';
       
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
         
         if (char === '"') {
           inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
+        } else if (char === separator && !inQuotes) {
           result.push(current.trim());
           current = '';
         } else {
@@ -125,6 +167,16 @@ Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;S
       headers.forEach((header, index) => {
         row[header] = values[index] || '';
       });
+      
+      // Convertir la date de naissance si nécessaire
+      if (row.birth_date) {
+        row.birth_date = convertFrenchDate(row.birth_date);
+      }
+      
+      // Mapper la catégorie "Loisirs" vers une catégorie valide
+      if (row.category === 'Loisirs' || row.category === 'loisirs') {
+        row.category = 'senior'; // Mapper vers senior par défaut
+      }
       
       console.log('🔍 [CSVImporter] Ligne parsée:', row);
       return row;
