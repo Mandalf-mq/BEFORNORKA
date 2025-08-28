@@ -346,7 +346,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
             </p>
           ) : (
             <p className="text-xs mt-1 text-green-600">
-              ✅ Modèle généré avec vos {categories.length} catégories actives : {categories.map(c => c.label).join(', ')}
+              ✅ Modèle généré avec vos {categories.length} catégories actives
             </p>
           )}
         </div>
@@ -372,7 +372,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors cursor-pointer">
               <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm text-gray-600">
-                Cliquez pour sélectionner un fichier CSV ou glissez-le ici
+                ✅ Modèle généré avec vos {categories.length} catégories actives : {categories.map(c => c.label).join(', ')}
               </p>
               <input
                 type="file"
