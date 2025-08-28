@@ -266,6 +266,10 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
           console.log(`✅ Ligne ${lineNumber}: "${originalCategory}" → "${exactMatch.value}" (${exactMatch.label})`);
         }
       } else {
+        // ✅ Colonne vide → on laisse vide comme demandé
+        row.category = '';
+        console.log(`📝 Ligne ${lineNumber}: Catégorie vide - laissée vide`);
+      } else {
         // 📝 Colonne vide → reste vide (pas de défaut)
         row.category = '';
         console.log(`📝 Ligne ${lineNumber}: Catégorie vide - pas de défaut appliqué`);
