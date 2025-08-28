@@ -278,9 +278,26 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
           row.category = foundCategory.value;
           console.log(`✅ Ligne ${lineNumber}: Catégorie "${row.category}" mappée vers "${foundCategory.value}"`);
         } else if (categories.length > 0) {
-          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" non trouvée, utilisation de la première catégorie`);
-          row.category = categories[0].value;
+          // Chercher une correspondance partielle ou utiliser la première catégorie "Loisirs" si disponible
+          const loisirCategory = categories.find(cat => 
+            cat.label.toLowerCase().includes('loisir') || 
+            cat.value.toLowerCase().includes('loisir')
+          );
+          
+          if (loisirCategory) {
+            row.category = loisirCategory.value;
+            console.log(`✅ Ligne ${lineNumber}: Catégorie "${categoryInput}" mappée vers catégorie Loisirs: "${loisirCategory.value}"`);
+          } else if (categories.length > 0) {
+            row.category = categories[0].value;
+            console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${categoryInput}" non trouvée, utilisation de la première catégorie: "${categories[0].label}"`);
+          } else {
+            errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour mapper "${categoryInput}"`);
+          }
         }
+      } else if (categories.length > 0) {
+        // Si pas de catégorie spécifiée, utiliser la première disponible
+        row.category = categories[0].value;
+        console.log(`ℹ️ Ligne ${lineNumber}: Aucune catégorie spécifiée, utilisation de "${categories[0].label}"`);
       }
     });
     
