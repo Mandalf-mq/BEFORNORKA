@@ -284,12 +284,11 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         const categoryLower = row.category.toLowerCase().trim();
         const validCategory = categories.some(cat => 
           cat.value === row.category || 
-          cat.label.toLowerCase() === categoryLower ||
-          categoryLower === 'loisirs' || categoryLower === 'loisir'
+          cat.label.toLowerCase() === categoryLower
         );
         if (!validCategory && categories.length > 0) {
-          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" sera mappée vers "${categories[0].value}"`);
-          row.category = categories[0].value; // Mapper vers la première catégorie disponible
+          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" non trouvée dans la base`);
+          // Ne pas mapper automatiquement - laisser l'erreur pour que l'admin crée la catégorie
         }
       }
     });
@@ -363,7 +362,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
             </p>
           ) : (
             <p className="text-xs mt-1 text-green-600">
-              ✅ Modèle généré avec vos {categories.length} catégories actives
+              ✅ Modèle généré avec vos {categories.length} catégories actives : {categories.map(c => c.label).join(', ')}
             </p>
           )}
         </div>
