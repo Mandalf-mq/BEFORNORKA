@@ -286,12 +286,12 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
           
           if (loisirCategory) {
             row.category = loisirCategory.value;
-            console.log(`✅ Ligne ${lineNumber}: Catégorie "${categoryInput}" mappée vers catégorie Loisirs: "${loisirCategory.value}"`);
+            console.log(`✅ Ligne ${lineNumber}: Catégorie "${row.category}" mappée vers catégorie Loisirs: "${loisirCategory.value}"`);
           } else if (categories.length > 0) {
             row.category = categories[0].value;
-            console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${categoryInput}" non trouvée, utilisation de la première catégorie: "${categories[0].label}"`);
+            console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" non trouvée, utilisation de la première catégorie: "${categories[0].label}"`);
           } else {
-            errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour mapper "${categoryInput}"`);
+            errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour mapper "${row.category}"`);
           }
         }
       } else if (categories.length > 0) {
