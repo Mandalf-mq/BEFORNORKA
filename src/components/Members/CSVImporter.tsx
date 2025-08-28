@@ -112,11 +112,18 @@ Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyb
   };
 
   const parseCSV = (csvText: string) => {
+    console.log('🔍 [CSVImporter] Début du parsing CSV');
+    console.log('🔍 [CSVImporter] Contenu brut (100 premiers caractères):', csvText.substring(0, 100));
+    
     const lines = csvText.split('\n').filter(line => line.trim());
+    console.log('🔍 [CSVImporter] Nombre de lignes après filtrage:', lines.length);
     
     if (lines.length < 2) {
       throw new Error('Le fichier CSV doit contenir au moins une ligne d\'en-tête et une ligne de données');
     }
+    
+    console.log('🔍 [CSVImporter] Première ligne (header):', lines[0]);
+    console.log('🔍 [CSVImporter] Deuxième ligne (data):', lines[1]);
     
     // Parser CSV avec gestion des guillemets
     const parseCSVLine = (line: string): string[] => {
@@ -160,14 +167,18 @@ Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyb
     const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
     
     console.log('🔍 [CSVImporter] Headers détectés:', headers);
+    console.log('🔍 [CSVImporter] Nombre de headers:', headers.length);
     
     const data = lines.slice(1).map(line => {
+      console.log('🔍 [CSVImporter] Parsing ligne:', line);
       const values = parseCSVLine(line).map(v => v.replace(/"/g, '').trim());
+      console.log('🔍 [CSVImporter] Valeurs extraites:', values);
       const row: any = {};
       
       headers.forEach((header, index) => {
         row[header] = values[index] || '';
       });
+      console.log('🔍 [CSVImporter] Objet créé:', row);
       
       // Convertir la date de naissance si nécessaire
       if (row.birth_date) {
@@ -197,6 +208,9 @@ Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyb
     }
     
     setFile(selectedFile);
+    setResult(null); // Reset les résultats précédents
+    setCsvData([]); // Reset les données précédentes
+    setShowPreview(false); // Reset la prévisualisation
     
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -208,11 +222,13 @@ Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyb
         setCsvData(parsedData);
         setShowPreview(true);
       } catch (error) {
-        console.error('Erreur parsing CSV:', error);
-        alert(`❌ Erreur lors de la lecture du fichier CSV: ${error.message}`);
+        console.error('❌ [CSVImporter] Erreur parsing CSV:', error);
+        alert(`❌ Erreur lors de la lecture du fichier CSV: ${error.message}\n\nVérifiez :\n• L'encodage du fichier (UTF-8)\n• Le format des colonnes\n• La présence d'une ligne d'en-tête`);
+        setShowPreview(false);
+        setCsvData([]);
       }
     };
-    reader.readAsText(selectedFile);
+    reader.readAsText(selectedFile, 'UTF-8'); // Forcer l'encodage UTF-8
   };
 
   const validateCSVData = (data: any[]) => {
