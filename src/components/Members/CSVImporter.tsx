@@ -265,45 +265,41 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       
       // Validation catégorie (avec mapping automatique)
       if (row.category && row.category.trim() !== '') {
-        const categoryInput = row.category.trim();
+        const originalCategory = row.category.trim();
         
-        console.log(`🔍 Ligne ${lineNumber}: Recherche catégorie pour "${categoryInput}"`);
+        console.log(`🔍 Ligne ${lineNumber}: Recherche catégorie pour "${originalCategory}"`);
         console.log(`🔍 Catégories disponibles:`, categories.map(c => ({ value: c.value, label: c.label })));
         
-        // 1. Recherche exacte par label (insensible à la casse)
+        // 1. Recherche exacte par label
         let foundCategory = categories.find(cat => 
-          cat.label.toLowerCase() === categoryInput.toLowerCase()
+          cat.label.toLowerCase() === originalCategory.toLowerCase()
         );
         
-        // 2. Si pas trouvé, recherche exacte par value
+        // 2. Recherche exacte par value
         if (!foundCategory) {
           foundCategory = categories.find(cat => 
-            cat.value.toLowerCase() === categoryInput.toLowerCase()
+            cat.value.toLowerCase() === originalCategory.toLowerCase()
           );
         }
         
-        // 3. Si pas trouvé, recherche partielle dans le label
+        // 3. Recherche partielle (pour "2 VS 2 COMPETITION" → "2 vs 2 Competition - Mixte")
         if (!foundCategory) {
           foundCategory = categories.find(cat => 
-            cat.label.toLowerCase().includes(categoryInput.toLowerCase()) ||
-            categoryInput.toLowerCase().includes(cat.label.toLowerCase())
+            cat.label.toLowerCase().includes(originalCategory.toLowerCase()) ||
+            originalCategory.toLowerCase().includes(cat.label.toLowerCase())
           );
         }
         
         if (foundCategory) {
           row.category = foundCategory.value;
-          console.log(`✅ Ligne ${lineNumber}: "${categoryInput}" → "${foundCategory.label}" (${foundCategory.value})`);
+          console.log(`✅ Ligne ${lineNumber}: "${originalCategory}" → "${foundCategory.label}" (${foundCategory.value})`);
         } else {
-          // 4. Utiliser la première catégorie disponible
-          if (categories.length > 0) {
-            row.category = categories[0].value;
-            console.warn(`⚠️ Ligne ${lineNumber}: "${categoryInput}" non trouvée, utilisation de "${categories[0].label}"`);
-          } else {
-            errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour "${categoryInput}"`);
-          }
+          // 4. Catégorie non trouvée - laisser tel quel et signaler l'erreur
+          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${originalCategory}" non trouvée`);
+          errors.push(`Ligne ${lineNumber}: Catégorie "${originalCategory}" non trouvée dans la base de données`);
         }
       } else if (categories.length > 0) {
-        // Catégorie vide → utiliser la première disponible
+        // Catégorie vide → utiliser la première catégorie disponible
         row.category = categories[0].value;
         console.log(`ℹ️ Ligne ${lineNumber}: Aucune catégorie spécifiée, utilisation de "${categories[0].label}"`);
       } else {
