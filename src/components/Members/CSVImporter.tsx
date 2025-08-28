@@ -738,4 +738,4 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
   );
 };
 
-export default CSVImporter;
+export { CSVImporter };
