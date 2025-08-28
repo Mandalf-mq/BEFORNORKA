@@ -375,9 +375,10 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
      console.log('✅ [CSVImporter] Résultat adapté:', adaptedResult);
      setImportResult(adaptedResult);
       
-     // Afficher un message détaillé
+     // Afficher un message détaillé avec les erreurs
      if (result.success) {
-       const message = `✅ Import terminé !
+       if (result.imported_count > 0) {
+         const message = `✅ Import terminé !
  
  📊 Résultats :
  • ${result.imported_count || 0} membres créés
@@ -385,17 +386,33 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
  • ${result.error_count || 0} erreurs
  
  ${createAccounts ? '🔑 Les identifiants temporaires ont été générés' : '👤 Seuls les profils membres ont été créés'}`;
-       
-       alert(message);
-       
-       if (result.imported_count > 0) {
-        setTimeout(() => {
-          onSuccess();
-        }, 2000);
+         
+         alert(message);
+         
+         setTimeout(() => {
+           onSuccess();
+         }, 2000);
+       } else {
+         // Aucun membre importé - afficher les erreurs
+         const errorDetails = (result.errors || []).slice(0, 5).join('\n• ');
+         const message = `⚠️ Aucun membre importé !
+ 
+ 📊 Résultats :
+ • ${result.imported_count || 0} membres créés
+ • ${result.error_count || 0} erreurs détectées
+ 
+ 🔍 Premières erreurs :
+ • ${errorDetails}
+ 
+ ${result.error_count > 5 ? `\n... et ${result.error_count - 5} autres erreurs` : ''}
+ 
+ 💡 Vérifiez votre fichier CSV et les catégories configurées.`;
+         
+         alert(message);
        }
      } else {
        alert(`❌ Erreur d'import : ${result.error || 'Erreur inconnue'}`);
-      }
+     }
       
     } catch (error) {
       console.error('Erreur lors de l\'import:', error);
