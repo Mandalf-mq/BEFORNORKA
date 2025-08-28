@@ -276,24 +276,19 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         console.log(`🔍 Ligne ${lineNumber}: Recherche catégorie pour "${originalCategory}"`);
         console.log(`🔍 Catégories disponibles:`, categories.map(c => ({ value: c.value, label: c.label })));
         
-        // VALIDATION STRICTE : La catégorie DOIT exister exactement
-        const foundCategory = categories.find(cat => 
+        // VALIDATION EXACTE : La catégorie DOIT exister exactement
+        const categoryExists = categories.some(cat => 
           cat.label === originalCategory || cat.value === originalCategory
         );
         
-        if (foundCategory) {
-          // Garder la catégorie trouvée (utiliser sa value)
-          row.category = foundCategory.value;
-          console.log(`✅ Ligne ${lineNumber}: "${originalCategory}" → "${foundCategory.label}" (${foundCategory.value})`);
-        } else {
+        if (!categoryExists) {
           // Catégorie non trouvée → ERREUR
-          console.error(`❌ Ligne ${lineNumber}: Catégorie "${originalCategory}" non trouvée`);
-          errors.push(`❌ Ligne ${lineNumber}: Catégorie "${categoryInput}" non trouvée. Catégories disponibles: ${categories.map(c => `"${c.label}" (value: ${c.value})`).join(', ')}`);
+          errors.push(`❌ Ligne ${lineNumber}: Catégorie "${originalCategory}" non trouvée. Catégories disponibles: ${categories.map(c => c.label).join(', ')}`);
         }
+        // Si elle existe, on garde la valeur originale
       } else {
-        // Colonne vide → LAISSER VIDE (pas de défaut)
+        // Colonne vide → LAISSER VIDE
         row.category = '';
-        console.log(`ℹ️ Ligne ${lineNumber}: Aucune catégorie spécifiée, laissée vide`);
       }
     });
     
