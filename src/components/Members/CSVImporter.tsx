@@ -63,15 +63,14 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
     const cat2 = categories[1] || cat1;
     const cat3 = categories[2] || cat1;
     
-    // Générer des exemples avec VOS vraies catégories configurées - FORMAT FRANÇAIS avec ;
+    // FORMAT FRANÇAIS avec point-virgule (;) - Compatible Excel France
     const csvTemplate = `first_name;last_name;email;phone;birth_date;address;postal_code;city;category;membership_fee;ffvb_license;family_head_email;emergency_contact;emergency_phone;notes
-Sophie;Martin;sophie.martin@email.com;0612345678;1995-03-15;123 Rue de la République;75001;Paris;${cat1.value};${cat1.membership_fee};;Marie Martin;0687654321;Mère de Lucas et Emma
-Lucas;Dubois;lucas.dubois@email.com;0623456789;2010-07-22;123 Rue de la République;75001;Paris;${cat2.value};${cat2.membership_fee};12345678;sophie.martin@email.com;Sophie Martin;0612345678;Fils de Sophie - Très motivé
-Emma;Leroy;emma.leroy@email.com;;2008-11-08;123 Rue de la République;75001;Paris;${cat3.value};${cat3.membership_fee};87654321;sophie.martin@email.com;Sophie Martin;0612345678;Fille de Sophie - Débutante
-Pierre;Dupont;pierre.dupont@email.com;0645678901;1988-12-05;456 Avenue des Sports;92100;Boulogne;${cat1.value};${cat1.membership_fee};11223344;;Claire Dupont;0698765432;Joueur expérimenté - Capitaine potentiel
-Marie;Dupont;marie.dupont@email.com;0656789012;2012-06-18;456 Avenue des Sports;92100;Boulogne;${cat2.value};${cat2.membership_fee};55667788;pierre.dupont@email.com;Pierre Dupont;0645678901;Fille de Pierre - Très sportive
-Jean;Moreau;jean.moreau@email.com;0634567890;1975-09-30;789 Boulevard du Volleyball;94200;Ivry;${cat1.value};${cat1.membership_fee};99887766;;Sylvie Moreau;0676543210;Ancien joueur professionnel
-Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;Saint-Denis;${cat1.value};${cat1.membership_fee};;;;Étudiant - Tarif réduit possible`;
+Sophie;Martin;sophie.martin@email.com;0612345678;15/03/1995;123 Rue de la République;75001;Paris;${cat1.value};${cat1.membership_fee};;Marie Martin;0687654321;Mère de Lucas et Emma
+Lucas;Dubois;lucas.dubois@email.com;0623456789;22/07/2010;123 Rue de la République;75001;Paris;${cat2.value};${cat2.membership_fee};12345678;sophie.martin@email.com;Sophie Martin;0612345678;Fils de Sophie - Très motivé
+Emma;Leroy;emma.leroy@email.com;;08/11/2008;123 Rue de la République;75001;Paris;${cat3.value};${cat3.membership_fee};87654321;sophie.martin@email.com;Sophie Martin;0612345678;Fille de Sophie - Débutante
+Pierre;Dupont;pierre.dupont@email.com;0645678901;05/12/1988;456 Avenue des Sports;92100;Boulogne;${cat1.value};${cat1.membership_fee};11223344;;Claire Dupont;0698765432;Joueur expérimenté - Capitaine potentiel
+Marie;Dupont;marie.dupont@email.com;0656789012;18/06/2012;456 Avenue des Sports;92100;Boulogne;${cat2.value};${cat2.membership_fee};55667788;pierre.dupont@email.com;Pierre Dupont;0645678901;Fille de Pierre - Très sportive
+Jean;Moreau;jean.moreau@email.com;0634567890;30/09/1975;789 Boulevard du Volleyball;94200;Ivry;${cat1.value};${cat1.membership_fee};99887766;;Sylvie Moreau;0676543210;Ancien joueur professionnel
 
     const blob = new Blob([csvTemplate], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -421,14 +420,44 @@ Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;S
                 <tbody className="divide-y divide-gray-200">
                   {csvData.slice(0, 5).map((row, index) => (
                     <tr key={index}>
-                      <td className="px-3 py-2">{row.first_name || '❌ Manquant'}</td>
-                      <td className="px-3 py-2">{row.last_name || '❌ Manquant'}</td>
-                      <td className="px-3 py-2">{row.email || '❌ Manquant'}</td>
-                      <td className="px-3 py-2">{row.phone || '📞 Optionnel'}</td>
-                      <td className="px-3 py-2">{row.birth_date || '❌ Manquant'}</td>
+                      <td className="px-3 py-2">
+                        {row.first_name ? (
+                          <span className="text-green-700 font-medium">{row.first_name}</span>
+                        ) : (
+                          <span className="text-red-600 text-xs">❌ Manquant</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {row.last_name ? (
+                          <span className="text-green-700 font-medium">{row.last_name}</span>
+                        ) : (
+                          <span className="text-red-600 text-xs">❌ Manquant</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {row.email ? (
+                          <span className="text-green-700">{row.email}</span>
+                        ) : (
+                          <span className="text-red-600 text-xs">❌ Manquant</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {row.phone ? (
+                          <span className="text-blue-700">{row.phone}</span>
+                        ) : (
+                          <span className="text-gray-500 text-xs">📞 Optionnel</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {row.birth_date ? (
+                          <span className="text-green-700">{row.birth_date}</span>
+                        ) : (
+                          <span className="text-gray-500 text-xs">📅 Optionnel</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2">
                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                          {row.category || 'senior'}
+                          {row.category === 'Loisirs' ? 'senior (mappé)' : (row.category || 'senior')}
                         </span>
                       </td>
                       <td className="px-3 py-2">
