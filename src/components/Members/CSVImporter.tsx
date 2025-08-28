@@ -340,24 +340,11 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
      console.log('🔍 [CSVImporter] Nombre de membres:', cleanedData.length);
      console.log('🔍 [CSVImporter] Créer comptes:', createAccounts);
       
-      // Utiliser la fonction appropriée selon le choix
-      const { data: result, error } = createAccounts 
-        ? await supabase.rpc('import_members_with_accounts', {
-            p_csv_data: cleanedData,
-            p_send_emails: true
-          })
-        : await supabase.rpc('import_members_profiles_only', {
-            p_csv_data: cleanedData
-          });
+      // Import direct sans fonction RPC personnalisée
+      const result = await importMembersDirectly(cleanedData);
       
      console.log('🔍 [CSVImporter] Résultat RPC:', result);
-     console.log('🔍 [CSVImporter] Erreur RPC:', error);
      
-      if (error) {
-       console.error('❌ [CSVImporter] Erreur RPC détaillée:', error);
-        throw error;
-      }
-      
      if (!result) {
        throw new Error('Aucun résultat retourné par la fonction d\'import');
      }
