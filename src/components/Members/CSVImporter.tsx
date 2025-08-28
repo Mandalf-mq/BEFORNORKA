@@ -564,17 +564,19 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
                     checked={createAccounts}
                     onChange={(e) => setCreateAccounts(e.target.checked)}
                     className="w-4 h-4 text-blue-600"
+                    disabled={true}
                   />
                   <span className="text-sm text-gray-700">
-                    Créer des comptes de connexion (expérimental - peut échouer)
+                    Créer des comptes de connexion (non disponible - voir instructions)
                   </span>
                 </label>
-                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <h4 className="font-semibold text-yellow-800 mb-1">⚠️ Options d'import</h4>
-                  <div className="text-sm text-yellow-700 space-y-1">
-                    <p>• <strong>Non coché (recommandé) :</strong> Crée seulement les profils membres</p>
-                    <p>• <strong>Coché :</strong> Tente de créer des comptes de connexion (peut échouer)</p>
-                    <p>• <strong>Après import :</strong> Les membres peuvent s'inscrire manuellement via la page d'authentification</p>
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-semibold text-blue-800 mb-1">ℹ️ Comment ça marche</h4>
+                  <div className="text-sm text-blue-700 space-y-1">
+                    <p>• <strong>Import CSV :</strong> Crée les profils membres avec catégorie "loisirs" par défaut</p>
+                    <p>• <strong>Comptes de connexion :</strong> Les membres s'inscrivent manuellement sur le site</p>
+                    <p>• <strong>Liaison automatique :</strong> Le système lie le compte au profil via l'email</p>
+                    <p>• <strong>Tarif :</strong> 200€ par défaut pour la catégorie "loisirs"</p>
                   </div>
                 </div>
               </div>
