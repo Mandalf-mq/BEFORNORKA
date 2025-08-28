@@ -276,22 +276,22 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         if (foundCategory) {
           // Utiliser la valeur technique de la catégorie trouvée
           row.category = foundCategory.value;
-          console.log(`✅ Ligne ${lineNumber}: Catégorie "${row.category}" mappée vers "${foundCategory.value}"`);
+          console.log(`✅ Ligne ${lineNumber}: Catégorie "${categoryLower}" mappée vers "${foundCategory.value}"`);
         } else if (categories.length > 0) {
           // Chercher une correspondance partielle ou utiliser la première catégorie "Loisirs" si disponible
           const loisirCategory = categories.find(cat => 
-            cat.label.toLowerCase().includes('loisir') || 
-            cat.value.toLowerCase().includes('loisir')
+            cat.label.toLowerCase().includes(categoryLower) || 
+            cat.value.toLowerCase().includes(categoryLower)
           );
           
           if (loisirCategory) {
             row.category = loisirCategory.value;
-            console.log(`✅ Ligne ${lineNumber}: Catégorie "${row.category}" mappée vers catégorie Loisirs: "${loisirCategory.value}"`);
+            console.log(`✅ Ligne ${lineNumber}: Catégorie "${categoryLower}" mappée partiellement vers "${partialMatch.value}"`);
           } else if (categories.length > 0) {
             row.category = categories[0].value;
-            console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" non trouvée, utilisation de la première catégorie: "${categories[0].label}"`);
+            console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${categoryLower}" non trouvée, utilisation de "${categories[0].label}"`);
           } else {
-            errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour mapper "${row.category}"`);
+            errors.push(`Ligne ${lineNumber}: Aucune catégorie disponible pour mapper "${categoryLower}"`);
           }
         }
       } else if (categories.length > 0) {
