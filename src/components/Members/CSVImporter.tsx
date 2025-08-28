@@ -52,6 +52,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       setLoadingCategories(false);
     }
   };
+  
   const downloadTemplate = () => {
     if (categories.length === 0) {
       alert('❌ Aucune catégorie disponible !\n\nVeuillez d\'abord créer des catégories dans Paramètres → Catégories');
@@ -87,7 +88,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
   const convertFrenchDate = (dateStr: string): string => {
     if (!dateStr || dateStr.trim() === '') return '';
     
-    // Format DD/MM/YY ou DD/MM/YYYY (support années 2 chiffres)
+    // Format DD/MM/YY ou DD/MM/YYYY
     const frenchDateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/;
     const match = dateStr.match(frenchDateRegex);
     
@@ -97,12 +98,12 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       // Convertir année 2 chiffres en 4 chiffres
       if (year.length === 2) {
         const yearNum = parseInt(year);
-        // Si > 30, c'est 19XX, sinon 20XX (pour gérer 1981 = 81)
-        year = yearNum > 30 ? '19' + year : '20' + year;
+        // Si > 50, c'est 19XX, sinon 20XX
+        year = yearNum > 50 ? `19${year}` : `20${year}`;
       }
       
       // Retourner au format ISO (YYYY-MM-DD)
-      return year + '-' + month.padStart(2, '0') + '-' + day.padStart(2, '0');
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
     
     // Si déjà au bon format, retourner tel quel
