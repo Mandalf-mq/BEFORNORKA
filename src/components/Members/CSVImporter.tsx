@@ -63,21 +63,21 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
     const cat2 = categories[1] || cat1;
     const cat3 = categories[2] || cat1;
     
-    // Générer des exemples avec VOS vraies catégories configurées
-    const csvTemplate = `"first_name","last_name","email","phone","birth_date","address","postal_code","city","category","membership_fee","ffvb_license","family_head_email","emergency_contact","emergency_phone","notes"
-"Sophie","Martin","sophie.martin@email.com","0612345678","1995-03-15","123 Rue de la République","75001","Paris","${cat1.value}","${cat1.membership_fee}","","","Marie Martin","0687654321","Mère de Lucas et Emma"
-"Lucas","Dubois","lucas.dubois@email.com","0623456789","2010-07-22","123 Rue de la République","75001","Paris","${cat2.value}","${cat2.membership_fee}","12345678","sophie.martin@email.com","Sophie Martin","0612345678","Fils de Sophie - Très motivé"
-"Emma","Leroy","emma.leroy@email.com","","2008-11-08","123 Rue de la République","75001","Paris","${cat3.value}","${cat3.membership_fee}","87654321","sophie.martin@email.com","Sophie Martin","0612345678","Fille de Sophie - Débutante"
-"Pierre","Dupont","pierre.dupont@email.com","0645678901","1988-12-05","456 Avenue des Sports","92100","Boulogne","${cat1.value}","${cat1.membership_fee}","11223344","","Claire Dupont","0698765432","Joueur expérimenté - Capitaine potentiel"
-"Marie","Dupont","marie.dupont@email.com","0656789012","2012-06-18","456 Avenue des Sports","92100","Boulogne","${cat2.value}","${cat2.membership_fee}","55667788","pierre.dupont@email.com","Pierre Dupont","0645678901","Fille de Pierre - Très sportive"
-"Jean","Moreau","jean.moreau@email.com","0634567890","1975-09-30","789 Boulevard du Volleyball","94200","Ivry","${cat1.value}","${cat1.membership_fee}","99887766","","Sylvie Moreau","0676543210","Ancien joueur professionnel"
-"Thomas","Petit","thomas.petit@email.com","","1992-11-25","654 Allée des Champions","93200","Saint-Denis","${cat1.value}","${cat1.membership_fee}","","","","","Étudiant - Tarif réduit possible"`;
+    // Générer des exemples avec VOS vraies catégories configurées - FORMAT FRANÇAIS avec ;
+    const csvTemplate = `first_name;last_name;email;phone;birth_date;address;postal_code;city;category;membership_fee;ffvb_license;family_head_email;emergency_contact;emergency_phone;notes
+Sophie;Martin;sophie.martin@email.com;0612345678;1995-03-15;123 Rue de la République;75001;Paris;${cat1.value};${cat1.membership_fee};;Marie Martin;0687654321;Mère de Lucas et Emma
+Lucas;Dubois;lucas.dubois@email.com;0623456789;2010-07-22;123 Rue de la République;75001;Paris;${cat2.value};${cat2.membership_fee};12345678;sophie.martin@email.com;Sophie Martin;0612345678;Fils de Sophie - Très motivé
+Emma;Leroy;emma.leroy@email.com;;2008-11-08;123 Rue de la République;75001;Paris;${cat3.value};${cat3.membership_fee};87654321;sophie.martin@email.com;Sophie Martin;0612345678;Fille de Sophie - Débutante
+Pierre;Dupont;pierre.dupont@email.com;0645678901;1988-12-05;456 Avenue des Sports;92100;Boulogne;${cat1.value};${cat1.membership_fee};11223344;;Claire Dupont;0698765432;Joueur expérimenté - Capitaine potentiel
+Marie;Dupont;marie.dupont@email.com;0656789012;2012-06-18;456 Avenue des Sports;92100;Boulogne;${cat2.value};${cat2.membership_fee};55667788;pierre.dupont@email.com;Pierre Dupont;0645678901;Fille de Pierre - Très sportive
+Jean;Moreau;jean.moreau@email.com;0634567890;1975-09-30;789 Boulevard du Volleyball;94200;Ivry;${cat1.value};${cat1.membership_fee};99887766;;Sylvie Moreau;0676543210;Ancien joueur professionnel
+Thomas;Petit;thomas.petit@email.com;;1992-11-25;654 Allée des Champions;93200;Saint-Denis;${cat1.value};${cat1.membership_fee};;;;Étudiant - Tarif réduit possible`;
 
     const blob = new Blob([csvTemplate], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'modele_import_membres_complet.csv';
+    link.download = 'modele_import_membres_francais.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -571,15 +571,18 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
           <p>• <strong>Format date :</strong> <code>YYYY-MM-DD</code> (ex: <code>1995-03-15</code>)</p>
           <p>• <strong>Format téléphone :</strong> Minimum 8 chiffres (ex: <code>0612345678</code>)</p>
           <p>• <strong>Encodage :</strong> UTF-8 recommandé pour les accents</p>
-          <p>• <strong>Séparateur :</strong> Virgule <code>,</code> obligatoire</p>
-          <p>• <strong>Guillemets :</strong> Utilisez <code>"</code> pour les valeurs avec virgules</p>
+          <p>• <strong>Séparateur :</strong> Point-virgule <code>;</code> (France) ou virgule <code>,</code> (détection automatique)</p>
+          <p>• <strong>Guillemets :</strong> Optionnels - utilisez <code>"</code> seulement si valeurs avec séparateurs</p>
         </div>
         
         <div className="mt-3 p-3 bg-amber-100 rounded-lg">
           <h5 className="font-semibold text-amber-800 mb-1">🔍 Exemple de ligne valide :</h5>
           <code className="text-xs text-amber-700 block">
-            "Sophie","Martin","sophie@email.com","0612345678","1995-03-15","senior","250"
+            Sophie;Martin;sophie@email.com;0612345678;1995-03-15;senior;250
           </code>
+          <p className="text-xs text-amber-600 mt-1">
+            ✅ Format français avec point-virgule (;) - Compatible Excel France
+          </p>
         </div>
       </div>
     </div>
