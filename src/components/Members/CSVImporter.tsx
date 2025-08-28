@@ -194,7 +194,10 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
               row.ffvb_license = value;
               break;
             case 'family_head_email':
-              row.family_head_email = value;
+              // family_head_email est optionnel - ne pas l'inclure s'il est vide
+              if (value && value.trim()) {
+                row.family_head_email = value.trim();
+              }
               break;
             case 'emergency_contact':
               row.emergency_contact = value;
@@ -243,6 +246,11 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
       // Validation email
       if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
         errors.push(`Ligne ${lineNum}: Format email invalide (${row.email})`);
+      }
+      
+      // Validation family_head_email si renseigné
+      if (row.family_head_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.family_head_email)) {
+        errors.push(`Ligne ${lineNum}: Format email chef de famille invalide (${row.family_head_email})`);
       }
       
       // Validation catégorie - STRICTE
@@ -316,10 +324,22 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
     setUploadProgress(0);
     
     try {
-      // Utiliser la fonction RPC pour l'import
+      // Préparer les données en filtrant les champs vides
+      const cleanedData = csvData.map(member => {
+        const cleaned: any = { ...member };
+        
+        // Supprimer family_head_email s'il est vide pour éviter les erreurs
+        if (!cleaned.family_head_email || !cleaned.family_head_email.trim()) {
+          delete cleaned.family_head_email;
+        }
+        
+        return cleaned;
+      });
+      
+      // Utiliser la fonction RPC pour l'import avec données nettoyées
       const { data: result, error } = await supabase.rpc('import_members_with_accounts', {
-        members_data: csvData,
-        create_accounts: createAccounts
+        p_csv_data: cleanedData,
+        p_send_emails: createAccounts
       });
       
       if (error) {
