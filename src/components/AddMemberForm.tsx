@@ -390,6 +390,13 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
                 {pricingRules.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     <span className="text-xs text-gray-600">Suggestions :</span>
+                    {pricingRules.map(rule => (
+                      <button
+                        key={rule.id}
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, membershipFee: rule.base_amount }))}
+                        className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded-full transition-colors"
+                      >
                         {rule.name}: {rule.base_amount}€
                       </button>
                     ))}
@@ -397,21 +404,14 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
                 )}
                 
                 {/* Suggestions standards */}
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, membershipFee: 200 }))}
-                      className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-full transition-colors"
-                    >
-                      Standard: 200€
-                    </button>
                 <div className="flex flex-wrap gap-2">
                   <span className="text-xs text-gray-600">Standards :</span>
                   <button
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, membershipFee: 200 }))}
+                    onClick={() => setFormData(prev => ({ ...prev, membershipFee: 180 }))}
                     className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-full transition-colors"
                   >
-                    Standard: 200€
+                    Loisirs: 180€
                   </button>
                   <button
                     type="button"
@@ -425,7 +425,7 @@ export const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess }) => {
                     onClick={() => setFormData(prev => ({ ...prev, membershipFee: 300 }))}
                     className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1 rounded-full transition-colors"
                   >
-                    Premium: 300€
+                    Compétition: 300€
                   </button>
                   <button
                     type="button"
