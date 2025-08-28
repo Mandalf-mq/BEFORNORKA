@@ -219,6 +219,12 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
     const errors: string[] = [];
     const requiredFields = ['first_name', 'last_name', 'email']; // birth_date devient optionnel
     
+    // Vérifier d'abord si des catégories sont configurées
+    if (categories.length === 0) {
+      errors.push('❌ Aucune catégorie configurée ! Veuillez d\'abord créer des catégories dans Paramètres → Catégories avant d\'importer des membres.');
+      return errors;
+    }
+    
     if (data.length === 0) {
       errors.push('Le fichier CSV est vide ou mal formaté');
       return errors;
