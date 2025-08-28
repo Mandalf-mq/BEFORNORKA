@@ -336,28 +336,70 @@ const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) => {
         return cleaned;
       });
       
+     console.log('🔍 [CSVImporter] Données à envoyer:', cleanedData.slice(0, 2));
+     console.log('🔍 [CSVImporter] Nombre de membres:', cleanedData.length);
+     console.log('🔍 [CSVImporter] Créer comptes:', createAccounts);
       // Utiliser la fonction RPC pour l'import avec données nettoyées
       const { data: result, error } = await supabase.rpc('import_members_with_accounts', {
         p_csv_data: cleanedData,
         p_send_emails: createAccounts
       });
       
+     console.log('🔍 [CSVImporter] Résultat RPC:', result);
+     console.log('🔍 [CSVImporter] Erreur RPC:', error);
+     
       if (error) {
+       console.error('❌ [CSVImporter] Erreur RPC détaillée:', error);
         throw error;
       }
       
+     if (!result) {
+       throw new Error('Aucun résultat retourné par la fonction d\'import');
+     }
+     
       setUploadProgress(100);
       
-      setImportResult(result);
+     // Adapter le résultat au format attendu
+     const adaptedResult = {
+       success: result.success || false,
+       total_processed: cleanedData.length,
+       members_created: result.imported_count || 0,
+       accounts_created: result.accounts_created || 0,
+       families_linked: 0, // À implémenter plus tard
+       errors: (result.errors || []).map((error: string, index: number) => ({
+         line: index + 2,
+         message: error
+       }))
+     };
+     
+     console.log('✅ [CSVImporter] Résultat adapté:', adaptedResult);
+     setImportResult(adaptedResult);
       
-      if (result.success && (!result.errors || result.errors.length === 0)) {
+     // Afficher un message détaillé
+     if (result.success) {
+       const message = `✅ Import terminé !
+ 
+ 📊 Résultats :
+ • ${result.imported_count || 0} membres créés
+ • ${result.accounts_created || 0} comptes utilisateurs créés
+ • ${result.error_count || 0} erreurs
+ 
+ ${createAccounts ? '🔑 Les identifiants temporaires ont été générés' : '👤 Seuls les profils membres ont été créés'}`;
+       
+       alert(message);
+       
+       if (result.imported_count > 0) {
         setTimeout(() => {
           onSuccess();
         }, 2000);
+       }
+     } else {
+       alert(`❌ Erreur d'import : ${result.error || 'Erreur inconnue'}`);
       }
       
     } catch (error) {
       console.error('Erreur lors de l\'import:', error);
+     alert(`❌ Erreur technique : ${error}`);
       setImportResult({
         success: false,
         total_processed: 0,
