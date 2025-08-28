@@ -33,6 +33,11 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
   const fetchCategories = async () => {
     try {
       setLoadingCategories(true);
+      
+      console.log('🔍 [AccountCreator] Tentative de chargement des catégories...');
+      console.log('🔍 [AccountCreator] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+      console.log('🔍 [AccountCreator] Supabase Key présente:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
+      
       const { data, error } = await supabase
         .from('categories')
         .select('*')
@@ -41,6 +46,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
 
       if (error) throw error;
       
+      console.log('✅ [AccountCreator] Catégories chargées:', data?.length || 0);
       setCategories(data || []);
 
        if (data && data.length > 0 && !formData.category) {
@@ -48,10 +54,13 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     }
       
     } catch (error) {
+      console.error('❌ [AccountCreator] Erreur détaillée:', error);
+      console.error('❌ [AccountCreator] Type d\'erreur:', typeof error);
+      console.error('❌ [AccountCreator] Message:', error?.message);
       console.error('Erreur lors du chargement des catégories:', error);
       // En cas d'erreur, afficher un message mais ne pas bloquer l'interface
       setCategories([]);
-      setError('Erreur lors du chargement des catégories. Veuillez réessayer.');
+      setError(`Erreur lors du chargement des catégories: ${error?.message || error}. Vérifiez votre connexion Supabase.`);
     } finally {
       setLoadingCategories(false);
     }
