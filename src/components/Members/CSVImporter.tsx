@@ -88,7 +88,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
   const convertFrenchDate = (dateStr: string): string => {
     if (!dateStr || dateStr.trim() === '') return '';
     
-    // Format DD/MM/YY ou DD/MM/YYYY
+    // Format DD/MM/YY ou DD/MM/YYYY (support années 2 chiffres)
     const frenchDateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/;
     const match = dateStr.match(frenchDateRegex);
     
@@ -98,12 +98,12 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
       // Convertir année 2 chiffres en 4 chiffres
       if (year.length === 2) {
         const yearNum = parseInt(year);
-        // Si > 50, c'est 19XX, sinon 20XX
-        year = yearNum > 50 ? `19${year}` : `20${year}`;
+        // Si > 30, c'est 19XX, sinon 20XX (pour gérer 1981 = 81)
+        year = yearNum > 30 ? '19' + year : '20' + year;
       }
       
       // Retourner au format ISO (YYYY-MM-DD)
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      return year + '-' + month.padStart(2, '0') + '-' + day.padStart(2, '0');
     }
     
     // Si déjà au bon format, retourner tel quel
@@ -268,12 +268,11 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         const categoryLower = row.category.toLowerCase().trim();
         const validCategory = categories.some(cat => 
           cat.value === row.category || 
-          cat.label.toLowerCase() === categoryLower ||
-          categoryLower === 'loisirs' || categoryLower === 'loisir'
+          cat.label.toLowerCase() === categoryLower
         );
         if (!validCategory && categories.length > 0) {
-          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" sera mappée vers "${categories[0].value}"`);
-          row.category = categories[0].value; // Mapper vers la première catégorie disponible
+          console.warn(`⚠️ Ligne ${lineNumber}: Catégorie "${row.category}" non trouvée dans la base`);
+          // Ne pas mapper automatiquement - laisser l'erreur pour que l'admin crée la catégorie
         }
       }
     });
@@ -347,7 +346,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
             </p>
           ) : (
             <p className="text-xs mt-1 text-green-600">
-              ✅ Modèle généré avec vos {categories.length} catégories actives
+              ✅ Modèle généré avec vos {categories.length} catégories actives : {categories.map(c => c.label).join(', ')}
             </p>
           )}
         </div>
@@ -373,7 +372,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors cursor-pointer">
               <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm text-gray-600">
-                ✅ Modèle généré avec vos {categories.length} catégories actives : {categories.map(c => c.label).join(', ')}
+                Cliquez pour sélectionner un fichier CSV ou glissez-le ici
               </p>
               <input
                 type="file"
