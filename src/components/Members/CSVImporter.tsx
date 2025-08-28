@@ -288,7 +288,7 @@ export const CSVImporter: React.FC<CSVImporterProps> = ({ onSuccess, onClose }) 
         } else {
           // Catégorie non trouvée → ERREUR
           console.error(`❌ Ligne ${lineNumber}: Catégorie "${originalCategory}" non trouvée`);
-          errors.push(`Ligne ${lineNumber}: Catégorie "${originalCategory}" n'existe pas. Catégories disponibles: ${categories.map(c => c.label).join(', ')}`);
+          errors.push(`❌ Ligne ${lineNumber}: Catégorie "${categoryInput}" non trouvée. Catégories disponibles: ${categories.map(c => `"${c.label}" (value: ${c.value})`).join(', ')}`);
         }
       } else {
         // Colonne vide → LAISSER VIDE (pas de défaut)
