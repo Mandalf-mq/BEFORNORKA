@@ -15,193 +15,6 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  // Fonction pour gérer la sélection de fichier CSV
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile && selectedFile.type === 'text/csv') {
-      setFile(selectedFile);
-      setImportResult(null);
-      setValidationErrors([]);
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const content = e.target?.result as string;
-          const parsedData = parseAccountsCSV(content);
-          setCsvData(parsedData);
-          setPreviewData(parsedData.slice(0, 5)); // Aperçu des 5 premières lignes
-          
-          // Validation
-          const errors = validateAccountsData(parsedData);
-          setValidationErrors(errors);
-        } catch (error) {
-          console.error('Erreur lors de la lecture du fichier:', error);
-          setValidationErrors([`Erreur lors de la lecture du fichier: ${error}`]);
-        }
-      };
-      reader.readAsText(selectedFile, 'UTF-8');
-    } else {
-      alert('Veuillez sélectionner un fichier CSV valide');
-    }
-  };
-
-  // Fonction pour parser le CSV des comptes (format simplifié)
-  const parseAccountsCSV = (content: string) => {
-    const separator = content.includes(';') ? ';' : ',';
-    const lines = content.trim().split('\n').filter(line => line.trim());
-    const headers = lines[0].split(separator).map(h => h.replace(/^"|"$/g, '').trim());
-    
-    const data = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      
-      const values = line.split(separator).map(v => v.replace(/^"|"$/g, '').trim());
-      const row: any = {};
-      
-      headers.forEach((header, index) => {
-        const value = values[index] || '';
-        
-        switch (header.toLowerCase()) {
-          case 'first_name':
-            row.first_name = value;
-            break;
-          case 'last_name':
-            row.last_name = value;
-            break;
-          case 'email':
-            row.email = value;
-            break;
-          case 'phone':
-            row.phone = value;
-            break;
-          case 'role':
-            row.role = value || 'member';
-            break;
-        }
-      });
-      
-      data.push(row);
-    }
-    
-    return data;
-  };
-
-  // Fonction pour valider les données des comptes
-  const validateAccountsData = (data: any[]): string[] => {
-    const errors: string[] = [];
-    const validRoles = ['member', 'entraineur', 'administrateur', 'tresorerie', 'webmaster'];
-    
-    data.forEach((row, index) => {
-      const lineNum = index + 2;
-      
-      if (!row.first_name?.trim()) {
-        errors.push(`Ligne ${lineNum}: Le prénom est obligatoire`);
-      }
-      if (!row.last_name?.trim()) {
-        errors.push(`Ligne ${lineNum}: Le nom est obligatoire`);
-      }
-      if (!row.email?.trim()) {
-        errors.push(`Ligne ${lineNum}: L'email est obligatoire`);
-      }
-      if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
-        errors.push(`Ligne ${lineNum}: Format email invalide`);
-      }
-      if (row.role && !validRoles.includes(row.role)) {
-        errors.push(`Ligne ${lineNum}: Rôle invalide "${row.role}". Rôles valides: ${validRoles.join(', ')}`);
-      }
-    });
-    
-    return errors;
-  };
-
-
-  const parseCSV = (content: string) => {
-    try {
-      const separator = content.includes(';') ? ';' : ',';
-      const lines = content.trim().split('\n').filter(line => line.trim());
-      const headers = lines[0].split(separator).map(h => h.replace(/^"|"$/g, '').trim());
-      
-      const data = [];
-      
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(separator).map(v => v.replace(/^"|"$/g, '').trim());
-        const row: any = {};
-        
-        headers.forEach((header, index) => {
-          const value = values[index] || '';
-          row[header.toLowerCase()] = value;
-        });
-        
-        data.push(row);
-      }
-      
-      return data;
-    } catch (error) {
-      throw new Error('Erreur lors de l\'analyse du fichier CSV');
-    }
-  };
-
-  const validateAccountData = (data: any[]): string[] => {
-    const errors: string[] = [];
-    const validRoles = ['member', 'entraineur', 'tresorerie', 'administrateur', 'webmaster'];
-    
-    data.forEach((row, index) => {
-      const lineNum = index + 2;
-      
-      if (!row.first_name?.trim()) {
-        errors.push(`Ligne ${lineNum}: Le prénom est obligatoire`);
-      }
-      if (!row.last_name?.trim()) {
-        errors.push(`Ligne ${lineNum}: Le nom est obligatoire`);
-      }
-      if (!row.email?.trim()) {
-        errors.push(`Ligne ${lineNum}: L'email est obligatoire`);
-      }
-      if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
-        errors.push(`Ligne ${lineNum}: Format email invalide (${row.email})`);
-      }
-      if (row.role && !validRoles.includes(row.role)) {
-        errors.push(`Ligne ${lineNum}: Rôle invalide (${row.role}). Rôles valides: ${validRoles.join(', ')}`);
-      }
-    });
-    
-    return errors;
-  };
-
-  const handleImport = async () => {
-    if (!csvData.length || validationErrors.length > 0) return;
-    
-    setLoading(true);
-    
-    try {
-      // Pour l'instant, simuler l'import (la vraie fonctionnalité nécessite une Edge Function)
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setImportResult({
-        success: true,
-        accounts_created: csvData.length,
-        message: `${csvData.length} comptes seraient créés (fonctionnalité en développement)`
-      });
-      
-      alert(`✅ Simulation d'import réussie !
-      
-📊 Résultats simulés :
-• ${csvData.length} comptes utilisateurs seraient créés
-• Rôles assignés selon le CSV
-• Mots de passe temporaires générés
-
-⚠️ Cette fonctionnalité nécessite une Edge Function Supabase pour créer de vrais comptes d'authentification.
-
-💡 Pour l'instant, utilisez la création individuelle de comptes.`);
-      
-    } catch (error: any) {
-      alert(`❌ Erreur : ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
   const downloadAccountTemplate = () => {
     const headers = [
       'first_name', 'last_name', 'email', 'phone', 'role'
@@ -281,139 +94,6 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             </div>
           </div>
 
-          {/* Sélection de fichier */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              📁 Sélectionner le fichier CSV
-            </label>
-            <div className="flex items-center space-x-4">
-              <label className="flex items-center justify-center w-full max-w-md px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50">
-                <div className="space-y-2 text-center">
-                  <Upload className="w-8 h-8 text-gray-400 mx-auto" />
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium text-blue-600">Cliquez pour choisir</span>
-                    <span> votre fichier CSV</span>
-                  </div>
-                </div>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".csv"
-                  onChange={handleFileSelect}
-                />
-              </label>
-
-              <button
-                onClick={downloadAccountTemplate}
-                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <Download className="w-4 h-4" />
-                <span>Télécharger le modèle</span>
-              </button>
-            </div>
-
-            {file && (
-              <div className="mt-2 flex items-center space-x-2 text-sm text-green-600">
-                <CheckCircle className="w-4 h-4" />
-                <span>Fichier sélectionné: {file.name}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Section 2: Validation */}
-          {csvData.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">2. Validation des données</h3>
-              
-              {validationErrors.length > 0 ? (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <XCircle className="w-5 h-5 text-red-500" />
-                    <span className="font-medium text-red-800">Erreurs détectées ({validationErrors.length})</span>
-                  </div>
-                  <ul className="text-sm text-red-700 space-y-1 max-h-40 overflow-y-auto">
-                    {validationErrors.map((error, index) => (
-                      <li key={index}>• {error}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="font-medium text-green-800">
-                      Validation réussie - {csvData.length} compte(s) prêt(s) à créer
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Section 3: Prévisualisation */}
-          {previewData.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">3. Prévisualisation des comptes</h3>
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prénom</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rôle</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profil membre</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {previewData.map((account, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900">{account.first_name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{account.last_name}</td>
-                          <td className="px-4 py-3 text-sm text-blue-600">{account.email}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{account.phone || 'Non renseigné'}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                              account.role === 'webmaster' ? 'bg-purple-100 text-purple-800' :
-                              account.role === 'administrateur' ? 'bg-blue-100 text-blue-800' :
-                              account.role === 'entraineur' ? 'bg-orange-100 text-orange-800' :
-                              account.role === 'tresorerie' ? 'bg-green-100 text-green-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {account.role === 'webmaster' ? '👑 Webmaster' :
-                               account.role === 'administrateur' ? '👨‍💼 Admin' :
-                               account.role === 'entraineur' ? '🏐 Entraîneur' :
-                               account.role === 'tresorerie' ? '💰 Trésorerie' :
-                               '👤 Membre'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            {account.role === 'member' ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                ✅ Oui
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                ❌ Non
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {csvData.length > 5 && (
-                  <div className="px-4 py-3 bg-gray-50 border-t text-sm text-gray-500">
-                    Affichage de 5 lignes sur {csvData.length} au total
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           <div className="flex space-x-3">
             <button
               onClick={onClose}
@@ -424,7 +104,38 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             
             {csvData.length > 0 && validationErrors.length === 0 && (
               <button
-                onClick={handleImport}
+                onClick={async () => {
+                  if (!csvData.length || validationErrors.length > 0) return;
+                  
+                  setLoading(true);
+                  
+                  try {
+                    // Pour l'instant, simuler l'import (la vraie fonctionnalité nécessite une Edge Function)
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    setImportResult({
+                      success: true,
+                      accounts_created: csvData.length,
+                      message: `${csvData.length} comptes seraient créés (fonctionnalité en développement)`
+                    });
+                    
+                    alert(`✅ Simulation d'import réussie !
+                    
+📊 Résultats simulés :
+• ${csvData.length} comptes utilisateurs seraient créés
+• Rôles assignés selon le CSV
+• Mots de passe temporaires générés
+
+⚠️ Cette fonctionnalité nécessite une Edge Function Supabase pour créer de vrais comptes d'authentification.
+
+💡 Pour l'instant, utilisez la création individuelle de comptes.`);
+                    
+                  } catch (error: any) {
+                    alert(`❌ Erreur : ${error.message}`);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
                 disabled={loading}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
               >
