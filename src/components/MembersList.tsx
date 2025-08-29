@@ -869,9 +869,10 @@ const MembersManagement: React.FC = () => {
             <button
               onClick={() => setShowImporter(true)}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+              title="Import CSV pour créer des profils membres (sans comptes de connexion)"
             >
               <Upload className="w-4 h-4" />
-              <span>Importer CSV</span>
+              <span>Import CSV (Profils)</span>
             </button>
             
             <button

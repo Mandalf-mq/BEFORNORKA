@@ -1,7 +1,109 @@
 import React, { useState } from 'react';
-import { UserPlus, Save, Eye, EyeOff, RefreshCw, User, Mail, Phone, Calendar, Upload } from 'lucide-react';
+import { UserPlus, Save, Eye, EyeOff, RefreshCw, User, Mail, Phone, Calendar, Upload, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { CSVImporter } from './CSVImporter';
+
+interface AccountCSVImporterProps {
+  onSuccess: () => void;
+  onClose: () => void;
+}
+
+// Composant CSV spécialisé pour la création de comptes
+const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onClose }) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const downloadAccountTemplate = () => {
+    const headers = [
+      'first_name', 'last_name', 'email', 'phone', 'role'
+    ];
+    
+    const exampleData = [
+      'Sophie', 'Martin', 'sophie.martin@email.com', '0612345678', 'member',
+      'Paul', 'Durand', 'paul.durand@email.com', '0687654321', 'entraineur',
+      'Marie', 'Dubois', 'marie.dubois@email.com', '0698765432', 'administrateur'
+    ];
+    
+    const csvContent = headers.join(';') + '\n' + 
+      'Sophie;Martin;sophie.martin@email.com;0612345678;member\n' +
+      'Paul;Durand;paul.durand@email.com;0687654321;entraineur\n' +
+      'Marie;Dubois;marie.dubois@email.com;0698765432;administrateur';
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'modele_creation_comptes.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl p-6 max-w-2xl w-full">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-gray-900">
+            📥 Import CSV - Création de comptes
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          {/* Différence importante */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-semibold text-blue-800 mb-2">🔐 Création de comptes utilisateurs</h4>
+            <div className="text-sm text-blue-700 space-y-1">
+              <p>• <strong>Objectif :</strong> Créer des comptes de connexion (auth.users)</p>
+              <p>• <strong>Rôles :</strong> member, entraineur, administrateur, tresorerie, webmaster</p>
+              <p>• <strong>Authentification :</strong> Comptes Supabase fonctionnels</p>
+              <p>• <strong>Différence :</strong> Pas de profil membre automatique (sauf si rôle = member)</p>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <h4 className="font-semibold text-amber-800 mb-2">⚠️ Fonctionnalité en développement</h4>
+            <div className="text-sm text-amber-700 space-y-1">
+              <p>• Cette fonctionnalité nécessite une Edge Function Supabase</p>
+              <p>• Pour l'instant, utilisez la création individuelle de comptes</p>
+              <p>• L'import CSV de membres (dans "Membres") fonctionne parfaitement</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={downloadAccountTemplate}
+              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              <Download className="w-4 h-4" />
+              <span>Télécharger le modèle (comptes)</span>
+            </button>
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h4 className="font-semibold text-green-800 mb-2">💡 Workflow recommandé actuel</h4>
+            <div className="text-sm text-green-700 space-y-1">
+              <p>1. <strong>Import CSV membres</strong> dans la section "Membres" (profils seulement)</p>
+              <p>2. <strong>Les membres s'inscrivent</strong> eux-mêmes sur le site</p>
+              <p>3. <strong>Liaison automatique</strong> par email</p>
+              <p>4. <strong>Création manuelle</strong> pour les rôles administratifs</p>
+            </div>
+          </div>
+
+          <div className="flex space-x-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface AccountCreatorProps {
   onSuccess: () => void;
@@ -210,7 +312,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
 
   if (showCSVImporter) {
     return (
-      <CSVImporter 
+      <AccountCSVImporter 
         onSuccess={() => {
           setShowCSVImporter(false);
           onSuccess();
@@ -231,9 +333,10 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           <button
             onClick={() => setShowCSVImporter(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+            title="Import CSV pour création de comptes utilisateurs"
           >
             <Upload className="w-4 h-4" />
-            <span>Import CSV</span>
+            <span>Import CSV (Comptes)</span>
           </button>
         </div>
 
