@@ -146,8 +146,30 @@ const MultiCategorySelector: React.FC<{
   const [memberCategories, setMemberCategories] = useState<any[]>([]);
 
   useEffect(() => {
+    console.log('🔍 [MultiCategorySelector] Initialisation pour membre:', member.id);
+    console.log('🔍 [MultiCategorySelector] Catégories disponibles:', categories.map(c => c.value));
+    console.log('🔍 [MultiCategorySelector] member.member_categories:', member.member_categories);
+    console.log('🔍 [MultiCategorySelector] member.category:', member.category);
+    
     if (member.member_categories?.length > 0) {
-      setMemberCategories(member.member_categories);
+      // Filtrer les catégories valides seulement
+      const validCategories = member.member_categories.filter(mc => {
+        const isValid = categories.some(cat => cat.value === mc.category_value);
+        if (!isValid) {
+          console.warn('⚠️ [MultiCategorySelector] Catégorie invalide détectée:', mc.category_value);
+        }
+        return isValid;
+      });
+      
+      console.log('✅ [MultiCategorySelector] Catégories valides filtrées:', validCategories);
+      
+      // S'assurer qu'il y a au moins une catégorie principale
+      if (validCategories.length > 0 && !validCategories.some(mc => mc.is_primary)) {
+        validCategories[0].is_primary = true;
+        console.log('🔧 [MultiCategorySelector] Catégorie principale forcée:', validCategories[0].category_value);
+      }
+      
+      setMemberCategories(validCategories);
     } else if (member.category && categories.length > 0) {
       // Chercher la catégorie par value (pas par name)
       const category = categories.find(c => c.value === member.category);
@@ -156,29 +178,22 @@ const MultiCategorySelector: React.FC<{
           category_id: category.id,
           category_value: category.value, // Utiliser value, pas name
           is_primary: true,
-     console.log('🔍 [MultiCategorySelector] Initialisation avec membre:', member.email);
-     console.log('🔍 [MultiCategorySelector] member.member_categories:', member.member_categories);
-     console.log('🔍 [MultiCategorySelector] member.category:', member.category);
-     
           categories: category
-       console.log('✅ [MultiCategorySelector] Utilisation member_categories existantes');
         }]);
       } else {
-       console.log('⚠️ [MultiCategorySelector] Fallback sur member.category:', member.category);
         console.warn('Catégorie non trouvée pour membre:', member.category);
         const fallbackCategory = categories[0];
         if (fallbackCategory) {
-         console.log('✅ [MultiCategorySelector] Catégorie trouvée:', category.label);
           setMemberCategories([{
+            category_id: fallbackCategory.id,
+            category_value: fallbackCategory.value,
             is_primary: true,
             categories: fallbackCategory
           }]);
         }
       }
-         console.warn('Catégories disponibles:', categories.map(c => c.value));
     }
   }, [member, categories]);
-           console.log('🔄 [MultiCategorySelector] Utilisation catégorie fallback:', fallbackCategory.label);
 
   const handleCategoryToggle = (category: any) => {
     const isSelected = memberCategories.some(mc => 
@@ -719,16 +734,11 @@ const MembersManagement: React.FC = () => {
         if (error) throw error;
         
         console.log('📋 Catégories chargées depuis la DB:', data);
-             category_id: fallbackCategory.id,
-             category_value: fallbackCategory.value,
         setCategories(data || []);
         
         if (!data || data.length === 0) {
           console.warn('⚠️ Aucune catégorie active trouvée');
         }
-     } else {
-       console.log('ℹ️ [MultiCategorySelector] Aucune catégorie à initialiser');
-       setMemberCategories([]);
       } catch (error) {
         console.error('❌ Erreur lors du chargement des catégories:', error);
         setCategories([]);
@@ -736,9 +746,6 @@ const MembersManagement: React.FC = () => {
     };
 
     fetchCategories();
-     console.log('🔄 [MultiCategorySelector] Toggle catégorie:', category.label);
-     console.log('🔄 [MultiCategorySelector] Catégories actuelles avant toggle:', memberCategories);
-     
   }, []);
 
   // Filtrage des membres
@@ -1028,46 +1035,34 @@ const MembersManagement: React.FC = () => {
                       </span>
                     </td>
                     
-     console.log('🔍 [MultiCategorySelector] Catégorie sélectionnée?', isSelected);
-     
                     <td className="p-4">
-       console.log('➖ [MultiCategorySelector] Suppression de la catégorie');
                       <span className="font-medium">{member.membership_fee} €</span>
-         mc.category_value !== category.value && mc.category_id !== category.id
+                    </td>
                     
-       
-       console.log('🔍 [MultiCategorySelector] Catégories après suppression:', updated);
-       
-       // Si on supprime la catégorie principale, définir la première restante comme principale
                     <td className="p-4">
-         console.log('🔄 [MultiCategorySelector] Redéfinition catégorie principale');
                       <PaymentStatusSelector
                         member={member}
-       
                         onUpdate={refetch}
                       />
                     </td>
-       console.log('➕ [MultiCategorySelector] Ajout de la catégorie');
                     
                     <td className="p-4">
                       <div className="flex items-center justify-center space-x-2">
                         {/* Voir */}
                         <button
                           onClick={() => handleViewMember(member)}
-       
-       console.log('🔍 [MultiCategorySelector] Catégories après ajout:', updated);
                           className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                           title="Voir les détails"
                         >
                           <Eye className="w-4 h-4" />
-             mc.category_value === category.value || mc.category_id === category.id
+                        </button>
 
                         {/* Modifier */}
                         <button
                           onClick={() => handleEditMember(member)}
                           className="p-1 text-green-600 hover:bg-green-50 rounded"
                           title="Modifier"
-       is_primary: mc.category_value === categoryId || mc.category_id === categoryId
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
 
@@ -1081,7 +1076,7 @@ const MembersManagement: React.FC = () => {
                         </button>
 
                         {/* Supprimer */}
-                   onClick={() => setPrimaryCategory(category.id)}
+                        <button
                           onClick={() => handleDeleteMember(member.id)}
                           className="p-1 text-red-600 hover:bg-red-50 rounded"
                           title="Supprimer"
