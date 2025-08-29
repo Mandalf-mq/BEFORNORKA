@@ -9,6 +9,13 @@ interface AccountCSVImporterProps {
 
 // Composant CSV spécialisé pour la création de comptes
 const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onClose }) => {
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvData, setCsvData] = useState<any[]>([]);
+  const [csvPreviewData, setCsvPreviewData] = useState<any[]>([]);
+  const [csvValidationErrors, setCsvValidationErrors] = useState<string[]>([]);
+  const [csvImportResult, setCsvImportResult] = useState<any>(null);
+  const [csvLoading, setCsvLoading] = useState(false);
+
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
   const [previewData, setPreviewData] = useState<any[]>([]);
@@ -38,9 +45,9 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const handleCsvFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile && selectedFile.type === 'text/csv') {
-      setCsvFile(selectedFile);
-      setCsvImportResult(null);
-      setCsvValidationErrors([]);
+      setFile(selectedFile);
+      setImportResult(null);
+      setValidationErrors([]);
       
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -48,14 +55,14 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
           const content = e.target?.result as string;
           const parsedData = parseAccountsCSV(content);
           setCsvData(parsedData);
-          setCsvPreviewData(parsedData.slice(0, 5)); // Aperçu des 5 premières lignes
+          setPreviewData(parsedData.slice(0, 5)); // Aperçu des 5 premières lignes
           
           // Validation
           const errors = validateAccountsData(parsedData);
-          setCsvValidationErrors(errors);
+          setValidationErrors(errors);
         } catch (error) {
           console.error('Erreur lors de la lecture du fichier:', error);
-          setCsvValidationErrors([`Erreur lors de la lecture du fichier: ${error}`]);
+          setValidationErrors([`Erreur lors de la lecture du fichier: ${error}`]);
         }
       };
       reader.readAsText(selectedFile, 'UTF-8');
@@ -129,15 +136,15 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   };
 
   const handleAccountsImport = async () => {
-    if (!csvData.length || csvValidationErrors.length > 0) return;
+    if (!csvData.length || validationErrors.length > 0) return;
     
-    setCsvLoading(true);
+    setLoading(true);
     
     try {
       // Pour l'instant, simulation car la vraie fonctionnalité nécessite une Edge Function
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      setCsvImportResult({
+      setImportResult({
         success: true,
         accounts_created: csvData.length,
         message: `${csvData.length} comptes seraient créés (fonctionnalité en développement)`
@@ -157,7 +164,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     } catch (error: any) {
       alert(`❌ Erreur : ${error.message}`);
     } finally {
-      setCsvLoading(false);
+      setLoading(false);
     }
   };
 
@@ -216,24 +223,24 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
           </div>
 
           {/* Fichier sélectionné */}
-          {csvFile && (
+          {file && (
             <div className="flex items-center space-x-2 text-sm text-green-600">
               <CheckCircle className="w-4 h-4" />
-              <span>Fichier sélectionné: {csvFile.name}</span>
+              <span>Fichier sélectionné: {file.name}</span>
             </div>
           )}
 
           {/* Validation des données CSV */}
           {csvData.length > 0 && (
             <div className="space-y-4">
-              {csvValidationErrors.length > 0 ? (
+              {validationErrors.length > 0 ? (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <div className="flex items-center space-x-2 mb-2">
                     <XCircle className="w-5 h-5 text-red-500" />
-                    <span className="font-medium text-red-800">Erreurs détectées ({csvValidationErrors.length})</span>
+                    <span className="font-medium text-red-800">Erreurs détectées ({validationErrors.length})</span>
                   </div>
                   <ul className="text-sm text-red-700 space-y-1 max-h-32 overflow-y-auto">
-                    {csvValidationErrors.map((error, index) => (
+                    {validationErrors.map((error, index) => (
                       <li key={index}>• {error}</li>
                     ))}
                   </ul>
@@ -250,7 +257,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               )}
 
               {/* Prévisualisation */}
-              {csvPreviewData.length > 0 && (
+              {previewData.length > 0 && (
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   <div className="bg-gray-50 px-4 py-2 border-b">
                     <h4 className="font-medium text-gray-800">Aperçu des données</h4>
@@ -267,16 +274,14 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {csvPreviewData.map((account, index) => (
+                        {previewData.map((account, index) => (
                           <tr key={index}>
                             <td className="px-4 py-2 text-sm text-gray-900">{account.first_name}</td>
                             <td className="px-4 py-2 text-sm text-gray-900">{account.last_name}</td>
                             <td className="px-4 py-2 text-sm text-blue-600">{account.email}</td>
                             <td className="px-4 py-2 text-sm text-gray-500">{account.phone || 'Non renseigné'}</td>
                             <td className="px-4 py-2">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {roles.find(r => r.value === account.role)?.label || account.role}
-                              </span>
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{account.role}</span>
                             </td>
                           </tr>
                         ))}
@@ -293,16 +298,6 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             </div>
           )}
 
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h4 className="font-semibold text-green-800 mb-2">💡 Workflow recommandé actuel</h4>
-            <div className="text-sm text-green-700 space-y-1">
-              <p>1. <strong>Import CSV membres</strong> dans la section "Membres" (profils seulement)</p>
-              <p>2. <strong>Les membres s'inscrivent</strong> eux-mêmes sur le site</p>
-              <p>3. <strong>Liaison automatique</strong> par email</p>
-              <p>4. <strong>Création manuelle</strong> pour les rôles administratifs</p>
-            </div>
-          </div>
-
           <div className="flex space-x-3">
             <button
               onClick={onClose}
@@ -311,13 +306,13 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               Annuler
             </button>
             
-            {csvData.length > 0 && csvValidationErrors.length === 0 && (
+            {csvData.length > 0 && validationErrors.length === 0 && (
               <button
                 onClick={handleAccountsImport}
-                disabled={csvLoading}
+                disabled={loading}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
               >
-                {csvLoading ? (
+                {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     <span>Import...</span>
@@ -333,15 +328,15 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
           </div>
 
           {/* Résultats d'import */}
-          {csvImportResult && (
+          {importResult && (
             <div className="mt-4">
-              <div className={`border rounded-lg p-4 ${csvImportResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <div className={`border rounded-lg p-4 ${importResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                 <div className="flex items-center space-x-2">
-                  {csvImportResult.success ? (
+                  {importResult.success ? (
                     <>
                       <CheckCircle className="w-5 h-5 text-green-500" />
                       <span className="font-medium text-green-800">
-                        {csvImportResult.message}
+                        {importResult.message}
                       </span>
                     </>
                   ) : (
