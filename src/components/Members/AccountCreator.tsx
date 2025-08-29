@@ -234,17 +234,22 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl p-6 max-w-2xl w-full">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-gray-900">
-            📥 Import CSV - Création de comptes
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            ✕
-          </button>
+      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header fixe */}
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-gray-900">
+              📥 Import CSV - Création de comptes
+            </h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-6">
+        {/* Contenu scrollable */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="space-y-6">
           {/* Différence importante */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="font-semibold text-blue-800 mb-2">🔐 Création de comptes utilisateurs</h4>
@@ -390,30 +395,10 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               </button>
             )}
           </div>
-
-          {/* Résultats d'import */}
-          {importResult && (
-            <div className="mt-4">
-              <div className={`border rounded-lg p-4 ${importResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                <div className="flex items-center space-x-2">
-                  {importResult.success ? (
-                    <>
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                      <span className="font-medium text-green-800">
-                        {importResult.message}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-5 h-5 text-red-500" />
-                      <span className="font-medium text-red-800">Échec de l'import</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
+
+        {/* Footer avec boutons - fixe en bas */}
+        <div className="p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
       </div>
     </div>
   );
