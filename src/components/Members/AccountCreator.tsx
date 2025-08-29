@@ -15,6 +15,107 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  // Fonction pour gérer la sélection de fichier CSV
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (selectedFile && selectedFile.type === 'text/csv') {
+      setFile(selectedFile);
+      setImportResult(null);
+      setValidationErrors([]);
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          const parsedData = parseAccountsCSV(content);
+          setCsvData(parsedData);
+          setPreviewData(parsedData.slice(0, 5)); // Aperçu des 5 premières lignes
+          
+          // Validation
+          const errors = validateAccountsData(parsedData);
+          setValidationErrors(errors);
+        } catch (error) {
+          console.error('Erreur lors de la lecture du fichier:', error);
+          setValidationErrors([`Erreur lors de la lecture du fichier: ${error}`]);
+        }
+      };
+      reader.readAsText(selectedFile, 'UTF-8');
+    } else {
+      alert('Veuillez sélectionner un fichier CSV valide');
+    }
+  };
+
+  // Fonction pour parser le CSV des comptes (format simplifié)
+  const parseAccountsCSV = (content: string) => {
+    const separator = content.includes(';') ? ';' : ',';
+    const lines = content.trim().split('\n').filter(line => line.trim());
+    const headers = lines[0].split(separator).map(h => h.replace(/^"|"$/g, '').trim());
+    
+    const data = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const values = line.split(separator).map(v => v.replace(/^"|"$/g, '').trim());
+      const row: any = {};
+      
+      headers.forEach((header, index) => {
+        const value = values[index] || '';
+        
+        switch (header.toLowerCase()) {
+          case 'first_name':
+            row.first_name = value;
+            break;
+          case 'last_name':
+            row.last_name = value;
+            break;
+          case 'email':
+            row.email = value;
+            break;
+          case 'phone':
+            row.phone = value;
+            break;
+          case 'role':
+            row.role = value || 'member';
+            break;
+        }
+      });
+      
+      data.push(row);
+    }
+    
+    return data;
+  };
+
+  // Fonction pour valider les données des comptes
+  const validateAccountsData = (data: any[]): string[] => {
+    const errors: string[] = [];
+    const validRoles = ['member', 'entraineur', 'administrateur', 'tresorerie', 'webmaster'];
+    
+    data.forEach((row, index) => {
+      const lineNum = index + 2;
+      
+      if (!row.first_name?.trim()) {
+        errors.push(`Ligne ${lineNum}: Le prénom est obligatoire`);
+      }
+      if (!row.last_name?.trim()) {
+        errors.push(`Ligne ${lineNum}: Le nom est obligatoire`);
+      }
+      if (!row.email?.trim()) {
+        errors.push(`Ligne ${lineNum}: L'email est obligatoire`);
+      }
+      if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+        errors.push(`Ligne ${lineNum}: Format email invalide`);
+      }
+      if (row.role && !validRoles.includes(row.role)) {
+        errors.push(`Ligne ${lineNum}: Rôle invalide "${row.role}". Rôles valides: ${validRoles.join(', ')}`);
+      }
+    });
+    
+    return errors;
+  };
+
 
   const parseCSV = (content: string) => {
     try {
