@@ -198,12 +198,12 @@ const MultiCategorySelector: React.FC<{
   };
 
   const setPrimaryCategory = (categoryId: string) => {
-    console.log('🔄 [MultiCategorySelector] Définition catégorie principale:', categoryValue);
+    console.log('🔄 [MultiCategorySelector] Définition catégorie principale:', categoryId);
     console.log('🔄 [MultiCategorySelector] Catégories actuelles:', memberCategories);
     
     const updated = memberCategories.map(mc => ({
       ...mc,
-      is_primary: mc.category_value === categoryValue
+      is_primary: mc.category_value === categoryId
     }));
     
     console.log('🔄 [MultiCategorySelector] Catégories mises à jour:', updated);
