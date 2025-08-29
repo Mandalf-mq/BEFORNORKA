@@ -198,10 +198,15 @@ const MultiCategorySelector: React.FC<{
   };
 
   const setPrimaryCategory = (categoryId: string) => {
+    console.log('🔄 [MultiCategorySelector] Définition catégorie principale:', categoryValue);
+    console.log('🔄 [MultiCategorySelector] Catégories actuelles:', memberCategories);
+    
     const updated = memberCategories.map(mc => ({
       ...mc,
-      is_primary: mc.category_id === categoryId
+      is_primary: mc.category_value === categoryValue
     }));
+    
+    console.log('🔄 [MultiCategorySelector] Catégories mises à jour:', updated);
     setMemberCategories(updated);
     onUpdate(updated);
   };
@@ -218,11 +223,9 @@ const MultiCategorySelector: React.FC<{
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
                     ${mc.is_primary ? 'bg-primary-100 text-primary-800' : 'bg-gray-100 text-gray-800'}
                   `}>
+                    {mc.is_primary && '⭐ '}
                     {mc.categories?.label || mc.category_value}
                   </span>
-                  {mc.is_primary && (
-                    <span className="text-xs text-primary-600 font-medium">Principal</span>
-                  )}
                 </div>
               ))}
             </div>
@@ -243,7 +246,7 @@ const MultiCategorySelector: React.FC<{
             mc.category_value === category.value
           );
           const isPrimary = memberCategories.find(mc => 
-            mc.category_value === category.value
+            mc.category_value === category.value || mc.category_id === category.id
           )?.is_primary;
           
           return (
@@ -264,12 +267,12 @@ const MultiCategorySelector: React.FC<{
                   onClick={() => setPrimaryCategory(category.value)}
                   className={`px-2 py-1 text-xs rounded-full transition-colors
                     ${isPrimary 
-                      ? 'bg-primary-100 text-primary-800 font-medium'
-                      : 'bg-gray-100 text-gray-600 hover:bg-primary-50'
+                      ? 'bg-primary-600 text-white font-medium'
+                      : 'bg-gray-200 text-gray-700 hover:bg-primary-100 hover:text-primary-800'
                     }
                   `}
                 >
-                  {isPrimary ? 'Principal' : 'Définir principal'}
+                  {isPrimary ? '⭐ Principal' : 'Définir principal'}
                 </button>
               )}
             </div>
