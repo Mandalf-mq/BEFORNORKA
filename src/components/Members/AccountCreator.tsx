@@ -20,12 +20,6 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
       'first_name', 'last_name', 'email', 'phone', 'role'
     ];
     
-    const exampleData = [
-      'Sophie', 'Martin', 'sophie.martin@email.com', '0612345678', 'member',
-      'Paul', 'Durand', 'paul.durand@email.com', '0687654321', 'entraineur',
-      'Marie', 'Dubois', 'marie.dubois@email.com', '0698765432', 'administrateur'
-    ];
-    
     const csvContent = headers.join(';') + '\n' + 
       'Sophie;Martin;sophie.martin@email.com;0612345678;member\n' +
       'Paul;Durand;paul.durand@email.com;0687654321;entraineur\n' +
@@ -39,6 +33,132 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleCsvFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (selectedFile && selectedFile.type === 'text/csv') {
+      setCsvFile(selectedFile);
+      setCsvImportResult(null);
+      setCsvValidationErrors([]);
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          const parsedData = parseAccountsCSV(content);
+          setCsvData(parsedData);
+          setCsvPreviewData(parsedData.slice(0, 5)); // Aperçu des 5 premières lignes
+          
+          // Validation
+          const errors = validateAccountsData(parsedData);
+          setCsvValidationErrors(errors);
+        } catch (error) {
+          console.error('Erreur lors de la lecture du fichier:', error);
+          setCsvValidationErrors([`Erreur lors de la lecture du fichier: ${error}`]);
+        }
+      };
+      reader.readAsText(selectedFile, 'UTF-8');
+    }
+  };
+
+  const parseAccountsCSV = (content: string) => {
+    const separator = content.includes(';') ? ';' : ',';
+    const lines = content.trim().split('\n').filter(line => line.trim());
+    const headers = lines[0].split(separator).map(h => h.replace(/^"|"$/g, '').trim());
+    
+    const data = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(separator).map(v => v.replace(/^"|"$/g, '').trim());
+      const row: any = {};
+      
+      headers.forEach((header, index) => {
+        const value = values[index] || '';
+        
+        switch (header.toLowerCase()) {
+          case 'first_name':
+            row.first_name = value;
+            break;
+          case 'last_name':
+            row.last_name = value;
+            break;
+          case 'email':
+            row.email = value;
+            break;
+          case 'phone':
+            row.phone = value;
+            break;
+          case 'role':
+            row.role = value;
+            break;
+        }
+      });
+      
+      data.push(row);
+    }
+    
+    return data;
+  };
+
+  const validateAccountsData = (data: any[]): string[] => {
+    const errors: string[] = [];
+    const validRoles = ['member', 'entraineur', 'administrateur', 'tresorerie', 'webmaster'];
+    
+    data.forEach((row, index) => {
+      const lineNum = index + 2;
+      
+      if (!row.first_name?.trim()) {
+        errors.push(`Ligne ${lineNum}: Le prénom est obligatoire`);
+      }
+      if (!row.last_name?.trim()) {
+        errors.push(`Ligne ${lineNum}: Le nom est obligatoire`);
+      }
+      if (!row.email?.trim()) {
+        errors.push(`Ligne ${lineNum}: L'email est obligatoire`);
+      }
+      if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+        errors.push(`Ligne ${lineNum}: Format email invalide`);
+      }
+      if (!row.role || !validRoles.includes(row.role)) {
+        errors.push(`Ligne ${lineNum}: Rôle invalide. Rôles valides: ${validRoles.join(', ')}`);
+      }
+    });
+    
+    return errors;
+  };
+
+  const handleAccountsImport = async () => {
+    if (!csvData.length || csvValidationErrors.length > 0) return;
+    
+    setCsvLoading(true);
+    
+    try {
+      // Pour l'instant, simulation car la vraie fonctionnalité nécessite une Edge Function
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setCsvImportResult({
+        success: true,
+        accounts_created: csvData.length,
+        message: `${csvData.length} comptes seraient créés (fonctionnalité en développement)`
+      });
+      
+      alert(`✅ Simulation d'import réussie !
+      
+📊 Résultats simulés :
+• ${csvData.length} comptes utilisateurs seraient créés
+• Rôles assignés selon le CSV
+• Mots de passe temporaires générés
+
+⚠️ Cette fonctionnalité nécessite une Edge Function Supabase pour créer de vrais comptes d'authentification.
+
+💡 Pour l'instant, utilisez la création individuelle de comptes.`);
+      
+    } catch (error: any) {
+      alert(`❌ Erreur : ${error.message}`);
+    } finally {
+      setCsvLoading(false);
+    }
   };
 
   return (
@@ -82,7 +202,96 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               <Download className="w-4 h-4" />
               <span>Télécharger le modèle (comptes)</span>
             </button>
+            
+            <label className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer transition-colors">
+              <Upload className="w-4 h-4" />
+              <span>Sélectionner CSV</span>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCsvFileSelect}
+                className="hidden"
+              />
+            </label>
           </div>
+
+          {/* Fichier sélectionné */}
+          {csvFile && (
+            <div className="flex items-center space-x-2 text-sm text-green-600">
+              <CheckCircle className="w-4 h-4" />
+              <span>Fichier sélectionné: {csvFile.name}</span>
+            </div>
+          )}
+
+          {/* Validation des données CSV */}
+          {csvData.length > 0 && (
+            <div className="space-y-4">
+              {csvValidationErrors.length > 0 ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <XCircle className="w-5 h-5 text-red-500" />
+                    <span className="font-medium text-red-800">Erreurs détectées ({csvValidationErrors.length})</span>
+                  </div>
+                  <ul className="text-sm text-red-700 space-y-1 max-h-32 overflow-y-auto">
+                    {csvValidationErrors.map((error, index) => (
+                      <li key={index}>• {error}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <span className="font-medium text-green-800">
+                      Validation réussie - {csvData.length} comptes prêts à créer
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Prévisualisation */}
+              {csvPreviewData.length > 0 && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b">
+                    <h4 className="font-medium text-gray-800">Aperçu des données</h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Prénom</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rôle</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {csvPreviewData.map((account, index) => (
+                          <tr key={index}>
+                            <td className="px-4 py-2 text-sm text-gray-900">{account.first_name}</td>
+                            <td className="px-4 py-2 text-sm text-gray-900">{account.last_name}</td>
+                            <td className="px-4 py-2 text-sm text-blue-600">{account.email}</td>
+                            <td className="px-4 py-2 text-sm text-gray-500">{account.phone || 'Non renseigné'}</td>
+                            <td className="px-4 py-2">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {roles.find(r => r.value === account.role)?.label || account.role}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {csvData.length > 5 && (
+                    <div className="px-4 py-2 bg-gray-50 border-t text-sm text-gray-500">
+                      Affichage de 5 lignes sur {csvData.length} au total
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <h4 className="font-semibold text-green-800 mb-2">💡 Workflow recommandé actuel</h4>
@@ -102,44 +311,13 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               Annuler
             </button>
             
-            {csvData.length > 0 && validationErrors.length === 0 && (
+            {csvData.length > 0 && csvValidationErrors.length === 0 && (
               <button
-                onClick={async () => {
-                  if (!csvData.length || validationErrors.length > 0) return;
-                  
-                  setLoading(true);
-                  
-                  try {
-                    // Pour l'instant, simuler l'import (la vraie fonctionnalité nécessite une Edge Function)
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    
-                    setImportResult({
-                      success: true,
-                      accounts_created: csvData.length,
-                      message: `${csvData.length} comptes seraient créés (fonctionnalité en développement)`
-                    });
-                    
-                    alert(`✅ Simulation d'import réussie !
-                    
-📊 Résultats simulés :
-• ${csvData.length} comptes utilisateurs seraient créés
-• Rôles assignés selon le CSV
-• Mots de passe temporaires générés
-
-⚠️ Cette fonctionnalité nécessite une Edge Function Supabase pour créer de vrais comptes d'authentification.
-
-💡 Pour l'instant, utilisez la création individuelle de comptes.`);
-                    
-                  } catch (error: any) {
-                    alert(`❌ Erreur : ${error.message}`);
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                disabled={loading}
+                onClick={handleAccountsImport}
+                disabled={csvLoading}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
               >
-                {loading ? (
+                {csvLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     <span>Import...</span>
@@ -153,6 +331,29 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               </button>
             )}
           </div>
+
+          {/* Résultats d'import */}
+          {csvImportResult && (
+            <div className="mt-4">
+              <div className={`border rounded-lg p-4 ${csvImportResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                <div className="flex items-center space-x-2">
+                  {csvImportResult.success ? (
+                    <>
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                      <span className="font-medium text-green-800">
+                        {csvImportResult.message}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-5 h-5 text-red-500" />
+                      <span className="font-medium text-red-800">Échec de l'import</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -180,6 +381,14 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // États pour l'import CSV
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvData, setCsvData] = useState<any[]>([]);
+  const [csvPreviewData, setCsvPreviewData] = useState<any[]>([]);
+  const [csvValidationErrors, setCsvValidationErrors] = useState<string[]>([]);
+  const [csvImportResult, setCsvImportResult] = useState<any>(null);
+  const [csvLoading, setCsvLoading] = useState(false);
 
   // Charger les catégories depuis la base de données
   React.useEffect(() => {
