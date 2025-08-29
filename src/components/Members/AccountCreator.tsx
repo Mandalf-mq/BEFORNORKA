@@ -20,19 +20,27 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
       'first_name', 'last_name', 'email', 'phone', 'role'
     ];
     
+    const exampleRows = [
+      ['Sophie', 'Martin', 'sophie.martin@email.com', '0612345678', 'member'],
+      ['Paul', 'Durand', 'paul.durand@email.com', '0687654321', 'entraineur'],
+      ['Marie', 'Dubois', 'marie.dubois@email.com', '0698765432', 'administrateur'],
+      ['Jean', 'Dupont', 'jean.dupont@email.com', '0634567890', 'tresorerie'],
+      ['Admin', 'Site', 'admin@befornorka.fr', '0645678901', 'webmaster']
+    ];
+    
     const csvContent = headers.join(';') + '\n' + 
-      'Sophie;Martin;sophie.martin@email.com;0612345678;member\n' +
-      'Paul;Durand;paul.durand@email.com;0687654321;entraineur\n' +
-      'Marie;Dubois;marie.dubois@email.com;0698765432;administrateur';
+      exampleRows.map(row => row.join(';')).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', 'modele_creation_comptes.csv');
+    link.setAttribute('download', 'modele_creation_comptes_befornorka.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    alert('📥 Template téléchargé !\n\n📋 Format :\n• Séparateur : point-virgule (;)\n• Encodage : UTF-8\n• 5 exemples inclus\n\n✏️ Modifiez le fichier avec vos vraies données avant import.');
   };
 
   const handleCsvFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,42 +71,105 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   };
 
   const parseAccountsCSV = (content: string) => {
-    const separator = content.includes(';') ? ';' : ',';
-    const lines = content.trim().split('\n').filter(line => line.trim());
-    const headers = lines[0].split(separator).map(h => h.replace(/^"|"$/g, '').trim());
+    // Détection plus robuste du séparateur
+    const semicolonCount = (content.match(/;/g) || []).length;
+    const commaCount = (content.match(/,/g) || []).length;
+    const separator = semicolonCount > commaCount ? ';' : ',';
+    
+    console.log('🔍 [parseAccountsCSV] Séparateur détecté:', separator);
+    console.log('🔍 [parseAccountsCSV] Contenu brut (100 premiers chars):', content.substring(0, 100));
+    
+    const lines = content.trim().split(/\r?\n/).filter(line => line.trim());
+    console.log('🔍 [parseAccountsCSV] Nombre de lignes:', lines.length);
+    console.log('🔍 [parseAccountsCSV] Première ligne (header):', lines[0]);
+    
+    if (lines.length < 2) {
+      throw new Error('Le fichier CSV doit contenir au moins une ligne d\'en-tête et une ligne de données');
+    }
+    
+    // Parser la ligne d'en-tête avec gestion des guillemets
+    const headers = parseCSVLine(lines[0], separator);
+    console.log('🔍 [parseAccountsCSV] Headers parsés:', headers);
     
     const data = [];
     
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(separator).map(v => v.replace(/^"|"$/g, '').trim());
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      console.log('🔍 [parseAccountsCSV] Ligne', i, ':', line);
+      
+      const values = parseCSVLine(line, separator);
+      console.log('🔍 [parseAccountsCSV] Valeurs parsées:', values);
+      
       const row: any = {};
       
       headers.forEach((header, index) => {
         const value = values[index] || '';
+        const headerLower = header.toLowerCase().trim();
         
-        switch (header.toLowerCase()) {
+        console.log('🔍 [parseAccountsCSV] Mapping:', headerLower, '→', value);
+        
+        switch (headerLower) {
           case 'first_name':
+          case 'prenom':
+          case 'prénom':
             row.first_name = value;
             break;
           case 'last_name':
+          case 'nom':
             row.last_name = value;
             break;
           case 'email':
+          case 'e-mail':
+          case 'mail':
             row.email = value;
             break;
           case 'phone':
+          case 'telephone':
+          case 'téléphone':
             row.phone = value;
             break;
           case 'role':
+          case 'rôle':
             row.role = value;
             break;
+          default:
+            console.log('🔍 [parseAccountsCSV] Header non reconnu:', headerLower);
         }
       });
       
+      console.log('🔍 [parseAccountsCSV] Objet final ligne', i, ':', row);
       data.push(row);
     }
     
+    console.log('✅ [parseAccountsCSV] Données finales:', data);
     return data;
+  };
+
+  // Fonction utilitaire pour parser une ligne CSV avec gestion des guillemets
+  const parseCSVLine = (line: string, separator: string): string[] => {
+    const values: string[] = [];
+    let currentValue = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === separator && !inQuotes) {
+        values.push(currentValue.trim());
+        currentValue = '';
+      } else {
+        currentValue += char;
+      }
+    }
+    
+    // Ajouter la dernière valeur
+    values.push(currentValue.trim());
+    
+    return values;
   };
 
   const validateAccountsData = (data: any[]): string[] => {
