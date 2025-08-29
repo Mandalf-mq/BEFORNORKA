@@ -350,6 +350,27 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
       
       console.log('🔍 [MemberDetailsModal] Catégorie principale identifiée:', finalPrimaryCategory);
       
+      // Nettoyer la licence FFVB (NULL si vide pour éviter les conflits d'unicité)
+      const cleanedLicense = formData.ffvb_license?.trim() || null;
+      
+      // Vérifier si la licence existe déjà chez un autre membre
+      if (cleanedLicense) {
+        const { data: existingMember, error: checkError } = await supabase
+          .from('members')
+          .select('id, first_name, last_name')
+          .eq('ffvb_license', cleanedLicense)
+          .neq('id', member.id)
+          .maybeSingle();
+        
+        if (checkError) {
+          console.error('Erreur vérification licence:', checkError);
+        }
+        
+        if (existingMember) {
+          throw new Error(`Cette licence FFVB (${cleanedLicense}) est déjà attribuée à ${existingMember.first_name} ${existingMember.last_name}`);
+        }
+      }
+      
       // Sauvegarder les informations principales du membre
       const { error: memberError } = await supabase
         .from('members')
@@ -361,7 +382,7 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
           address: formData.address,
           birth_date: formData.birth_date,
           membership_fee: formData.membership_fee,
-          ffvb_license: formData.ffvb_license,
+          ffvb_license: cleanedLicense,
           notes: formData.notes,
           // Mettre à jour aussi la catégorie principale dans members
           category: finalPrimaryCategory,
@@ -546,13 +567,18 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
                 🏐 Numéro de licence FFVB
               </label>
               {editing ? (
-                <input
-                  type="text"
-                  value={formData.ffvb_license}
-                  onChange={(e) => setFormData({ ...formData, ffvb_license: e.target.value })}
-                  placeholder="Ex: 12345678"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
+                <div>
+                  <input
+                    type="text"
+                    value={formData.ffvb_license}
+                    onChange={(e) => setFormData({ ...formData, ffvb_license: e.target.value })}
+                    placeholder="Ex: 12345678 (optionnel)"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    ⚠️ Chaque licence doit être unique. Laissez vide si pas de licence.
+                  </p>
+                </div>
               ) : (
                 <p className="px-3 py-2 bg-gray-50 rounded-lg">
                   {formData.ffvb_license ? (
