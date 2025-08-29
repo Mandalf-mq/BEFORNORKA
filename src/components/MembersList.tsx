@@ -313,6 +313,16 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
     try {
       setSaving(true);
       
+      console.log('🔍 [MemberDetailsModal] Début sauvegarde pour membre:', member.id);
+      console.log('🔍 [MemberDetailsModal] Catégories à sauvegarder:', memberCategories);
+      
+      // Identifier la catégorie principale
+      const primaryCategory = memberCategories.find(mc => mc.is_primary);
+      const fallbackCategory = memberCategories[0];
+      const finalPrimaryCategory = primaryCategory?.category_value || fallbackCategory?.category_value;
+      
+      console.log('🔍 [MemberDetailsModal] Catégorie principale identifiée:', finalPrimaryCategory);
+      
       // Sauvegarder les informations principales du membre
       const { error: memberError } = await supabase
         .from('members')
@@ -326,30 +336,40 @@ const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
           membership_fee: formData.membership_fee,
           ffvb_license: formData.ffvb_license,
           notes: formData.notes,
+          // Mettre à jour aussi la catégorie principale dans members
+          category: finalPrimaryCategory,
           updated_at: new Date().toISOString()
         })
         .eq('id', member.id);
 
       if (memberError) throw memberError;
+      
+      console.log('✅ [MemberDetailsModal] Membre mis à jour dans table members');
 
       // Sauvegarder les catégories
       if (memberCategories.length > 0) {
+        // Supprimer TOUTES les anciennes catégories
+        console.log('🗑️ [MemberDetailsModal] Suppression anciennes catégories...');
         await supabase
           .from('member_categories')
           .delete()
           .eq('member_id', member.id);
 
+        // Insérer TOUTES les nouvelles catégories
         const categoriesToInsert = memberCategories.map(mc => ({
           member_id: member.id,
           category_value: mc.category_value,
           is_primary: mc.is_primary || false
         }));
 
+        console.log('➕ [MemberDetailsModal] Insertion nouvelles catégories:', categoriesToInsert);
         const { error: categoriesError } = await supabase
           .from('member_categories')
           .insert(categoriesToInsert);
 
         if (categoriesError) throw categoriesError;
+        
+        console.log('✅ [MemberDetailsModal] Catégories mises à jour avec succès');
       }
 
       alert('✅ Membre mis à jour avec succès');
