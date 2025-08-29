@@ -802,6 +802,13 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
                 >
                   <Download className="w-4 h-4" />
                   <span>Télécharger le modèle</span>
+                  {file && (
+                    <div className="flex items-center space-x-2 text-sm text-green-600">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Fichier sélectionné: {file.name}</span>
+                    </div>
+                  )}
+
                 </button>
               </div>
 
@@ -814,6 +821,100 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
             </div>
 
             {/* Validation */}
+              {/* Section 2: Validation */}
+              {csvData.length > 0 && (
+                <div className="mb-8">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">2. Validation des données</h3>
+                  
+                  {validationErrors.length > 0 ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <XCircle className="w-5 h-5 text-red-500" />
+                        <span className="font-medium text-red-800">Erreurs détectées ({validationErrors.length})</span>
+                      </div>
+                      <ul className="text-sm text-red-700 space-y-1 max-h-40 overflow-y-auto">
+                        {validationErrors.map((error, index) => (
+                          <li key={index}>• {error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        <span className="font-medium text-green-800">
+                          Validation réussie - {csvData.length} compte(s) prêt(s) à créer
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Section 3: Prévisualisation */}
+              {previewData.length > 0 && (
+                <div className="mb-8">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">3. Prévisualisation des comptes</h3>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prénom</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rôle</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profil membre</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {previewData.map((account, index) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm text-gray-900">{account.first_name}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{account.last_name}</td>
+                              <td className="px-4 py-3 text-sm text-blue-600">{account.email}</td>
+                              <td className="px-4 py-3 text-sm text-gray-500">{account.phone || 'Non renseigné'}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  account.role === 'webmaster' ? 'bg-purple-100 text-purple-800' :
+                                  account.role === 'administrateur' ? 'bg-blue-100 text-blue-800' :
+                                  account.role === 'entraineur' ? 'bg-orange-100 text-orange-800' :
+                                  account.role === 'tresorerie' ? 'bg-green-100 text-green-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {account.role === 'webmaster' ? '👑 Webmaster' :
+                                   account.role === 'administrateur' ? '👨‍💼 Admin' :
+                                   account.role === 'entraineur' ? '🏐 Entraîneur' :
+                                   account.role === 'tresorerie' ? '💰 Trésorerie' :
+                                   '👤 Membre'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {account.role === 'member' ? (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    ✅ Oui
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    ❌ Non
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {csvData.length > 5 && (
+                      <div className="px-4 py-3 bg-gray-50 border-t text-sm text-gray-500">
+                        Affichage de 5 lignes sur {csvData.length} au total
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             {csvData.length > 0 && (
               <div>
                 <h4 className="font-semibold text-gray-800 mb-2">🔍 Validation des données</h4>
@@ -1300,7 +1401,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
                 ))}
               </select>
               
-              {/* Description du rôle sélectionné */}
+                            Import réussi ! {importResult.accounts_created} compte(s) créé(s)
               <div className="mt-3 p-3 bg-white border border-gray-200 rounded-lg">
                 <p className="text-sm text-gray-700">
                   <strong>📋 Description :</strong> {selectedRole?.description}
@@ -1310,6 +1411,19 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
                     selectedRole?.needsCategory ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
                   }`}>
                     {selectedRole?.needsCategory ? '✅ Catégorie requise' : '❌ Pas de catégorie'}
+                    
+                    {importResult.credentials && importResult.credentials.length > 0 && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                        <h4 className="font-medium text-blue-800 mb-2">🔑 Identifiants créés :</h4>
+                        <div className="text-sm text-blue-700 space-y-1 max-h-32 overflow-y-auto">
+                          {importResult.credentials.map((cred: any, index: number) => (
+                            <div key={index} className="font-mono text-xs">
+                              {cred.name} ({cred.role}): {cred.email} / {cred.password}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </span>
                   <span className={`px-2 py-1 rounded-full ${
                     selectedRole?.needsCotisation ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
@@ -1338,7 +1452,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Catégorie selon l'âge
                 </label>
-                {categories.length === 0 ? (
+                  onClick={handleAccountsImport}
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
                     <p className="text-sm text-red-700">
                       ⚠️ Aucune catégorie disponible. Veuillez d'abord créer des catégories dans Paramètres → Catégories.
@@ -1352,7 +1466,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
                   disabled={categories.length === 0}
                 >
                   {categories.length === 0 && (
-                    <option value="">Aucune catégorie disponible</option>
+                    `Créer ${csvData.length || 0} compte(s)`
                   )}
                   {categories.map(category => (
                     <option key={category.value} value={category.value}>
