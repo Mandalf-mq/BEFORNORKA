@@ -9,13 +9,6 @@ interface AccountCSVImporterProps {
 
 // Composant CSV spécialisé pour la création de comptes
 const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onClose }) => {
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvData, setCsvData] = useState<any[]>([]);
-  const [csvPreviewData, setCsvPreviewData] = useState<any[]>([]);
-  const [csvValidationErrors, setCsvValidationErrors] = useState<string[]>([]);
-  const [csvImportResult, setCsvImportResult] = useState<any>(null);
-  const [csvLoading, setCsvLoading] = useState(false);
-
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
   const [previewData, setPreviewData] = useState<any[]>([]);
@@ -376,14 +369,6 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // États pour l'import CSV
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvData, setCsvData] = useState<any[]>([]);
-  const [csvPreviewData, setCsvPreviewData] = useState<any[]>([]);
-  const [csvValidationErrors, setCsvValidationErrors] = useState<string[]>([]);
-  const [csvImportResult, setCsvImportResult] = useState<any>(null);
-  const [csvLoading, setCsvLoading] = useState(false);
 
   // Charger les catégories depuis la base de données
   React.useEffect(() => {
