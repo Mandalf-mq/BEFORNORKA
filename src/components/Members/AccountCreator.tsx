@@ -113,7 +113,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             console.log(`✅ Profil membre créé: ${account.first_name} ${account.last_name}`);
           }
         } catch (error: any) {
-          console.error('❌ Erreur traitement compte:', error);
+          console.error(`❌ Erreur pour ${account.email}:`, error);
           errors.push(`${account.email}: ${error.message}`);
           error_count++;
         }
@@ -124,21 +124,8 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         imported_count,
         error_count,
         errors,
-        message: `Import terminé: ${imported_count} créés, ${error_count} erreurs`
+        message: `Import terminé: ${imported_count} profils créés, ${error_count} erreurs`
       };
-      
-      // Utiliser la fonction PostgreSQL pour l'import
-      const { data, error } = await supabase.rpc('import_csv_members_simple', {
-        p_csv_data: accountsData
-      });
-
-      if (error) {
-        console.error('❌ [AccountCreator] Erreur RPC:', error);
-        throw error;
-      }
-
-      console.log('✅ [AccountCreator] Résultat RPC:', data);
-      return data;
       
     } catch (error: any) {
       console.error('❌ Erreur générale import:', error);
