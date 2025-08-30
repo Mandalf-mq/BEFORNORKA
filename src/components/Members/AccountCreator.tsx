@@ -587,7 +587,16 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         throw new Error('Aucune saison courante trouvée');
       }
 
-      const accountData = formData;
+      const accountData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        birthDate: formData.birthDate,
+        category: formData.category,
+        membershipFee: formData.membershipFee,
+        role: formData.role
+      };
 
       // Créer seulement le profil membre (pas d'entrée dans users)
       let newMemberId = null;
@@ -631,12 +640,6 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
       }
 
       alert(`✅ Profil ${getRoleLabel(accountData.role)} créé avec succès !
-
-📊 Informations :
-• Nom : ${accountData.firstName} ${accountData.lastName}
-• Email : ${accountData.email}
-• Rôle : ${getRoleLabel(accountData.role)}
-${newMemberId ? `• ID Membre : ${newMemberId}` : ''}
 
 📋 INSTRUCTIONS POUR LA PERSONNE :
 1. Aller sur : ${window.location.origin}/auth
