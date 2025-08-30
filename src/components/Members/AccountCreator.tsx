@@ -404,7 +404,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             </div>
 
             {file && (
-              <div className="flex items-center space-x-2 text-sm text-green-600">
+              <div className="flex items-center space-x-2 text-green-600">
                 <CheckCircle className="w-4 h-4" />
                 <span>Fichier sélectionné: {file.name}</span>
               </div>
@@ -420,7 +420,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                       <span className="font-medium text-red-800">Erreurs détectées ({validationErrors.length})</span>
                     </div>
                     <ul className="text-sm text-red-700 space-y-1 max-h-32 overflow-y-auto">
-                      {validationErrors.map((error, index) => (
+                      {validationErrors.map((error: string, index: number) => (
                         <li key={index}>• {error}</li>
                       ))}
                     </ul>
@@ -469,6 +469,21 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Instructions pour les personnes */}
+                {importResult && importResult.success_count > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h5 className="font-medium text-blue-800 mb-2">📋 Instructions à communiquer</h5>
+                    <div className="text-sm text-blue-700 space-y-1">
+                      <p>1. Aller sur : <strong>{window.location.origin}/auth</strong></p>
+                      <p>2. Cliquer "Mot de passe oublié"</p>
+                      <p>3. Entrer son email (celui du CSV)</p>
+                      <p>4. Suivre le lien reçu par email</p>
+                      <p>5. Créer son mot de passe personnel</p>
+                      <p>6. Se connecter normalement</p>
                     </div>
                   </div>
                 )}
