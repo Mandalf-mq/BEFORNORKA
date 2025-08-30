@@ -300,16 +300,16 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   };
 
   const handleImport = async () => {
-        console.log('📡 [AccountCreator] Réponse CSV Edge Function status:', response.status);
+    console.log('📡 [AccountCreator] Réponse CSV Edge Function status:', response.status);
         
     if (!csvData.length || validationErrors.length > 0) return;
     
-          console.error('❌ [AccountCreator] Erreur CSV Edge Function:', errorText);
-          throw new Error(`Erreur Edge Function (${response.status}): ${errorText}`);
+    console.error('❌ [AccountCreator] Erreur CSV Edge Function:', errorText);
+    throw new Error(`Erreur Edge Function (${response.status}): ${errorText}`);
     
     try {
       const data = await createAccountsDirectly(csvData);
-        console.log('📊 [AccountCreator] Résultat CSV Edge Function:', data);
+      console.log('📊 [AccountCreator] Résultat CSV Edge Function:', data);
 
       setImportResult(data);
 
@@ -327,7 +327,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
 3. Créer son mot de passe
 4. Se connecter normalement
 
-🔗 Le profil sera automatiquement lié !
+🔗 Le profil sera automatiquement lié !`);
 
         alert(`❌ Erreur technique : ${error.message}
         
@@ -577,41 +577,40 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
       setCategories(data || []);
     } catch (error) {
       console.error('Erreur chargement catégories:', error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Récupérer la saison courante
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      if (seasonError || !currentSeason) {
+        throw new Error('Aucune saison courante trouvée');
+      }
+
       // Créer seulement le profil membre (pas d'entrée dans users)
-      // Créer seulement le profil membre (pas d'entrée dans users)
-      
-      if (accountData.role === 'member') {
-        const { data: newMember, error: memberError } = await supabase
-          .from('members')
-          .insert({
-            first_name: accountData.firstName,
-            last_name: accountData.lastName,
-            email: accountData.email,
-            phone: accountData.phone || null,
-            birth_date: accountData.birthDate || null,
-            category: accountData.category || 'loisirs',
-            membership_fee: accountData.membershipFee || 200,
-            status: 'pending',
-            payment_status: 'pending',
-            season_id: currentSeason.id
-          })
-          .select('id')
-          .single();
-        
-        if (memberError) {
       let newMemberId = null;
       
-      if (accountData.role === 'member') {
+      if (formData.role === 'member') {
         const { data: newMember, error: memberError } = await supabase
           .from('members')
           .insert({
-            first_name: accountData.firstName,
-            last_name: accountData.lastName,
-            email: accountData.email,
-            phone: accountData.phone || null,
-            birth_date: accountData.birthDate || null,
-            category: accountData.category || 'loisirs',
-            membership_fee: accountData.membershipFee || 200,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            phone: formData.phone || null,
+            birth_date: formData.birthDate || null,
+            category: 'loisirs',
+            membership_fee: 200,
             status: 'pending',
             payment_status: 'pending',
             season_id: currentSeason.id
@@ -619,7 +618,8 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           .select('id')
           .single();
         
-        if (memberError) {
+        if (memberError) throw memberError;
+        
         newMemberId = newMember.id;
         
         // Ajouter la catégorie principale
