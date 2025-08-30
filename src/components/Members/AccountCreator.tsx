@@ -111,26 +111,18 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             
             imported_count++;
             console.log(`✅ Profil membre créé: ${account.first_name} ${account.last_name}`);
-          } else {
-            // Pour les rôles administratifs, juste compter comme "créé" (pas de table dédiée)
-            imported_count++;
-            console.log(`✅ Profil ${account.role} noté: ${account.first_name} ${account.last_name}`);
-          }
-          
-        } catch (accountError: any) {
-          console.error('❌ Erreur compte individuel:', accountError);
-          errors.push(`${account.email}: ${accountError.message}`);
-          error_count++;
-        }
+      // Utiliser la fonction PostgreSQL pour l'import
+      const { data, error } = await supabase.rpc('import_csv_members_simple', {
+        p_csv_data: accountsData
+      });
+
+      if (error) {
+        console.error('❌ [AccountCreator] Erreur RPC:', error);
+        throw error;
       }
-      
-      return {
-        success: true,
-        imported_count,
-        error_count,
-        errors,
-        message: `Import terminé. ${imported_count} profils créés.`
-      };
+
+      console.log('✅ [AccountCreator] Résultat RPC:', data);
+      return data;
       
     } catch (error: any) {
       console.error('❌ Erreur générale import:', error);
@@ -577,28 +569,28 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
 
     try {
       // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
-
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
-      }
-
-      const accountData = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
-        birthDate: formData.birthDate,
-        category: formData.category,
-        membershipFee: formData.membershipFee,
-        role: formData.role
-      };
-
       // Créer seulement le profil membre (pas d'entrée dans users)
+      let newMemberId = null;
+      
+      if (accountData.role === 'member') {
+        const { data: newMember, error: memberError } = await supabase
+          .from('members')
+          .insert({
+            first_name: accountData.firstName,
+            last_name: accountData.lastName,
+            email: accountData.email,
+            phone: accountData.phone || null,
+            birth_date: accountData.birthDate || null,
+            category: accountData.category || 'loisirs',
+            membership_fee: accountData.membershipFee || 200,
+            status: 'pending',
+            payment_status: 'pending',
+            season_id: currentSeason.id
+          })
+          .select('id')
+          .single();
+        
+        if (memberError) {
       let newMemberId = null;
       
       if (accountData.role === 'member') {
