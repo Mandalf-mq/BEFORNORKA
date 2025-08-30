@@ -576,11 +576,17 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
             <span>Créer un compte avec connexion</span>
           </h2>
           <button
-            onClick={() => setShowCSVImporter(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+            onClick={() => {
+              alert(`ℹ️ Pour l'import CSV de profils membres, utilisez :
+
+📍 Menu "Membres" → Bouton "Import CSV (Profils)"
+
+✅ Cet import fonctionne parfaitement et crée des profils complets !`);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
           >
-            <Upload className="w-4 h-4" />
-            <span>Import CSV (Comptes réels)</span>
+            <FileText className="w-4 h-4" />
+            <span>Import CSV → Voir "Membres"</span>
           </button>
         </div>
 
