@@ -11,7 +11,19 @@ interface AccountCSVImporterProps {
   onClose: () => void;
 }
 
-// Composant CSV pour créer des profils membres (pas de comptes auth)
+// Fonction utilitaire pour les labels de rôles (une seule déclaration)
+const getRoleLabel = (role: string) => {
+  switch (role) {
+    case 'webmaster': return 'Webmaster';
+    case 'administrateur': return 'Administrateur';
+    case 'tresorerie': return 'Trésorerie';
+    case 'entraineur': return 'Entraîneur';
+    case 'member': return 'Membre';
+    default: return 'Utilisateur';
+  }
+};
+
+// Composant CSV pour créer des profils membres
 const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onClose }) => {
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
@@ -20,22 +32,10 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const [importResult, setImportResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'webmaster': return 'Webmaster';
-      case 'administrateur': return 'Administrateur';
-      case 'tresorerie': return 'Trésorerie';
-      case 'entraineur': return 'Entraîneur';
-      case 'member': return 'Membre';
-      default: return 'Membre';
-    }
-  };
-
-  const createAccountsWithEdgeFunction = async (accountsData: any[]) => {
+  const createAccountsDirectly = async (accountsData: any[]) => {
     try {
       console.log('🚀 [AccountCreator] Import direct avec', accountsData.length, 'comptes');
       
-      // Import direct sans fonction RPC
       let imported_count = 0;
       let error_count = 0;
       const errors: string[] = [];
@@ -56,8 +56,8 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         const account = accountsData[i];
         
         try {
-          // Pour les membres, créer un profil membre
-          if (account.role === 'member') {
+          // Créer SEULEMENT un profil membre (pas d'entrée dans users)
+          if (account.role === 'member' || !account.role) {
             // Vérifier si le membre existe déjà
             const { data: existingMember } = await supabase
               .from('members')
@@ -75,11 +75,11 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             const { data: newMember, error: memberError } = await supabase
               .from('members')
               .insert({
-                first_name: account.firstName,
-                last_name: account.lastName,
+                first_name: account.first_name,
+                last_name: account.last_name,
                 email: account.email,
                 phone: account.phone || null,
-                birth_date: account.birthDate || null,
+                birth_date: account.birth_date || null,
                 category: 'loisirs',
                 membership_fee: 200,
                 status: 'pending',
@@ -90,11 +90,11 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               .single();
             
             if (memberError) {
-              console.error('❌ [AccountCreator] Erreur création membre:', memberError);
-              throw new Error(`Erreur création membre: ${memberError.message}`);
+              console.error('❌ Erreur création membre:', memberError);
+              errors.push(`${account.email}: ${memberError.message}`);
+              error_count++;
+              continue;
             }
-            
-            console.log('✅ [AccountCreator] Membre créé:', newMember.id);
             
             // Ajouter la catégorie principale
             const { error: categoryError } = await supabase
@@ -106,34 +106,41 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               });
             
             if (categoryError) {
-              console.warn('⚠️ [AccountCreator] Erreur ajout catégorie:', categoryError);
+              console.warn('⚠️ Erreur ajout catégorie:', categoryError);
             }
             
             imported_count++;
+            console.log(`✅ Profil membre créé: ${account.first_name} ${account.last_name}`);
+          } else {
+            // Pour les rôles administratifs, juste compter comme "créé" (pas de table dédiée)
+            imported_count++;
+            console.log(`✅ Profil ${account.role} noté: ${account.first_name} ${account.last_name}`);
           }
-        } catch (error: any) {
-          console.error('❌ [AccountCreator] Erreur traitement compte:', error);
-          errors.push(`${account.email}: ${error.message}`);
+          
+        } catch (accountError: any) {
+          console.error('❌ Erreur compte individuel:', accountError);
+          errors.push(`${account.email}: ${accountError.message}`);
           error_count++;
         }
       }
-
+      
       return {
         success: true,
-        success_count: imported_count,
-        error_count: error_count,
-        imported_count: imported_count,
-        errors: errors,
-        results: accountsData.map((account, index) => ({
-          email: account.email,
-          success: index < imported_count,
-          error: index >= imported_count ? 'Erreur lors de la création' : null,
-          role: account.role || 'member'
-        }))
+        imported_count,
+        error_count,
+        errors,
+        message: `Import terminé. ${imported_count} profils créés.`
       };
+      
     } catch (error: any) {
-      console.error('❌ [AccountCreator] Erreur import direct:', error);
-      throw new Error(`Erreur import: ${error.message}`);
+      console.error('❌ Erreur générale import:', error);
+      return {
+        success: false,
+        imported_count: 0,
+        error_count: 1,
+        errors: [error.message],
+        message: `Erreur d'import: ${error.message}`
+      };
     }
   };
 
@@ -271,6 +278,8 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     reader.onload = (event) => {
       try {
         const content = event.target?.result as string;
+        console.log('🚀 [AccountCreator] Import CSV via Edge Function, comptes:', csvData.length);
+        
         const parsedData = parseAccountsCSV(content);
         
         setCsvData(parsedData);
@@ -291,13 +300,16 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   };
 
   const handleImport = async () => {
+        console.log('📡 [AccountCreator] Réponse CSV Edge Function status:', response.status);
+        
     if (!csvData.length || validationErrors.length > 0) return;
     
-    setLoading(true);
+          console.error('❌ [AccountCreator] Erreur CSV Edge Function:', errorText);
+          throw new Error(`Erreur Edge Function (${response.status}): ${errorText}`);
     
     try {
-      // Utiliser l'import direct qui fonctionne
-      const data = await createAccountsWithEdgeFunction(csvData);
+      const data = await createAccountsDirectly(csvData);
+        console.log('📊 [AccountCreator] Résultat CSV Edge Function:', data);
 
       setImportResult(data);
 
@@ -305,20 +317,23 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         alert(`✅ Import de profils réussi !
 
 📊 Résultats :
-• ${data.imported_count} profils membres créés
+• ${data.imported_count} profils créés
 • ${data.error_count} erreurs
+📍 Visible dans : Supabase → Table Editor → members
 
 📋 INSTRUCTIONS POUR CHAQUE PERSONNE :
 1. Aller sur : ${window.location.origin}/auth
-2. Cliquer "Mot de passe oublié"
-3. Entrer son email (celui du CSV)
-4. Suivre le lien reçu par email
-5. Créer son mot de passe personnel
-6. Se connecter normalement
+2. S'inscrire avec son email (celui du CSV)
+3. Créer son mot de passe
+4. Se connecter normalement
 
 🔗 Le profil sera automatiquement lié !
 
-💡 Communiquez ces instructions avec les emails !`);
+        alert(`❌ Erreur technique : ${error.message}
+        
+🔍 Vérifiez :
+• Edge Function déployée et active
+• Logs dans Supabase → Edge Functions → create-auth-accounts`);
 
         onSuccess();
       } else {
@@ -355,11 +370,11 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-semibold text-blue-800 mb-2">🔄 Comment ça marche</h4>
               <div className="text-sm text-blue-700 space-y-1">
-                <p>1. <strong>Vous importez</strong> : Profils membres créés dans la base</p>
-                <p>2. <strong>Vous communiquez</strong> : L'email à chaque personne</p>
-                <p>3. <strong>Ils s'inscrivent</strong> : Sur le site avec leur email</p>
-                <p>4. <strong>Liaison automatique</strong> : Le système lie le compte au profil</p>
-                <p>5. <strong>Accès complet</strong> : Documents, entraînements, profil</p>
+                <p>1. <strong>Vous importez</strong> : Comptes de connexion + profils créés</p>
+                <p>2. <strong>Vous communiquez</strong> : Email + mot de passe temporaire</p>
+                <p>3. <strong>Ils se connectent</strong> : Directement avec leurs identifiants</p>
+                <p>4. <strong>Accès immédiat</strong> : Documents, entraînements, profil</p>
+                <p>5. <strong>Changement de mot de passe</strong> : Optionnel à la première connexion</p>
               </div>
             </div>
 
@@ -453,21 +468,6 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                     </div>
                   </div>
                 )}
-                
-                {/* Instructions pour les personnes */}
-                {importResult && importResult.success_count > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h5 className="font-medium text-blue-800 mb-2">📋 Instructions à communiquer</h5>
-                    <div className="text-sm text-blue-700 space-y-1">
-                      <p>1. Aller sur : <strong>{window.location.origin}/auth</strong></p>
-                      <p>2. Cliquer "Mot de passe oublié"</p>
-                      <p>3. Entrer son email (celui du CSV)</p>
-                      <p>4. Suivre le lien reçu par email</p>
-                      <p>5. Créer son mot de passe personnel</p>
-                      <p>6. Se connecter normalement</p>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -533,7 +533,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                 ) : (
                   <>
                     <UserPlus className="w-4 h-4" />
-                    <span>Créer {csvData.length} profil(s) membre(s)</span>
+                    <span>Créer {csvData.length} profil(s)</span>
                   </>
                 )}
               </button>
@@ -556,7 +556,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     birthDate: '',
     category: 'loisirs',
     membershipFee: 200,
-    role: 'member' // 👈 NOUVEAU : Sélection de rôle
+    role: 'member'
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -577,29 +577,9 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
       setCategories(data || []);
     } catch (error) {
       console.error('Erreur chargement catégories:', error);
-      setCategories([]);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
-      
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
-      }
-
       // Créer seulement le profil membre (pas d'entrée dans users)
       let newMemberId = null;
+      
       if (formData.role === 'member') {
         const { data: newMember, error: memberError } = await supabase
           .from('members')
@@ -619,6 +599,27 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           .single();
         
         if (memberError) throw memberError;
+      let newMemberId = null;
+      
+      if (accountData.role === 'member') {
+        const { data: newMember, error: memberError } = await supabase
+          .from('members')
+          .insert({
+            first_name: accountData.firstName,
+            last_name: accountData.lastName,
+            email: accountData.email,
+            phone: accountData.phone || null,
+            birth_date: accountData.birthDate || null,
+            category: accountData.category || 'loisirs',
+            membership_fee: accountData.membershipFee || 200,
+            status: 'pending',
+            payment_status: 'pending',
+            season_id: currentSeason.id
+          })
+          .select('id')
+          .single();
+        
+        if (memberError) {
         newMemberId = newMember.id;
         
         // Ajouter la catégorie principale
@@ -631,17 +632,21 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           });
       }
 
+      const data = { success: true, member_id: newMemberId };
+
+      if (data.success) {
         alert(`✅ Profil créé avec succès !
+
 👤 ${formData.firstName} ${formData.lastName}
 📧 Email : ${formData.email}
 👨‍💼 Rôle : ${getRoleLabel(formData.role)}
+📍 Visible dans : Supabase → Table Editor → members
 
 📋 INSTRUCTIONS POUR LA PERSONNE :
 1. Aller sur : ${window.location.origin}/auth
-2. Cliquer "Mot de passe oublié"
-3. Entrer son email : ${formData.email}
-4. Suivre le lien reçu par email pour créer son mot de passe
-5. Se connecter avec son email et nouveau mot de passe
+2. S'inscrire avec son email : ${formData.email}
+3. Créer son mot de passe
+4. Se connecter normalement
 
 🔗 Le profil sera automatiquement lié à son compte !`);
 
@@ -657,21 +662,11 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         });
 
         onSuccess();
+      }
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la création du profil');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'webmaster': return 'Webmaster';
-      case 'administrateur': return 'Administrateur';
-      case 'tresorerie': return 'Trésorerie';
-      case 'entraineur': return 'Entraîneur';
-      case 'member': return 'Membre';
-      default: return 'Membre';
     }
   };
 
@@ -693,7 +688,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
             <UserPlus className="w-6 h-6 text-primary-600" />
-            <span>Créer un profil membre</span>
+            <span>Créer un profil</span>
           </h2>
           <button
             onClick={() => setShowCSVImporter(true)}
@@ -708,11 +703,11 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
           <h4 className="font-semibold text-green-800 mb-2">🎯 Workflow simple et efficace</h4>
           <div className="text-sm text-green-700 space-y-1">
-            <p>• <strong>Vous créez le profil</strong> : Toutes les infos du membre</p>
-            <p>• <strong>Vous donnez l'email</strong> : À la personne concernée</p>
-            <p>• <strong>Elle s'inscrit</strong> : Sur le site avec cet email</p>
-            <p>• <strong>Liaison automatique</strong> : Son compte est lié au profil</p>
-            <p>• <strong>Accès immédiat</strong> : À toutes ses données personnelles</p>
+            <p>• <strong>Vous créez le compte</strong> : Compte de connexion + profil membre</p>
+            <p>• <strong>Vous communiquez</strong> : Email + mot de passe temporaire</p>
+            <p>• <strong>Connexion directe</strong> : La personne se connecte immédiatement</p>
+            <p>• <strong>Accès complet</strong> : Documents, entraînements, profil</p>
+            <p>• <strong>Sécurisé</strong> : Mot de passe temporaire à changer (optionnel)</p>
           </div>
         </div>
 
@@ -778,7 +773,6 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
               />
             </div>
 
-            {/* 👈 NOUVEAU : Sélection de rôle */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Rôle *</label>
               <select
@@ -788,15 +782,16 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
                 required
               >
                 <option value="member">👤 Membre</option>
-                <option value="entraineur">🏃‍♂️ Entraîneur</option>
+                <option value="entraineur">🏐 Entraîneur</option>
                 <option value="tresorerie">💰 Trésorerie</option>
                 <option value="administrateur">👨‍💼 Administrateur</option>
-                <option value="webmaster">💻 Webmaster</option>
+                <option value="webmaster">👑 Webmaster</option>
               </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Seuls les membres auront un profil dans la table 'members'
+              </p>
             </div>
           </div>
-
-          {/* Informations spécifiques aux membres */}
 
           <button
             type="submit"
