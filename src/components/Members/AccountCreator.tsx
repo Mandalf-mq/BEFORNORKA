@@ -305,48 +305,25 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     setLoading(true);
     
     try {
-      console.log('🚀 [AccountCreator] Import CSV via Edge Function, comptes:', csvData.length);
-      
-      // Utiliser l'Edge Function pour créer les comptes
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          accounts: csvData.map(account => ({
-            ...account,
-            temporary_password: 'temp' + Math.random().toString(36).substr(2, 8)
-          }))
-        })
-      });
-      
-      console.log('📡 [AccountCreator] Réponse CSV Edge Function status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ [AccountCreator] Erreur CSV Edge Function:', errorText);
-        throw new Error(`Erreur Edge Function (${response.status}): ${errorText}`);
-      }
-      
-      const data = await response.json();
-      console.log('📊 [AccountCreator] Résultat CSV Edge Function:', data);
+      const data = await createAccountsDirectly(csvData);
 
       setImportResult(data);
 
       if (data.success) {
-        alert(`Import de comptes reussi !
+        alert(`✅ Import de profils réussi !
 
-Resultats:
-- ${data.success_count} comptes de connexion crees
-- ${data.error_count} erreurs
-Visible dans: Supabase > Authentication > Users
+📊 Résultats :
+• ${data.imported_count} profils créés
+• ${data.error_count} erreurs
+📍 Visible dans : Supabase → Table Editor → members
 
-COMPTES CREES AVEC MOTS DE PASSE:
-${data.results?.filter(r => r.success).map(r => `• ${r.email} : ${r.temporary_password}`).join('\n') || ''}
+📋 INSTRUCTIONS POUR CHAQUE PERSONNE :
+1. Aller sur : ${window.location.origin}/auth
+2. S'inscrire avec son email (celui du CSV)
+3. Créer son mot de passe
+4. Se connecter normalement
 
-Communiquez ces identifiants aux personnes concernees !`);
+🔗 Le profil sera automatiquement lié !`);
 
         onSuccess();
       } else {
@@ -355,11 +332,7 @@ Communiquez ces identifiants aux personnes concernees !`);
       
     } catch (error: any) {
       console.error('Erreur import:', error);
-      alert(`Erreur technique: ${error.message}
-        
-Verifiez:
-- Edge Function deployee et active
-- Logs dans Supabase > Edge Functions > create-auth-accounts`);
+      alert(`❌ Erreur : ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -597,94 +570,77 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     }
   };
 
-  const createAccountDirectly = async (accountData: any) => {
-    try {
-      console.log('🚀 [AccountCreator] Création directe du profil pour:', accountData.email);
-      
-      // Générer un mot de passe temporaire
-      const tempPassword = 'temp' + Math.random().toString(36).substr(2, 8);
-      
-      console.log('📡 [AccountCreator] Appel Edge Function pour compte individuel');
-      
-      // Utiliser l'Edge Function pour créer un vrai compte de connexion
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          accounts: [{
-            first_name: accountData.firstName,
-            last_name: accountData.lastName,
-            email: accountData.email,
-            phone: accountData.phone,
-            birth_date: accountData.birthDate,
-            category: accountData.category || 'loisirs',
-            membership_fee: accountData.membershipFee || 200,
-            temporary_password: tempPassword,
-            role: accountData.role
-          }]
-        })
-      });
-      
-      console.log('📡 [AccountCreator] Réponse Edge Function status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ [AccountCreator] Erreur Edge Function:', errorText);
-        throw new Error(`Erreur Edge Function (${response.status}): ${errorText}`);
-      }
-      
-      const result = await response.json();
-      console.log('📊 [AccountCreator] Résultat Edge Function:', result);
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Erreur lors de la création du compte');
-      }
-      
-      const accountResult = result.results[0];
-      if (!accountResult.success) {
-        throw new Error(accountResult.error || 'Erreur lors de la création du compte');
-      }
-      
-      return {
-        success: true,
-        user_id: accountResult.user_id,
-        member_id: accountResult.member_id,
-        temporary_password: tempPassword,
-        email: accountData.email,
-        role: accountData.role
-      };
-      
-    } catch (error: any) {
-      console.error('❌ Erreur création compte:', error);
-      throw error;
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const data = await createAccountDirectly(formData);
+      // Récupérer la saison courante
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      if (seasonError || !currentSeason) {
+        throw new Error('Aucune saison courante trouvée');
+      }
+
+      // Créer seulement le profil membre (pas d'entrée dans users)
+      let newMemberId = null;
+      
+      if (formData.role === 'member') {
+        const { data: newMember, error: memberError } = await supabase
+          .from('members')
+          .insert({
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            phone: formData.phone || null,
+            birth_date: formData.birthDate || null,
+            category: formData.category || 'loisirs',
+            membership_fee: formData.membershipFee || 200,
+            status: 'pending',
+            payment_status: 'pending',
+            season_id: currentSeason.id
+          })
+          .select('id')
+          .single();
+        
+        if (memberError) {
+          throw memberError;
+        }
+        
+        newMemberId = newMember.id;
+        
+        // Ajouter la catégorie principale
+        await supabase
+          .from('member_categories')
+          .insert({
+            member_id: newMember.id,
+            category_value: 'loisirs',
+            is_primary: true
+          });
+      }
+
+      const data = { success: true, member_id: newMemberId };
 
       if (data.success) {
-        alert(`Compte de connexion cree avec succes !
+        alert(`✅ Profil créé avec succès !
 
-Nom: ${formData.firstName} ${formData.lastName}
-Email: ${formData.email}
-Role: ${getRoleLabel(formData.role)}
-Mot de passe temporaire: ${data.temporary_password}
-Visible dans: Supabase > Authentication > Users
+👤 ${formData.firstName} ${formData.lastName}
+📧 Email : ${formData.email}
+👨‍💼 Rôle : ${getRoleLabel(formData.role)}
+📍 Visible dans : Supabase → Table Editor → members
 
-IDENTIFIANTS A COMMUNIQUER:
-- Email: ${formData.email}
-- Mot de passe: ${data.temporary_password}
+📋 INSTRUCTIONS POUR LA PERSONNE :
+1. Aller sur : ${window.location.origin}/auth
+2. S'inscrire avec son email : ${formData.email}
+3. Créer son mot de passe
+4. Se connecter normalement
 
-La personne peut maintenant se connecter directement !`);
+🔗 Le profil sera automatiquement lié à son compte !`);
 
         setFormData({
           firstName: '',
@@ -696,7 +652,7 @@ La personne peut maintenant se connecter directement !`);
           membershipFee: 200,
           role: 'member'
         });
-
+        
         onSuccess();
       }
     } catch (err: any) {
