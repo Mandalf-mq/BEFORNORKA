@@ -142,25 +142,45 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         errors.push(`Ligne ${lineNum}: Le nom est obligatoire`);
       }
       if (!row.email?.trim()) {
-        // Utiliser la fonction PostgreSQL qui fonctionne
-        const { data, error } = await supabase.rpc('create_member_profile_only', {
-          p_email: formData.email,
-          p_first_name: formData.firstName,
-          p_last_name: formData.lastName,
-          p_phone: formData.phone || null,
-          p_birth_date: formData.birthDate || null,
-          p_category: formData.category,
-          p_membership_fee: formData.membershipFee
-        });
+        errors.push(`Ligne ${lineNum}: L'email est obligatoire`);
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+        errors.push(`Ligne ${lineNum}: Format d'email invalide`);
+      }
+      if (row.birth_date && !/^\d{4}-\d{2}-\d{2}$/.test(row.birth_date)) {
+        errors.push(`Ligne ${lineNum}: Format de date invalide (YYYY-MM-DD attendu)`);
+      }
+    });
+    
+    return errors;
+  };
 
-        if (error) throw error;
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
 
-        if (!data.success) {
-          throw new Error(data.error || 'Erreur lors de la création');
-        }
-      };
-      reader.readAsText(selectedFile, 'UTF-8');
-    }
+    setFile(selectedFile);
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsedData = parseAccountsCSV(content);
+        
+        setCsvData(parsedData);
+        setPreviewData(parsedData.slice(0, 5));
+        
+        const errors = validateAccountsData(parsedData);
+        setValidationErrors(errors);
+        
+      } catch (error: any) {
+        alert(`Erreur lors de la lecture du fichier: ${error.message}`);
+        setFile(null);
+        setCsvData([]);
+        setPreviewData([]);
+        setValidationErrors([]);
+      }
+    };
+    reader.readAsText(selectedFile, 'UTF-8');
   };
 
   const handleImport = async () => {
