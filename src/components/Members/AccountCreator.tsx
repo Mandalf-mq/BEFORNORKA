@@ -566,27 +566,6 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
       if (error) throw error;
       setCategories(data || []);
     } catch (error) {
-      console.error('Erreur chargement catégories:', error);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
-
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
-      }
-
       // Créer seulement le profil membre (pas d'entrée dans users)
       let newMemberId = null;
       
@@ -609,55 +588,54 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           .single();
         
         if (memberError) {
+      let newMemberId = null;
+      
+      if (accountData.role === 'member') {
+        const { data: newMember, error: memberError } = await supabase
+          .from('members')
+          .insert({
+            first_name: accountData.firstName,
+            last_name: accountData.lastName,
+            email: accountData.email,
+            phone: accountData.phone || null,
+            birth_date: accountData.birthDate || null,
+            category: accountData.category || 'loisirs',
+            membership_fee: accountData.membershipFee || 200,
+            status: 'pending',
+            payment_status: 'pending',
+            season_id: currentSeason.id
+          })
+          .select('id')
+          .single();
+        
+        if (memberError) {
           throw memberError;
         }
         
         newMemberId = newMember.id;
         
         // Ajouter la catégorie principale
-        await supabase
-          .from('member_categories')
-          .insert({
-            member_id: newMember.id,
-            category_value: 'loisirs',
-            is_primary: true
-          });
-      }
-
-      const data = { success: true, member_id: newMemberId };
-
-      if (data.success) {
-        alert(`✅ Profil créé avec succès !
-
-👤 ${formData.firstName} ${formData.lastName}
-📧 Email : ${formData.email}
-👨‍💼 Rôle : ${getRoleLabel(formData.role)}
-📍 Visible dans : Supabase → Table Editor → members
-
-📋 INSTRUCTIONS POUR LA PERSONNE :
-1. Aller sur : ${window.location.origin}/auth
-2. S'inscrire avec son email : ${formData.email}
-3. Créer son mot de passe
-4. Se connecter normalement
-
-🔗 Le profil sera automatiquement lié à son compte !`);
+      const data = await response.json();
+      console.log('📊 [AccountCreator] Résultat Edge Function:', data);
 
         setFormData({
-          firstName: '',
-          lastName: '',
-          email: '',
-          phone: '',
-          birthDate: '',
+        success: data.success,
+        imported_count: data.success_count || 0,
+        error_count: data.error_count || 0,
+        errors: data.results?.filter((r: any) => !r.success).map((r: any) => r.error) || [],
+        accounts_created: data.success_count || 0,
+        message: `Import terminé. ${data.success_count || 0} comptes créés avec Edge Function.`
           category: 'loisirs',
           membershipFee: 200,
           role: 'member'
-        });
+      console.error('❌ [AccountCreator] Erreur générale:', error);
         
         onSuccess();
       }
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de la création du profil');
-    } finally {
+        errors: [error.message || 'Erreur inconnue'],
+        accounts_created: 0,
+        message: `Erreur Edge Function: ${error.message}`
       setLoading(false);
     }
   };
