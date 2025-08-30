@@ -566,41 +566,41 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
       if (error) throw error;
       setCategories(data || []);
     } catch (error) {
+      console.error('Erreur lors du chargement des catégories:', error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Récupérer la saison courante
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      if (seasonError || !currentSeason) {
+        throw new Error('Aucune saison courante trouvée');
+      }
+
       // Créer seulement le profil membre (pas d'entrée dans users)
-      // Créer seulement le profil membre (pas d'entrée dans users)
-      
-      if (accountData.role === 'member') {
-        const { data: newMember, error: memberError } = await supabase
-          .from('members')
-          .insert({
-            first_name: accountData.firstName,
-            last_name: accountData.lastName,
-            email: accountData.email,
-            phone: accountData.phone || null,
-            birth_date: accountData.birthDate || null,
-            category: accountData.category || 'loisirs',
-            membership_fee: accountData.membershipFee || 200,
-            status: 'pending',
-            payment_status: 'pending',
-            season_id: currentSeason.id
-          })
-          .select('id')
-          .single();
-        
-        if (memberError) {
       let newMemberId = null;
       
-      if (accountData.role === 'member') {
+      if (formData.role === 'member') {
         const { data: newMember, error: memberError } = await supabase
           .from('members')
           .insert({
-            first_name: accountData.firstName,
-            last_name: accountData.lastName,
-            email: accountData.email,
-            phone: accountData.phone || null,
-            birth_date: accountData.birthDate || null,
-            category: accountData.category || 'loisirs',
-            membership_fee: accountData.membershipFee || 200,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            phone: formData.phone || null,
+            birth_date: formData.birthDate || null,
+            category: formData.category || 'loisirs',
+            membership_fee: formData.membershipFee || 200,
             status: 'pending',
             payment_status: 'pending',
             season_id: currentSeason.id
@@ -615,27 +615,46 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         newMemberId = newMember.id;
         
         // Ajouter la catégorie principale
-      const data = await response.json();
-      console.log('📊 [AccountCreator] Résultat Edge Function:', data);
-
-        setFormData({
-        success: data.success,
-        imported_count: data.success_count || 0,
-        error_count: data.error_count || 0,
-        errors: data.results?.filter((r: any) => !r.success).map((r: any) => r.error) || [],
-        accounts_created: data.success_count || 0,
-        message: `Import terminé. ${data.success_count || 0} comptes créés avec Edge Function.`
-          category: 'loisirs',
-          membershipFee: 200,
-          role: 'member'
-      console.error('❌ [AccountCreator] Erreur générale:', error);
+        const { error: categoryError } = await supabase
+          .from('member_categories')
+          .insert({
+            member_id: newMemberId,
+            category_value: formData.category,
+            is_primary: true
+          });
         
-        onSuccess();
+        if (categoryError) {
+          console.warn('⚠️ Erreur ajout catégorie:', categoryError);
+        }
       }
+
+      alert(`✅ Profil ${getRoleLabel(formData.role)} créé avec succès !
+
+📋 INSTRUCTIONS POUR LA PERSONNE :
+1. Aller sur : ${window.location.origin}/auth
+2. S'inscrire avec son email : ${formData.email}
+3. Créer son mot de passe
+4. Se connecter normalement
+
+🔗 Le profil sera automatiquement lié !`);
+
+      // Réinitialiser le formulaire
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        birthDate: '',
+        category: 'loisirs',
+        membershipFee: 200,
+        role: 'member'
+      });
+        
+      onSuccess();
     } catch (err: any) {
-        errors: [error.message || 'Erreur inconnue'],
-        accounts_created: 0,
-        message: `Erreur Edge Function: ${error.message}`
+      console.error('❌ [AccountCreator] Erreur générale:', error);
+      setError(err.message || 'Une erreur est survenue');
+    } finally {
       setLoading(false);
     }
   };
