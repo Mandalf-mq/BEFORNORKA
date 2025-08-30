@@ -427,8 +427,8 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
           <div className="flex space-x-3">
             <button
               onClick={onClose}
-                  <span>Créer le profil {getRoleLabel(formData.role)}</span>
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
               Annuler
             </button>
             
@@ -554,6 +554,8 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           email: '',
           phone: '',
           birthDate: '',
+          category: 'loisirs',
+          membershipFee: 200,
           role: 'member'
         });
 
@@ -690,14 +692,13 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
                 onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 required
-            <h4 className="font-semibold text-green-800 mb-2">🎯 Workflow de création de profils</h4>
+              >
                 <option value="member">👤 Membre</option>
-              <p>• <strong>Vous créez le profil</strong> : Avec email et rôle</p>
-              <p>• <strong>Vous communiquez l'email</strong> : À la personne</p>
-              <p>• <strong>Elle va sur /auth</strong> : Clique "Mot de passe oublié"</p>
-              <p>• <strong>Elle entre son email</strong> : Reçoit un lien de création</p>
-              <p>• <strong>Elle crée son mot de passe</strong> : Et se connecte</p>
-              <p>• <strong>Liaison automatique</strong> : Profil lié au compte</p>
+                <option value="entraineur">🏃‍♂️ Entraîneur</option>
+                <option value="tresorerie">💰 Trésorerie</option>
+                <option value="administrateur">👨‍💼 Administrateur</option>
+                <option value="webmaster">💻 Webmaster</option>
+              </select>
             </div>
           </div>
 
@@ -713,7 +714,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                <span>Créer le compte {getRoleLabel(formData.role)}</span>
+                <span>Créer le profil {getRoleLabel(formData.role)}</span>
               </>
             )}
           </button>
