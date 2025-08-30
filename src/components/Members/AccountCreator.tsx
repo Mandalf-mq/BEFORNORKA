@@ -587,20 +587,31 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         throw new Error('Aucune saison courante trouvée');
       }
 
+      const accountData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        birthDate: formData.birthDate,
+        category: formData.category,
+        membershipFee: formData.membershipFee,
+        role: formData.role
+      };
+
       // Créer seulement le profil membre (pas d'entrée dans users)
       let newMemberId = null;
       
-      if (formData.role === 'member') {
+      if (accountData.role === 'member') {
         const { data: newMember, error: memberError } = await supabase
           .from('members')
           .insert({
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email,
-            phone: formData.phone || null,
-            birth_date: formData.birthDate || null,
-            category: formData.category || 'loisirs',
-            membership_fee: formData.membershipFee || 200,
+            first_name: accountData.firstName,
+            last_name: accountData.lastName,
+            email: accountData.email,
+            phone: accountData.phone || null,
+            birth_date: accountData.birthDate || null,
+            category: accountData.category || 'loisirs',
+            membership_fee: accountData.membershipFee || 200,
             status: 'pending',
             payment_status: 'pending',
             season_id: currentSeason.id
@@ -619,7 +630,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           .from('member_categories')
           .insert({
             member_id: newMemberId,
-            category_value: formData.category,
+            category_value: accountData.category || 'loisirs',
             is_primary: true
           });
         
@@ -628,17 +639,16 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         }
       }
 
-      alert(`✅ Profil ${getRoleLabel(formData.role)} créé avec succès !
+      alert(`✅ Profil ${getRoleLabel(accountData.role)} créé avec succès !
 
 📋 INSTRUCTIONS POUR LA PERSONNE :
 1. Aller sur : ${window.location.origin}/auth
-2. S'inscrire avec son email : ${formData.email}
+2. S'inscrire avec son email : ${accountData.email}
 3. Créer son mot de passe
 4. Se connecter normalement
 
 🔗 Le profil sera automatiquement lié !`);
 
-      // Réinitialiser le formulaire
       setFormData({
         firstName: '',
         lastName: '',
