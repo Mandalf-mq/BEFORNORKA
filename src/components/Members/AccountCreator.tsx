@@ -527,8 +527,6 @@ ${formData.role === 'member' ? `🏷️ Catégorie : ${formData.category}\n💰 
           email: '',
           phone: '',
           birthDate: '',
-          category: 'loisirs',
-          membershipFee: 200,
           role: 'member'
         });
 
@@ -676,38 +674,6 @@ ${formData.role === 'member' ? `🏷️ Catégorie : ${formData.category}\n💰 
           </div>
 
           {/* Informations spécifiques aux membres */}
-          {formData.role === 'member' && (
-            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
-              <h4 className="font-semibold text-blue-800 mb-3">🏐 Informations membre</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    {categories.map(category => (
-                      <option key={category.id} value={category.value}>
-                        {category.label} ({category.membership_fee}€)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cotisation (€)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formData.membershipFee}
-                    onChange={(e) => setFormData(prev => ({ ...prev, membershipFee: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
 
           <button
             type="submit"

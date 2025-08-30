@@ -125,15 +125,6 @@ serve(async (req) => {
         // 3. Si c'est un membre, créer aussi le profil membre
         let newMemberId = null
         if (role === 'member') {
-          // Récupérer la catégorie pour le tarif
-          const { data: categoryData } = await supabaseAdmin
-            .from('categories')
-            .select('membership_fee')
-            .eq('value', category || 'loisirs')
-            .single()
-
-          const finalFee = membership_fee || categoryData?.membership_fee || 200
-
           // Créer le profil membre
           const { data: newMember, error: memberError } = await supabaseAdmin
             .from('members')
@@ -143,8 +134,8 @@ serve(async (req) => {
               email,
               phone: phone || null,
               birth_date: birth_date || null,
-              category: category || 'loisirs',
-              membership_fee: finalFee,
+              category: 'loisirs', // Catégorie par défaut
+              membership_fee: 200, // Tarif par défaut
               status: 'pending',
               payment_status: 'pending',
               season_id: currentSeason?.id
@@ -162,7 +153,7 @@ serve(async (req) => {
               .from('member_categories')
               .insert({
                 member_id: newMember.id,
-                category_value: category || 'loisirs',
+                category_value: 'loisirs',
                 is_primary: true
               })
           }
