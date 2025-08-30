@@ -86,28 +86,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             const { data: newMember, error: memberError } = await supabase
               .from('members')
               .insert({
-                first_name: account.first_name,
-                last_name: account.last_name,
-                email: account.email,
-                phone: account.phone || null,
-                birth_date: account.birth_date || null,
-                category: 'loisirs',
-                membership_fee: 200,
-                status: 'pending',
-                payment_status: 'pending',
-                season_id: currentSeason.id
-              })
-              .select('id')
-              .single();
-            
-            if (memberError) {
-              errors.push(`${account.email}: ${memberError.message}`);
-              error_count++;
-              continue;
-            }
-            
-      let newMemberId = null;
-      
+      // Créer seulement le profil membre (pas d'entrée dans users)
       // Créer un profil membre SEULEMENT si le rôle est "member"
       if (accountData.role === 'member') {
         const { data: newMember, error: memberError } = await supabase
