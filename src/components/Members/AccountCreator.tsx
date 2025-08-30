@@ -90,10 +90,11 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               .single();
             
             if (memberError) {
-              errors.push(`${account.email}: ${memberError.message}`);
-              error_count++;
-              continue;
+              console.error('❌ [AccountCreator] Erreur création membre:', memberError);
+              throw new Error(`Erreur création membre: ${memberError.message}`);
             }
+            
+            console.log('✅ [AccountCreator] Membre créé:', newMember.id);
             
             // Ajouter la catégorie principale
             const { error: categoryError } = await supabase
@@ -111,6 +112,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             imported_count++;
           }
         } catch (error: any) {
+          console.error('❌ [AccountCreator] Erreur traitement compte:', error);
           errors.push(`${account.email}: ${error.message}`);
           error_count++;
         }
@@ -294,47 +296,29 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     setLoading(true);
     
     try {
-      // Utiliser l'Edge Function pour créer de vrais comptes
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          accounts: csvData.map(account => ({
-            first_name: account.first_name,
-            last_name: account.last_name,
-            email: account.email,
-            phone: account.phone,
-            birth_date: account.birth_date,
-            role: account.role || 'member',
-            temporary_password: 'temp' + Math.random().toString(36).substr(2, 8)
-          }))
-        })
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur Edge Function: ${errorText}`);
-      }
-      
-      const data = await response.json();
+      // Utiliser l'import direct qui fonctionne
+      const data = await createAccountsWithEdgeFunction(csvData);
 
       setImportResult(data);
 
       if (data.success) {
-        alert(`✅ Import de comptes réussi !
+        alert(`✅ Import de profils réussi !
 
 📊 Résultats :
-• ${data.success_count} comptes de connexion créés
+• ${data.imported_count} profils membres créés
 • ${data.error_count} erreurs
-📍 Visible dans : Supabase → Authentication → Users
 
-📋 COMPTES CRÉÉS AVEC MOTS DE PASSE :
-${data.results?.filter(r => r.success).map(r => `• ${r.email} : ${r.temporary_password}`).join('\n') || ''}
+📋 INSTRUCTIONS POUR CHAQUE PERSONNE :
+1. Aller sur : ${window.location.origin}/auth
+2. Cliquer "Mot de passe oublié"
+3. Entrer son email (celui du CSV)
+4. Suivre le lien reçu par email
+5. Créer son mot de passe personnel
+6. Se connecter normalement
 
-💡 Communiquez ces identifiants aux personnes concernées !`);
+🔗 Le profil sera automatiquement lié !
+
+💡 Communiquez ces instructions avec les emails !`);
 
         onSuccess();
       } else {
@@ -597,96 +581,69 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     }
   };
 
-  const createAccountDirectly = async (accountData: any) => {
-    try {
-      console.log('🚀 [AccountCreator] Création directe du profil pour:', accountData.email);
-      
-      // Générer un mot de passe temporaire
-      const tempPassword = 'temp' + Math.random().toString(36).substr(2, 8);
-      
-      // Utiliser l'Edge Function pour créer un vrai compte de connexion
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          accounts: [{
-            first_name: accountData.firstName,
-            last_name: accountData.lastName,
-            email: accountData.email,
-            phone: accountData.phone,
-            birth_date: accountData.birthDate,
-            category: accountData.category || 'loisirs',
-            membership_fee: accountData.membershipFee || 200,
-            temporary_password: tempPassword,
-            role: accountData.role
-          }]
-        })
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur Edge Function: ${errorText}`);
-      }
-      
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Erreur lors de la création du compte');
-      }
-      
-      const accountResult = result.results[0];
-      if (!accountResult.success) {
-        throw new Error(accountResult.error || 'Erreur lors de la création du compte');
-      }
-      
-      return {
-        success: true,
-        user_id: accountResult.user_id,
-        member_id: accountResult.member_id,
-        temporary_password: tempPassword,
-        email: accountData.email,
-        role: accountData.role
-      };
-    } catch (error: any) {
-      console.error('❌ [AccountCreator] Erreur création directe:', error);
-      throw new Error(`Erreur création: ${error.message}`);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const data = await createAccountDirectly({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
-        birthDate: formData.birthDate,
-        category: formData.category,
-        membershipFee: formData.membershipFee,
-        role: formData.role
-      });
+      // Récupérer la saison courante
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+      
+      if (seasonError || !currentSeason) {
+        throw new Error('Aucune saison courante trouvée');
+      }
 
-      if (data.success) {
-        alert(`✅ Compte de connexion créé avec succès !
+      // Créer seulement le profil membre (pas d'entrée dans users)
+      let newMemberId = null;
+      if (formData.role === 'member') {
+        const { data: newMember, error: memberError } = await supabase
+          .from('members')
+          .insert({
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            phone: formData.phone || null,
+            birth_date: formData.birthDate || null,
+            category: 'loisirs',
+            membership_fee: 200,
+            status: 'pending',
+            payment_status: 'pending',
+            season_id: currentSeason.id
+          })
+          .select('id')
+          .single();
+        
+        if (memberError) throw memberError;
+        newMemberId = newMember.id;
+        
+        // Ajouter la catégorie principale
+        await supabase
+          .from('member_categories')
+          .insert({
+            member_id: newMember.id,
+            category_value: 'loisirs',
+            is_primary: true
+          });
+      }
 
+        alert(`✅ Profil créé avec succès !
 👤 ${formData.firstName} ${formData.lastName}
 📧 Email : ${formData.email}
 👨‍💼 Rôle : ${getRoleLabel(formData.role)}
-🔑 Mot de passe temporaire : ${data.temporary_password}
-📍 Visible dans : Supabase → Table Editor → members
 
-📋 IDENTIFIANTS À COMMUNIQUER :
-• Email : ${formData.email}
-• Mot de passe : ${data.temporary_password}
+📋 INSTRUCTIONS POUR LA PERSONNE :
+1. Aller sur : ${window.location.origin}/auth
+2. Cliquer "Mot de passe oublié"
+3. Entrer son email : ${formData.email}
+4. Suivre le lien reçu par email pour créer son mot de passe
+5. Se connecter avec son email et nouveau mot de passe
 
-🔗 La personne peut maintenant se connecter directement !`);
+🔗 Le profil sera automatiquement lié à son compte !`);
 
         setFormData({
           firstName: '',
@@ -700,7 +657,6 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         });
 
         onSuccess();
-      }
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la création du profil');
     } finally {
