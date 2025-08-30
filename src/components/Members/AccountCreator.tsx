@@ -36,108 +36,17 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     try {
       console.log('🚀 [AccountCreator] Import direct avec', accountsData.length, 'comptes');
       
-      let imported_count = 0;
-      let error_count = 0;
-      const errors: string[] = [];
-      
-      // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
-      
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
-      }
-      
-      // Traiter chaque compte individuellement
-      for (let i = 0; i < accountsData.length; i++) {
-        const account = accountsData[i];
-        
-        try {
-          // Créer SEULEMENT un profil membre (pas d'entrée dans users)
-          if (account.role === 'member' || !account.role) {
-            // Vérifier si le membre existe déjà
-            const { data: existingMember } = await supabase
-              .from('members')
-              .select('id')
-              .eq('email', account.email)
-              .single();
-            
-            if (existingMember) {
-              errors.push(`${account.email}: Profil membre déjà existant`);
-              error_count++;
-              continue;
-            }
-            
-            // Créer le profil membre
-            const { data: newMember, error: memberError } = await supabase
-              .from('members')
-              .insert({
-                first_name: account.first_name,
-                last_name: account.last_name,
-                email: account.email,
-                phone: account.phone || null,
-                birth_date: account.birth_date || null,
-                category: 'loisirs',
-                membership_fee: 200,
-                status: 'pending',
-                payment_status: 'pending',
-                season_id: currentSeason.id
-              })
-              .select('id')
-              .single();
-            
-            if (memberError) {
-              console.error('❌ Erreur création membre:', memberError);
-              errors.push(`${account.email}: ${memberError.message}`);
-              error_count++;
-              continue;
-            }
-            
-            // Ajouter la catégorie principale
-            const { error: categoryError } = await supabase
-              .from('member_categories')
-              .insert({
-                member_id: newMember.id,
-                category_value: 'loisirs',
-                is_primary: true
-              });
-            
-            if (categoryError) {
-              console.warn('⚠️ Erreur ajout catégorie:', categoryError);
-            }
-            
-            imported_count++;
-            console.log(`✅ Profil membre créé: ${account.first_name} ${account.last_name}`);
-          }
-        } catch (error: any) {
-          console.error('❌ Erreur traitement compte:', error);
-          errors.push(`${account.email}: ${error.message}`);
-          error_count++;
-        }
-      }
-      
-      return {
-        success: imported_count > 0,
-        imported_count,
-        error_count,
-        errors,
-        message: `Import terminé: ${imported_count} créés, ${error_count} erreurs`
-      };
-      
       // Utiliser la fonction PostgreSQL pour l'import
       const { data, error } = await supabase.rpc('import_csv_members_simple', {
         p_csv_data: accountsData
       });
 
       if (error) {
-        console.error('❌ [AccountCreator] Erreur RPC:', error);
+        console.error('❌ Erreur RPC import:', error);
         throw error;
       }
 
-      console.log('✅ [AccountCreator] Résultat RPC:', data);
+      console.log('✅ [AccountCreator] Résultat import:', data);
       return data;
       
     } catch (error: any) {
