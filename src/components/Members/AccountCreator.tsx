@@ -143,11 +143,6 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
       }
       if (!row.email?.trim()) {
         errors.push(`Ligne ${lineNum}: L'email est obligatoire`);
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
-        errors.push(`Ligne ${lineNum}: Format d'email invalide`);
-      }
-      if (row.birth_date && !/^\d{4}-\d{2}-\d{2}$/.test(row.birth_date)) {
-        errors.push(`Ligne ${lineNum}: Format de date invalide (YYYY-MM-DD attendu)`);
       }
     });
     
@@ -173,7 +168,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         setValidationErrors(errors);
         
       } catch (error: any) {
-        alert(`❌ Erreur : ${error.message}`);
+        alert(`Erreur lors de la lecture du fichier: ${error.message}`);
         setFile(null);
         setCsvData([]);
         setPreviewData([]);
