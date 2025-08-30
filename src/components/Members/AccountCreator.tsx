@@ -36,100 +36,46 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     try {
       console.log('🚀 [AccountCreator] Import direct avec', accountsData.length, 'comptes');
       
-      let imported_count = 0;
-      let error_count = 0;
-      const errors: string[] = [];
-      
-      // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
-      
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
+      // Préparer les données pour l'Edge Function
+      const accountsWithPasswords = accountsData.map(account => ({
+        ...account,
+        temporary_password: 'temp' + Math.random().toString(36).substr(2, 8),
+        role: account.role || 'member'
+      }));
+
+      console.log('🔗 [AccountCreator] Appel Edge Function avec', accountsWithPasswords.length, 'comptes');
+
+      // Appeler l'Edge Function
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          accounts: accountsWithPasswords
+        })
+      });
+
+      console.log('📡 [AccountCreator] Réponse Edge Function status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [AccountCreator] Erreur Edge Function:', errorText);
+        throw new Error(`Edge Function error (${response.status}): ${errorText}`);
       }
-      
-      // Traiter chaque compte individuellement
-      for (let i = 0; i < accountsData.length; i++) {
-        const account = accountsData[i];
-        
-        try {
-          // Créer SEULEMENT un profil membre (pas d'entrée dans users)
-          if (account.role === 'member' || !account.role) {
-            // Vérifier si le membre existe déjà
-            const { data: existingMember } = await supabase
-              .from('members')
-              .select('id')
-              .eq('email', account.email)
-              .single();
-            
-            if (existingMember) {
-              errors.push(`${account.email}: Profil membre déjà existant`);
-              error_count++;
-              continue;
-            }
-            
-            // Créer le profil membre
-            const { data: newMember, error: memberError } = await supabase
-              .from('members')
-              .insert({
-                first_name: account.first_name,
-                last_name: account.last_name,
-                email: account.email,
-                phone: account.phone || null,
-                birth_date: account.birth_date || null,
-                category: 'loisirs',
-                membership_fee: 200,
-                status: 'pending',
-                payment_status: 'pending',
-                season_id: currentSeason.id
-              })
-              .select('id')
-              .single();
-            
-            if (memberError) {
-              console.error('❌ Erreur création membre:', memberError);
-              errors.push(`${account.email}: ${memberError.message}`);
-              error_count++;
-              continue;
-            }
-            
-            // Ajouter la catégorie principale
-            const { error: categoryError } = await supabase
-              .from('member_categories')
-              .insert({
-                member_id: newMember.id,
-                category_value: 'loisirs',
-                is_primary: true
-              });
-            
-            if (categoryError) {
-              console.warn('⚠️ Erreur ajout catégorie:', categoryError);
-            }
-            
-            imported_count++;
-            console.log(`✅ Profil membre créé: ${account.first_name} ${account.last_name}`);
-          } else {
-            // Pour les rôles administratifs, juste compter comme "créé" (pas de table dédiée)
-            imported_count++;
-            console.log(`✅ Profil ${account.role} noté: ${account.first_name} ${account.last_name}`);
-          }
-          
-        } catch (accountError: any) {
-          console.error('❌ Erreur compte individuel:', accountError);
-          errors.push(`${account.email}: ${accountError.message}`);
-          error_count++;
-        }
-      }
-      
+
+      const result = await response.json();
+      console.log('✅ [AccountCreator] Résultat Edge Function:', result);
+
       return {
-        success: true,
-        imported_count,
-        error_count,
-        errors,
-        message: `Import terminé. ${imported_count} profils créés.`
+        success: result.success,
+        imported_count: result.success_count || 0,
+        error_count: result.error_count || 0,
+        errors: result.results?.filter((r: any) => !r.success).map((r: any) => `${r.email}: ${r.error}`) || [],
+        accounts_created: result.success_count || 0,
+        credentials: result.results?.filter((r: any) => r.success) || [],
+        message: `Import terminé via Edge Function. ${result.success_count || 0} comptes créés.`
       };
       
     } catch (error: any) {
@@ -139,6 +85,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         imported_count: 0,
         error_count: 1,
         errors: [error.message],
+        accounts_created: 0,
         message: `Erreur d'import: ${error.message}`
       };
     }
@@ -310,20 +257,27 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
       setImportResult(data);
 
       if (data.success) {
-        alert(`✅ Import de profils réussi !
+        // Préparer la liste des identifiants créés
+        const credentialsList = data.credentials?.map((cred: any) => 
+          `• ${cred.email} → ${cred.temporary_password}`
+        ).join('\n') || '';
+
+        alert(`✅ Import réussi avec Edge Function !
 
 📊 Résultats :
-• ${data.imported_count} profils créés
+• ${data.accounts_created} comptes de connexion créés
+• ${data.imported_count} profils membres créés  
 • ${data.error_count} erreurs
-📍 Visible dans : Supabase → Table Editor → members
 
-📋 INSTRUCTIONS POUR CHAQUE PERSONNE :
+🔑 IDENTIFIANTS CRÉÉS :
+${credentialsList}
+
+📋 INSTRUCTIONS À COMMUNIQUER :
 1. Aller sur : ${window.location.origin}/auth
-2. S'inscrire avec son email (celui du CSV)
-3. Créer son mot de passe
-4. Se connecter normalement
+2. Se connecter avec : Email + Mot de passe temporaire
+3. Accès immédiat à l'espace membre !
 
-🔗 Le profil sera automatiquement lié !`);
+✅ Vérifiez dans Supabase → Authentication → Users`);
 
         onSuccess();
       } else {
@@ -576,71 +530,63 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     setError(null);
 
     try {
-      // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
+      // Générer un mot de passe temporaire
+      const temporaryPassword = 'temp' + Math.random().toString(36).substr(2, 8);
 
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
+      // Préparer les données pour l'Edge Function
+      const accountData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone || null,
+        birth_date: formData.birthDate || null,
+        category: formData.category || 'loisirs',
+        membership_fee: formData.membershipFee || 200,
+        temporary_password: temporaryPassword,
+        role: formData.role
+      };
+
+      console.log('🔗 [AccountCreator] Appel Edge Function pour compte individuel');
+
+      // Appeler l'Edge Function
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          accounts: [accountData]
+        })
+      });
+
+      console.log('📡 [AccountCreator] Réponse Edge Function status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [AccountCreator] Erreur Edge Function:', errorText);
+        throw new Error(`Edge Function error (${response.status}): ${errorText}`);
       }
 
-      // Créer seulement le profil membre (pas d'entrée dans users)
-      let newMemberId = null;
-      
-      if (formData.role === 'member') {
-        const { data: newMember, error: memberError } = await supabase
-          .from('members')
-          .insert({
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email,
-            phone: formData.phone || null,
-            birth_date: formData.birthDate || null,
-            category: formData.category || 'loisirs',
-            membership_fee: formData.membershipFee || 200,
-            status: 'pending',
-            payment_status: 'pending',
-            season_id: currentSeason.id
-          })
-          .select('id')
-          .single();
-        
-        if (memberError) {
-          throw memberError;
-        }
-        
-        newMemberId = newMember.id;
-        
-        // Ajouter la catégorie principale
-        await supabase
-          .from('member_categories')
-          .insert({
-            member_id: newMember.id,
-            category_value: 'loisirs',
-            is_primary: true
-          });
-      }
-
-      const data = { success: true, member_id: newMemberId };
+      const data = await response.json();
+      console.log('✅ [AccountCreator] Résultat Edge Function:', data);
 
       if (data.success) {
-        alert(`✅ Profil créé avec succès !
+        const createdAccount = data.results?.[0];
+        
+        alert(`✅ Compte créé avec succès via Edge Function !
 
 👤 ${formData.firstName} ${formData.lastName}
 📧 Email : ${formData.email}
+🔑 Mot de passe temporaire : ${createdAccount?.temporary_password}
 👨‍💼 Rôle : ${getRoleLabel(formData.role)}
-📍 Visible dans : Supabase → Table Editor → members
 
-📋 INSTRUCTIONS POUR LA PERSONNE :
+📋 INSTRUCTIONS À COMMUNIQUER :
 1. Aller sur : ${window.location.origin}/auth
-2. S'inscrire avec son email : ${formData.email}
-3. Créer son mot de passe
-4. Se connecter normalement
+2. Se connecter avec : ${formData.email} + ${createdAccount?.temporary_password}
+3. Accès immédiat à l'espace membre !
 
-🔗 Le profil sera automatiquement lié à son compte !`);
+✅ Vérifiez dans Supabase → Authentication → Users`);
 
         setFormData({
           firstName: '',
@@ -654,9 +600,12 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         });
         
         onSuccess();
+      } else {
+        throw new Error(data.error || 'Erreur lors de la création du compte');
       }
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de la création du profil');
+      console.error('❌ [AccountCreator] Erreur création compte:', err);
+      setError(err.message || 'Erreur lors de la création du compte');
     } finally {
       setLoading(false);
     }
