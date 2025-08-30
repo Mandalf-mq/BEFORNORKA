@@ -35,24 +35,26 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     try {
       console.log('🚀 [AccountCreator] Appel Edge Function avec', accountsData.length, 'comptes');
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ accounts: accountsData })
+      // Utiliser la fonction PostgreSQL existante pour créer les profils
+      const { data, error } = await supabase.rpc('import_members_profiles_only', {
+        p_csv_data: accountsData
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
-      }
+      if (error) throw error;
 
-      const result = await response.json();
-      console.log('✅ [AccountCreator] Résultat Edge Function:', result);
-      
-      return result;
+      // Adapter le résultat au format attendu
+      return {
+        success: data.success,
+        total_processed: accountsData.length,
+        success_count: data.imported_count,
+        error_count: data.error_count,
+        results: accountsData.map((account, index) => ({
+          email: account.email,
+          success: index < data.imported_count,
+          error: index >= data.imported_count ? 'Erreur lors de la création' : null,
+          role: account.role || 'member'
+        }))
+      };
     } catch (error: any) {
       console.error('❌ [AccountCreator] Erreur Edge Function:', error);
       throw new Error(`Erreur Edge Function: ${error.message}`);
@@ -228,19 +230,23 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
       setImportResult(data);
 
       if (data.success) {
-        alert(`✅ Import réussi !
+        alert(`✅ Import de profils réussi !
 
 📊 Résultats :
 • ${data.imported_count} profils membres créés
 • ${data.error_count} erreurs
 
-👤 Prochaines étapes :
-• Communiquez les emails aux personnes
-• Elles s'inscrivent sur le site avec leur email
-• Le système lie automatiquement leur compte au profil
-• Elles accèdent à leurs données personnelles !
+📋 INSTRUCTIONS POUR CHAQUE PERSONNE :
+1. Aller sur : ${window.location.origin}/auth
+2. Cliquer "Mot de passe oublié"
+3. Entrer son email (celui du CSV)
+4. Suivre le lien reçu par email
+5. Créer son mot de passe personnel
+6. Se connecter normalement
 
-🔗 URL d'inscription : ${window.location.origin}/auth`);
+🔗 Le profil sera automatiquement lié !
+
+💡 Communiquez ces instructions avec les emails !`);
 
         onSuccess();
       } else {
@@ -421,8 +427,8 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
           <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
+                  <span>Créer le profil {getRoleLabel(formData.role)}</span>
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
               Annuler
             </button>
             
@@ -494,43 +500,53 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     setError(null);
 
     try {
-      // Générer un mot de passe temporaire
-      const tempPassword = 'temp' + Math.random().toString(36).substr(2, 8);
-      
-      // Utiliser l'Edge Function pour créer un vrai compte
-      const result = await createAccountsWithEdgeFunction([{
+      // Créer le profil avec la fonction PostgreSQL
+      const { data, error } = await supabase.rpc('create_member_profile_only', {
+        p_email: formData.email,
         first_name: formData.firstName,
         last_name: formData.lastName,
         email: formData.email,
         phone: formData.phone || null,
-        birth_date: formData.birthDate || null,
-        category: formData.category,
-        membership_fee: formData.membershipFee,
-        temporary_password: tempPassword,
-        role: formData.role // 👈 NOUVEAU : Inclure le rôle
-      }]);
+        p_phone: formData.phone || null,
+        p_birth_date: formData.birthDate || null
+      });
 
-      if (!result.success) {
-        throw new Error(result.error || 'Erreur lors de la création');
-      }
+      if (error) throw error;
 
-      const accountResult = result.results[0];
-      if (accountResult.success) {
-        alert(`✅ Compte créé avec succès !
+      if (data.success) {
+        // Créer aussi l'entrée dans users si c'est un rôle administratif
+        if (formData.role !== 'member') {
+          const { error: userError } = await supabase
+            .from('users')
+            .insert({
+              email: formData.email,
+              first_name: formData.firstName,
+              last_name: formData.lastName,
+              phone: formData.phone || null,
+              role: formData.role,
+              is_active: true
+            });
+          
+          if (userError) {
+            console.warn('Erreur création profil utilisateur:', userError);
+          }
+        }
 
+        alert(`✅ Profil créé avec succès !
 👤 ${formData.firstName} ${formData.lastName}
 📧 Email : ${formData.email}
-🔑 Mot de passe temporaire : ${tempPassword}
 👨‍💼 Rôle : ${getRoleLabel(formData.role)}
-${formData.role === 'member' ? `🏷️ Catégorie : ${formData.category}\n💰 Cotisation : ${formData.membershipFee}€` : ''}
+
+
 
 📋 INSTRUCTIONS POUR LA PERSONNE :
-1. Se connecter sur : ${window.location.origin}/auth
-2. Utiliser ces identifiants temporaires
-3. Cliquer "Mot de passe oublié" pour choisir son propre mot de passe
-4. Se reconnecter avec son nouveau mot de passe
+1. Aller sur : ${window.location.origin}/auth
+2. Cliquer "Mot de passe oublié"
+3. Entrer son email : ${formData.email}
+4. Suivre le lien reçu par email pour créer son mot de passe
+5. Se connecter avec son email et nouveau mot de passe
 
-🔐 Compte d'authentification créé avec succès !`);
+🔗 Le profil sera automatiquement lié à son compte !`);
 
         setFormData({
           firstName: '',
@@ -543,10 +559,10 @@ ${formData.role === 'member' ? `🏷️ Catégorie : ${formData.category}\n💰 
 
         onSuccess();
       } else {
-        setError(accountResult.error || 'Erreur lors de la création');
+        setError(data.error || 'Erreur lors de la création');
       }
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de la création du compte');
+      setError(err.message || 'Erreur lors de la création du profil');
     } finally {
       setLoading(false);
     }
@@ -674,13 +690,14 @@ ${formData.role === 'member' ? `🏷️ Catégorie : ${formData.category}\n💰 
                 onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 required
-              >
+            <h4 className="font-semibold text-green-800 mb-2">🎯 Workflow de création de profils</h4>
                 <option value="member">👤 Membre</option>
-                <option value="entraineur">🏐 Entraîneur</option>
-                <option value="tresorerie">💰 Trésorerie</option>
-                <option value="administrateur">👨‍💼 Administrateur</option>
-                <option value="webmaster">👑 Webmaster</option>
-              </select>
+              <p>• <strong>Vous créez le profil</strong> : Avec email et rôle</p>
+              <p>• <strong>Vous communiquez l'email</strong> : À la personne</p>
+              <p>• <strong>Elle va sur /auth</strong> : Clique "Mot de passe oublié"</p>
+              <p>• <strong>Elle entre son email</strong> : Reçoit un lien de création</p>
+              <p>• <strong>Elle crée son mot de passe</strong> : Et se connecte</p>
+              <p>• <strong>Liaison automatique</strong> : Profil lié au compte</p>
             </div>
           </div>
 
