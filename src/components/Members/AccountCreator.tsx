@@ -45,7 +45,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         .from('seasons')
         .select('id')
         .eq('is_current', true)
-        .maybeSingle();
+        .single();
       
       if (seasonError || !currentSeason) {
         throw new Error('Aucune saison courante trouvée');
@@ -56,28 +56,21 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         const account = accountsData[i];
         
         try {
-          // Vérifier si le membre existe déjà (utiliser maybeSingle pour éviter l'erreur 406)
-          const { data: existingMember, error: checkError } = await supabase
-            .from('members')
-            .select('id')
-            .eq('email', account.email)
-            .maybeSingle();
-          
-          if (checkError) {
-            console.error('❌ Erreur vérification membre:', checkError);
-            errors.push(`${account.email}: Erreur vérification - ${checkError.message}`);
-            error_count++;
-            continue;
-          }
-          
-          if (existingMember) {
-            errors.push(`${account.email}: Profil membre déjà existant`);
-            error_count++;
-            continue;
-          }
-
-          // Créer SEULEMENT un profil membre (pas de compte auth)
+          // Créer SEULEMENT un profil membre (pas d'entrée dans users)
           if (account.role === 'member' || !account.role) {
+            // Vérifier si le membre existe déjà
+            const { data: existingMember } = await supabase
+              .from('members')
+              .select('id')
+              .eq('email', account.email)
+              .single();
+            
+            if (existingMember) {
+              errors.push(`${account.email}: Profil membre déjà existant`);
+              error_count++;
+              continue;
+            }
+            
             // Créer le profil membre
             const { data: newMember, error: memberError } = await supabase
               .from('members')
@@ -94,17 +87,11 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                 season_id: currentSeason.id
               })
               .select('id')
-              .maybeSingle();
+              .single();
             
             if (memberError) {
               console.error('❌ Erreur création membre:', memberError);
               errors.push(`${account.email}: ${memberError.message}`);
-              error_count++;
-              continue;
-            }
-            
-            if (!newMember) {
-              errors.push(`${account.email}: Aucun membre créé (raison inconnue)`);
               error_count++;
               continue;
             }
@@ -142,7 +129,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         imported_count,
         error_count,
         errors,
-        message: `Import terminé. ${imported_count} profils créés (sans comptes de connexion).`
+        message: `Import terminé. ${imported_count} profils créés.`
       };
       
     } catch (error: any) {
@@ -600,54 +587,65 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         throw new Error('Aucune saison courante trouvée');
       }
 
+      const accountData = formData;
+
       // Créer seulement le profil membre (pas d'entrée dans users)
-      if (formData.role === 'member') {
+      let newMemberId = null;
+      
+      if (accountData.role === 'member') {
         const { data: newMember, error: memberError } = await supabase
           .from('members')
           .insert({
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email,
-            phone: formData.phone || null,
-            birth_date: formData.birthDate || null,
-            category: formData.category || 'loisirs',
-            membership_fee: formData.membershipFee || 200,
+            first_name: accountData.firstName,
+            last_name: accountData.lastName,
+            email: accountData.email,
+            phone: accountData.phone || null,
+            birth_date: accountData.birthDate || null,
+            category: accountData.category || 'loisirs',
+            membership_fee: accountData.membershipFee || 200,
             status: 'pending',
             payment_status: 'pending',
             season_id: currentSeason.id
           })
           .select('id')
           .single();
-
+        
         if (memberError) {
           throw memberError;
         }
-
+        
+        newMemberId = newMember.id;
+        
         // Ajouter la catégorie principale
         const { error: categoryError } = await supabase
           .from('member_categories')
           .insert({
-            member_id: newMember.id,
-            category_value: formData.category,
+            member_id: newMemberId,
+            category_value: accountData.category || 'loisirs',
             is_primary: true
           });
-
+        
         if (categoryError) {
           console.warn('⚠️ Erreur ajout catégorie:', categoryError);
         }
       }
 
-      alert(`✅ Profil ${getRoleLabel(formData.role)} créé avec succès !
+      alert(`✅ Profil ${getRoleLabel(accountData.role)} créé avec succès !
+
+📊 Informations :
+• Nom : ${accountData.firstName} ${accountData.lastName}
+• Email : ${accountData.email}
+• Rôle : ${getRoleLabel(accountData.role)}
+${newMemberId ? `• ID Membre : ${newMemberId}` : ''}
 
 📋 INSTRUCTIONS POUR LA PERSONNE :
 1. Aller sur : ${window.location.origin}/auth
-2. S'inscrire avec son email : ${formData.email}
+2. S'inscrire avec son email : ${accountData.email}
 3. Créer son mot de passe
 4. Se connecter normalement
 
 🔗 Le profil sera automatiquement lié !`);
 
-      // Réinitialiser le formulaire
       setFormData({
         firstName: '',
         lastName: '',
@@ -661,7 +659,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         
       onSuccess();
     } catch (err: any) {
-      console.error('❌ [AccountCreator] Erreur générale:', err);
+      console.error('❌ [AccountCreator] Erreur générale:', error);
       setError(err.message || 'Une erreur est survenue');
     } finally {
       setLoading(false);
