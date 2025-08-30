@@ -39,12 +39,22 @@ serve(async (req) => {
     const { data: currentSeason } = await supabaseAdmin
       .from('seasons')
       .select('id')
-      .single()
       .eq('is_current', true)
+      .single()
 
     for (const account of accounts) {
       try {
-        const { first_name, last_name, email, phone, birth_date, category, membership_fee, temporary_password } = account
+        const { 
+          first_name, 
+          last_name, 
+          email, 
+          phone, 
+          birth_date, 
+          category, 
+          membership_fee, 
+          temporary_password,
+          role = 'member' // 👈 NOUVEAU : Support des rôles
+        } = account
 
         // Validation des données
         if (!first_name || !last_name || !email || !temporary_password) {
@@ -52,6 +62,18 @@ serve(async (req) => {
             email,
             success: false,
             error: 'Champs obligatoires manquants'
+          })
+          errorCount++
+          continue
+        }
+
+        // Validation du rôle
+        const validRoles = ['member', 'entraineur', 'tresorerie', 'administrateur', 'webmaster']
+        if (!validRoles.includes(role)) {
+          results.push({
+            email,
+            success: false,
+            error: `Rôle invalide: ${role}. Rôles autorisés: ${validRoles.join(', ')}`
           })
           errorCount++
           continue
@@ -65,7 +87,8 @@ serve(async (req) => {
           user_metadata: {
             first_name,
             last_name,
-            role: 'member'
+            role,
+            phone: phone || null
           }
         })
 
@@ -88,8 +111,10 @@ serve(async (req) => {
             first_name,
             last_name,
             phone: phone || null,
-            role: 'member',
-            is_active: true
+            role: role,
+            is_active: true,
+            temp_password: temporary_password,
+            must_change_password: true
           })
 
         if (userError) {
@@ -97,53 +122,59 @@ serve(async (req) => {
           // Ne pas bloquer pour cette erreur
         }
 
-        // 3. Récupérer la catégorie pour le tarif
-        const { data: categoryData } = await supabaseAdmin
-          .from('categories')
-          .select('membership_fee')
-          .eq('value', category || 'loisirs')
-          .single()
+        // 3. Si c'est un membre, créer aussi le profil membre
+        let newMemberId = null
+        if (role === 'member') {
+          // Récupérer la catégorie pour le tarif
+          const { data: categoryData } = await supabaseAdmin
+            .from('categories')
+            .select('membership_fee')
+            .eq('value', category || 'loisirs')
+            .single()
 
-        const finalFee = membership_fee || categoryData?.membership_fee || 200
+          const finalFee = membership_fee || categoryData?.membership_fee || 200
 
-        // 4. Créer le profil membre
-        const { data: newMember, error: memberError } = await supabaseAdmin
-          .from('members')
-          .insert({
-            first_name,
-            last_name,
-            email,
-            phone: phone || null,
-            birth_date: birth_date || null,
-            category: category || 'loisirs',
-            membership_fee: finalFee,
-            status: 'pending',
-            payment_status: 'pending',
-            season_id: currentSeason?.id
-          })
-          .select('id')
-          .single()
-
-        if (memberError) {
-          console.warn('Erreur création profil membre:', memberError)
-        } else {
-          // 5. Ajouter la catégorie principale
-          await supabaseAdmin
-            .from('member_categories')
+          // Créer le profil membre
+          const { data: newMember, error: memberError } = await supabaseAdmin
+            .from('members')
             .insert({
-              member_id: newMember.id,
-              category_value: category || 'loisirs',
-              is_primary: true
+              first_name,
+              last_name,
+              email,
+              phone: phone || null,
+              birth_date: birth_date || null,
+              category: category || 'loisirs',
+              membership_fee: finalFee,
+              status: 'pending',
+              payment_status: 'pending',
+              season_id: currentSeason?.id
             })
+            .select('id')
+            .single()
+
+          if (memberError) {
+            console.warn('Erreur création profil membre:', memberError)
+          } else {
+            newMemberId = newMember.id
+            
+            // Ajouter la catégorie principale
+            await supabaseAdmin
+              .from('member_categories')
+              .insert({
+                member_id: newMember.id,
+                category_value: category || 'loisirs',
+                is_primary: true
+              })
+          }
         }
 
         results.push({
           email,
           success: true,
           user_id: authUser.user.id,
-          member_id: newMember?.id,
+          member_id: newMemberId,
           temporary_password,
-          role: 'member'
+          role: role
         })
         successCount++
 
@@ -181,7 +212,6 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
-      },
     )
   }
 })

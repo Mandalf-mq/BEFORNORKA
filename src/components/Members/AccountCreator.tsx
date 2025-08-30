@@ -454,7 +454,8 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     phone: '',
     birthDate: '',
     category: 'loisirs',
-    membershipFee: 200
+    membershipFee: 200,
+    role: 'member' // 👈 NOUVEAU : Sélection de rôle
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -485,34 +486,43 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     setError(null);
 
     try {
-      // Utiliser la fonction PostgreSQL qui fonctionne
-      const { data, error } = await supabase.rpc('create_member_profile_only', {
-        p_email: formData.email,
-        p_first_name: formData.firstName,
-        p_last_name: formData.lastName,
-        p_phone: formData.phone || null,
-        p_birth_date: formData.birthDate || null,
-        p_category: formData.category,
-        p_membership_fee: formData.membershipFee
-      });
+      // Générer un mot de passe temporaire
+      const tempPassword = 'temp' + Math.random().toString(36).substr(2, 8);
+      
+      // Utiliser l'Edge Function pour créer un vrai compte
+      const result = await createAccountsWithEdgeFunction([{
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone || null,
+        birth_date: formData.birthDate || null,
+        category: formData.category,
+        membership_fee: formData.membershipFee,
+        temporary_password: tempPassword,
+        role: formData.role // 👈 NOUVEAU : Inclure le rôle
+      }]);
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error || 'Erreur lors de la création');
+      }
 
-      if (data.success) {
-        alert(`✅ Profil membre créé avec succès !
+      const accountResult = result.results[0];
+      if (accountResult.success) {
+        alert(`✅ Compte créé avec succès !
 
 👤 ${formData.firstName} ${formData.lastName}
-📧 ${formData.email}
-🏷️ Catégorie : ${formData.category}
-💰 Cotisation : ${formData.membershipFee}€
+📧 Email : ${formData.email}
+🔑 Mot de passe temporaire : ${tempPassword}
+👨‍💼 Rôle : ${getRoleLabel(formData.role)}
+${formData.role === 'member' ? `🏷️ Catégorie : ${formData.category}\n💰 Cotisation : ${formData.membershipFee}€` : ''}
 
-📋 PROCHAINES ÉTAPES :
-1. Communiquez l'email à la personne
-2. Elle s'inscrit sur le site : ${window.location.origin}/auth
-3. Le système lie automatiquement son compte au profil
-4. Elle accède à ses données personnelles !
+📋 INSTRUCTIONS POUR LA PERSONNE :
+1. Se connecter sur : ${window.location.origin}/auth
+2. Utiliser ces identifiants temporaires
+3. Cliquer "Mot de passe oublié" pour choisir son propre mot de passe
+4. Se reconnecter avec son nouveau mot de passe
 
-🔗 Pas besoin de mot de passe temporaire !`);
+🔐 Compte d'authentification créé avec succès !`);
 
         setFormData({
           firstName: '',
@@ -521,17 +531,29 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           phone: '',
           birthDate: '',
           category: 'loisirs',
-          membershipFee: 200
+          membershipFee: 200,
+          role: 'member'
         });
 
         onSuccess();
       } else {
-        setError(data.error || 'Erreur lors de la création');
+        setError(accountResult.error || 'Erreur lors de la création');
       }
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de la création du profil');
+      setError(err.message || 'Erreur lors de la création du compte');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'webmaster': return 'Webmaster';
+      case 'administrateur': return 'Administrateur';
+      case 'tresorerie': return 'Trésorerie';
+      case 'entraineur': return 'Entraîneur';
+      case 'member': return 'Membre';
+      default: return 'Membre';
     }
   };
 
@@ -638,34 +660,57 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
               />
             </div>
 
+            {/* 👈 NOUVEAU : Sélection de rôle */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rôle *</label>
               <select
-                value={formData.category}
-                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                value={formData.role}
+                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                required
               >
-                {categories.map(category => (
-                  <option key={category.id} value={category.value}>
-                    {category.label} ({category.membership_fee}€)
-                  </option>
-                ))}
+                <option value="member">👤 Membre</option>
+                <option value="entraineur">🏐 Entraîneur</option>
+                <option value="tresorerie">💰 Trésorerie</option>
+                <option value="administrateur">👨‍💼 Administrateur</option>
+                <option value="webmaster">👑 Webmaster</option>
               </select>
             </div>
           </div>
 
-          {/* Cotisation */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cotisation (€)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.membershipFee}
-              onChange={(e) => setFormData(prev => ({ ...prev, membershipFee: parseFloat(e.target.value) || 0 }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
+          {/* Informations spécifiques aux membres */}
+          {formData.role === 'member' && (
+            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+              <h4 className="font-semibold text-blue-800 mb-3">🏐 Informations membre</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    {categories.map(category => (
+                      <option key={category.id} value={category.value}>
+                        {category.label} ({category.membership_fee}€)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cotisation (€)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.membershipFee}
+                    onChange={(e) => setFormData(prev => ({ ...prev, membershipFee: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -677,7 +722,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                <span>Créer le profil membre</span>
+                <span>Créer le compte {getRoleLabel(formData.role)}</span>
               </>
             )}
           </button>
