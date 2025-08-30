@@ -578,28 +578,28 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     } catch (error) {
       console.error('Erreur chargement catégories:', error);
     }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
-
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
-      }
-
-      const accountData = formData;
-
       // Créer seulement le profil membre (pas d'entrée dans users)
+      let newMemberId = null;
+      
+      if (accountData.role === 'member') {
+        const { data: newMember, error: memberError } = await supabase
+          .from('members')
+          .insert({
+            first_name: accountData.firstName,
+            last_name: accountData.lastName,
+            email: accountData.email,
+            phone: accountData.phone || null,
+            birth_date: accountData.birthDate || null,
+            category: accountData.category || 'loisirs',
+            membership_fee: accountData.membershipFee || 200,
+            status: 'pending',
+            payment_status: 'pending',
+            season_id: currentSeason.id
+          })
+          .select('id')
+          .single();
+        
+        if (memberError) {
       let newMemberId = null;
       
       if (accountData.role === 'member') {
@@ -659,12 +659,6 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           lastName: '',
           email: '',
           phone: '',
-          birthDate: '',
-          category: 'loisirs',
-          membershipFee: 200,
-          role: 'member'
-        });
-
         onSuccess();
       }
     } catch (err: any) {
@@ -672,7 +666,11 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     } finally {
       setLoading(false);
     }
-  };
+      alert(`❌ Erreur technique : ${error.message}
+        
+🔍 Vérifiez :
+• Edge Function déployée et active
+• Logs dans Supabase → Edge Functions → create-auth-accounts`);
 
   if (showCSVImporter) {
     return (
