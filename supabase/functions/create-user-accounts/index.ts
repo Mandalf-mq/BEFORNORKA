@@ -35,12 +35,19 @@ serve(async (req) => {
     let successCount = 0
     let errorCount = 0
 
+    // Récupérer la saison courante
+    const { data: currentSeason } = await supabaseAdmin
+      .from('seasons')
+      .select('id')
+      .eq('is_current', true)
+      .single()
+
     for (const account of accounts) {
       try {
-        const { first_name, last_name, email, phone, role, temporary_password } = account
+        const { first_name, last_name, email, phone, birth_date, category, membership_fee, temporary_password } = account
 
         // Validation des données
-        if (!first_name || !last_name || !email || !role) {
+        if (!first_name || !last_name || !email || !temporary_password) {
           results.push({
             email,
             success: false,
@@ -58,7 +65,7 @@ serve(async (req) => {
           user_metadata: {
             first_name,
             last_name,
-            role,
+            role: 'member',
             phone: phone || null
           }
         })
@@ -82,7 +89,7 @@ serve(async (req) => {
             first_name,
             last_name,
             phone: phone || null,
-            role,
+            role: 'member',
             is_active: true,
             temp_password: temporary_password,
             must_change_password: true
@@ -93,61 +100,53 @@ serve(async (req) => {
           // Ne pas bloquer pour cette erreur
         }
 
-        // Si c'est un membre, créer aussi le profil membre
-        if (role === 'member') {
-          // Récupérer la saison courante
-          const { data: currentSeason } = await supabaseAdmin
-            .from('seasons')
-            .select('id')
-            .eq('is_current', true)
-            .single()
+        // Récupérer la catégorie pour le tarif
+        const { data: categoryData } = await supabaseAdmin
+          .from('categories')
+          .select('membership_fee')
+          .eq('value', category || 'loisirs')
+          .single()
 
-          // Récupérer la catégorie par défaut
-          const { data: defaultCategory } = await supabaseAdmin
-            .from('categories')
-            .select('*')
-            .eq('value', 'loisirs')
-            .single()
+        const finalFee = membership_fee || categoryData?.membership_fee || 200
 
-          const membershipFee = defaultCategory?.membership_fee || 200
+        // Créer le profil membre
+        const { data: newMember, error: memberError } = await supabaseAdmin
+          .from('members')
+          .insert({
+            first_name,
+            last_name,
+            email,
+            phone: phone || null,
+            birth_date: birth_date || null,
+            category: category || 'loisirs',
+            membership_fee: finalFee,
+            status: 'pending',
+            payment_status: 'pending',
+            season_id: currentSeason?.id
+          })
+          .select('id')
+          .single()
 
-          // Créer le profil membre
-          const { data: newMember, error: memberError } = await supabaseAdmin
-            .from('members')
+        if (memberError) {
+          console.warn('Erreur création profil membre:', memberError)
+        } else {
+          // Ajouter la catégorie principale
+          await supabaseAdmin
+            .from('member_categories')
             .insert({
-              first_name,
-              last_name,
-              email,
-              phone: phone || null,
-              category: 'loisirs',
-              membership_fee: membershipFee,
-              status: 'pending',
-              payment_status: 'pending',
-              season_id: currentSeason?.id
+              member_id: newMember.id,
+              category_value: category || 'loisirs',
+              is_primary: true
             })
-            .select('id')
-            .single()
-
-          if (memberError) {
-            console.warn('Erreur création profil membre:', memberError)
-          } else {
-            // Ajouter la catégorie principale
-            await supabaseAdmin
-              .from('member_categories')
-              .insert({
-                member_id: newMember.id,
-                category_value: 'loisirs',
-                is_primary: true
-              })
-          }
         }
 
         results.push({
           email,
           success: true,
           user_id: authUser.user.id,
+          member_id: newMember?.id,
           temporary_password,
-          role
+          role: 'member'
         })
         successCount++
 

@@ -142,36 +142,21 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         errors.push(`Ligne ${lineNum}: Le nom est obligatoire`);
       }
       if (!row.email?.trim()) {
-        errors.push(`Ligne ${lineNum}: L'email est obligatoire`);
-      }
-      if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
-        errors.push(`Ligne ${lineNum}: Format email invalide`);
-      }
-    });
-    
-    return errors;
-  };
+        // Utiliser la fonction PostgreSQL qui fonctionne
+        const { data, error } = await supabase.rpc('create_member_profile_only', {
+          p_email: formData.email,
+          p_first_name: formData.firstName,
+          p_last_name: formData.lastName,
+          p_phone: formData.phone || null,
+          p_birth_date: formData.birthDate || null,
+          p_category: formData.category,
+          p_membership_fee: formData.membershipFee
+        });
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile && selectedFile.type === 'text/csv') {
-      setFile(selectedFile);
-      setImportResult(null);
-      setValidationErrors([]);
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const content = e.target?.result as string;
-          const parsedData = parseAccountsCSV(content);
-          setCsvData(parsedData);
-          setPreviewData(parsedData.slice(0, 5));
-          
-          const errors = validateAccountsData(parsedData);
-          setValidationErrors(errors);
-        } catch (error) {
-          console.error('Erreur lecture fichier:', error);
-          setValidationErrors([`Erreur: ${error}`]);
+        if (error) throw error;
+
+        if (!data.success) {
+          throw new Error(data.error || 'Erreur lors de la création');
         }
       };
       reader.readAsText(selectedFile, 'UTF-8');
