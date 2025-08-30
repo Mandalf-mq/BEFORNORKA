@@ -31,6 +31,122 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     }
   };
 
+  const createAccountDirectly = async (accountData: any) => {
+    try {
+      console.log('🚀 [AccountCreator] Création directe du profil pour:', accountData.email);
+      
+      // Récupérer la saison courante
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+      
+      if (seasonError || !currentSeason) {
+        throw new Error('Aucune saison courante trouvée');
+      }
+
+      // Créer SEULEMENT le profil membre (ignorer la table users)
+      const { data: newMember, error: memberError } = await supabase
+        .from('members')
+        .insert({
+          first_name: accountData.firstName,
+          last_name: accountData.lastName,
+          email: accountData.email,
+          phone: accountData.phone || null,
+          birth_date: accountData.birthDate || null,
+          category: 'loisirs',
+          membership_fee: 200,
+          status: 'pending',
+          payment_status: 'pending',
+          season_id: currentSeason.id
+        })
+        .select('id')
+        .single();
+      
+      if (memberError) {
+        console.error('❌ [AccountCreator] Erreur création membre:', memberError);
+        throw new Error(`Erreur création membre: ${memberError.message}`);
+      }
+      
+      console.log('✅ [AccountCreator] Membre créé:', newMember.id);
+      
+      // Ajouter la catégorie principale
+      const { error: categoryError } = await supabase
+        .from('member_categories')
+        .insert({
+          member_id: newMember.id,
+          category_value: 'loisirs',
+          is_primary: true
+        });
+      
+      if (categoryError) {
+        console.warn('⚠️ [AccountCreator] Erreur ajout catégorie:', categoryError);
+      }
+      
+      return {
+        success: true,
+        member_id: newMember.id,
+        email: accountData.email,
+        role: accountData.role
+      };
+      
+    } catch (error: any) {
+      console.error('❌ [AccountCreator] Erreur création directe:', error);
+      throw new Error(`Erreur création: ${error.message}`);
+    }
+  };
+
+  const createAccountsDirectly = async (accountsData: any[]) => {
+    try {
+      console.log('🚀 [AccountCreator] Import direct avec', accountsData.length, 'comptes');
+      
+      let imported_count = 0;
+      let error_count = 0;
+      const errors: string[] = [];
+      
+      // Traiter chaque compte individuellement
+      for (let i = 0; i < accountsData.length; i++) {
+        const account = accountsData[i];
+        
+        try {
+          const result = await createAccountDirectly(account);
+          
+          if (result.success) {
+            imported_count++;
+            console.log(`✅ Profil créé: ${account.first_name} ${account.last_name}`);
+          } else {
+            errors.push(`${account.email}: ${result.error}`);
+            error_count++;
+          }
+          
+        } catch (accountError: any) {
+          console.error('❌ Erreur compte individuel:', accountError);
+          errors.push(`${account.email}: ${accountError.message}`);
+          error_count++;
+        }
+      }
+      
+      return {
+        success: true,
+        imported_count,
+        error_count,
+        errors,
+        message: `Import terminé. ${imported_count} profils membres créés dans la table 'members'.`
+      };
+      
+    } catch (error: any) {
+      console.error('❌ Erreur générale import:', error);
+      return {
+        success: false,
+        imported_count: 0,
+        error_count: 1,
+        errors: [error.message],
+        message: `Erreur d'import: ${error.message}`
+      };
+    }
+  };
+
   const createAccountsWithEdgeFunction = async (accountsData: any[]) => {
     try {
       console.log('🚀 [AccountCreator] Import direct avec', accountsData.length, 'comptes');
@@ -322,14 +438,13 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
 📊 Résultats :
 • ${data.imported_count} profils membres créés
 • ${data.error_count} erreurs
+📍 Visible dans : Supabase → Table Editor → members
 
 📋 INSTRUCTIONS POUR CHAQUE PERSONNE :
 1. Aller sur : ${window.location.origin}/auth
-2. Cliquer "Mot de passe oublié"
-3. Entrer son email (celui du CSV)
-4. Suivre le lien reçu par email
-5. Créer son mot de passe personnel
-6. Se connecter normalement
+2. S'inscrire avec son email (celui du CSV)
+3. Créer son mot de passe
+4. Se connecter normalement
 
 🔗 Le profil sera automatiquement lié !
 
@@ -504,355 +619,4 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                     </div>
 
                     {importResult.errors?.length > 0 && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                        <h5 className="font-medium text-red-800 mb-2">❌ Erreurs</h5>
-                        <div className="space-y-1 text-sm text-red-700 max-h-32 overflow-y-auto">
-                          {importResult.errors.map((error: string, index: number) => (
-                            <div key={index}>• {error}</div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-red-600">
-                    ❌ Erreur : {importResult.error}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer avec boutons */}
-        <div className="p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Annuler
-            </button>
-            
-            {csvData.length > 0 && validationErrors.length === 0 && (
-              <button
-                onClick={handleImport}
-                disabled={loading}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Création des profils...</span>
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-4 h-4" />
-                    <span>Créer {csvData.length} profil(s) membre(s)</span>
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => {
-  const [categories, setCategories] = useState<any[]>([]);
-  const [showCSVImporter, setShowCSVImporter] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    birthDate: '',
-    category: 'loisirs',
-    membershipFee: 200,
-    role: 'member' // 👈 NOUVEAU : Sélection de rôle
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order');
-
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (error) {
-      console.error('Erreur chargement catégories:', error);
-      setCategories([]);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
-      
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
-      }
-
-      // 1. Créer l'entrée dans users
-      const { data: newUser, error: userError } = await supabase
-        .from('users')
-        .insert({
-          email: formData.email,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          phone: formData.phone || null,
-          role: formData.role,
-          is_active: true
-        })
-        .select('id')
-        .single();
-      
-      if (userError) {
-        if (userError.message.includes('duplicate key')) {
-          throw new Error('Un utilisateur existe déjà avec cet email');
-        }
-        throw userError;
-      }
-
-      // 2. Si c'est un membre, créer aussi le profil membre
-      let newMemberId = null;
-      if (formData.role === 'member') {
-        const { data: newMember, error: memberError } = await supabase
-          .from('members')
-          .insert({
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email,
-            phone: formData.phone || null,
-            birth_date: formData.birthDate || null,
-            category: 'loisirs',
-            membership_fee: 200,
-            status: 'pending',
-            payment_status: 'pending',
-            season_id: currentSeason.id
-          })
-          .select('id')
-          .single();
-        
-        if (memberError) throw memberError;
-        
-        newMemberId = newMember.id;
-        
-        // Ajouter la catégorie principale
-        await supabase
-          .from('member_categories')
-          .insert({
-            member_id: newMember.id,
-            category_value: 'loisirs',
-            is_primary: true
-          });
-      }
-
-        alert(`✅ Profil créé avec succès !
-👤 ${formData.firstName} ${formData.lastName}
-📧 Email : ${formData.email}
-👨‍💼 Rôle : ${getRoleLabel(formData.role)}
-
-
-
-📋 INSTRUCTIONS POUR LA PERSONNE :
-1. Aller sur : ${window.location.origin}/auth
-2. Cliquer "Mot de passe oublié"
-3. Entrer son email : ${formData.email}
-4. Suivre le lien reçu par email pour créer son mot de passe
-5. Se connecter avec son email et nouveau mot de passe
-
-🔗 Le profil sera automatiquement lié à son compte !`);
-
-        setFormData({
-          firstName: '',
-          lastName: '',
-          email: '',
-          phone: '',
-          birthDate: '',
-          category: 'loisirs',
-          membershipFee: 200,
-          role: 'member'
-        });
-
-        onSuccess();
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la création du profil');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'webmaster': return 'Webmaster';
-      case 'administrateur': return 'Administrateur';
-      case 'tresorerie': return 'Trésorerie';
-      case 'entraineur': return 'Entraîneur';
-      case 'member': return 'Membre';
-      default: return 'Membre';
-    }
-  };
-
-  if (showCSVImporter) {
-    return (
-      <AccountCSVImporter 
-        onSuccess={() => {
-          setShowCSVImporter(false);
-          onSuccess();
-        }}
-        onClose={() => setShowCSVImporter(false)}
-      />
-    );
-  }
-
-  return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-xl p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-            <UserPlus className="w-6 h-6 text-primary-600" />
-            <span>Créer un profil membre</span>
-          </h2>
-          <button
-            onClick={() => setShowCSVImporter(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Import CSV</span>
-          </button>
-        </div>
-
-        {/* Info workflow */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <h4 className="font-semibold text-green-800 mb-2">🎯 Workflow simple et efficace</h4>
-          <div className="text-sm text-green-700 space-y-1">
-            <p>• <strong>Vous créez le profil</strong> : Toutes les infos du membre</p>
-            <p>• <strong>Vous donnez l'email</strong> : À la personne concernée</p>
-            <p>• <strong>Elle s'inscrit</strong> : Sur le site avec cet email</p>
-            <p>• <strong>Liaison automatique</strong> : Son compte est lié au profil</p>
-            <p>• <strong>Accès immédiat</strong> : À toutes ses données personnelles</p>
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Informations personnelles */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
-              <input
-                type="text"
-                required
-                value={formData.firstName}
-                onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
-              <input
-                type="text"
-                required
-                value={formData.lastName}
-                onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date de naissance</label>
-              <input
-                type="date"
-                value={formData.birthDate}
-                onChange={(e) => setFormData(prev => ({ ...prev, birthDate: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-
-            {/* 👈 NOUVEAU : Sélection de rôle */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Rôle *</label>
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                required
-              >
-                <option value="member">👤 Membre</option>
-                <option value="entraineur">🏃‍♂️ Entraîneur</option>
-                <option value="tresorerie">💰 Trésorerie</option>
-                <option value="administrateur">👨‍💼 Administrateur</option>
-                <option value="webmaster">💻 Webmaster</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Informations spécifiques aux membres */}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                <span>Créer le compte {getRoleLabel(formData.role)}</span>
-              </>
-            )}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-};
+                      <div className="bg-
