@@ -427,7 +427,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
           <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             >
               Annuler
             </button>
@@ -714,7 +714,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                <span>Créer le profil {getRoleLabel(formData.role)}</span>
+                <span>Créer le compte {getRoleLabel(formData.role)}</span>
               </>
             )}
           </button>
