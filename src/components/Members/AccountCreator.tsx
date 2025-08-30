@@ -520,17 +520,17 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
       if (data.success && data.results[0]?.success) {
         const result = data.results[0];
         
-        alert(`✅ Compte créé avec succès !
+        alert(`✅ Profil créé avec succès !
 
 👤 ${formData.firstName} ${formData.lastName}
 📧 ${formData.email}
 🔑 Rôle : ${formData.role}
-🔐 Mot de passe temporaire : ${formData.temporaryPassword}
 
-⚠️ IMPORTANT :
-• Communiquez ces identifiants à la personne
-• Elle devra changer son mot de passe à la première connexion
-• Elle peut maintenant se connecter sur le site !`);
+📋 PROCHAINES ÉTAPES :
+• La personne doit s'inscrire sur le site avec son email
+• Son profil sera automatiquement lié
+• Elle aura accès à ses données personnelles
+• Pas besoin de mot de passe temporaire !`);
 
         setFormData({
           firstName: '',
@@ -586,12 +586,12 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
 
         {/* Info importante */}
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <h4 className="font-semibold text-green-800 mb-2">🔐 Création de compte avec authentification</h4>
+          <h4 className="font-semibold text-green-800 mb-2">👤 Création de profil membre</h4>
           <div className="text-sm text-green-700 space-y-1">
-            <p>• <strong>Vrai compte Supabase</strong> : La personne pourra se connecter</p>
-            <p>• <strong>Mot de passe temporaire</strong> : À changer à la première connexion</p>
-            <p>• <strong>Accès immédiat</strong> : Aux données personnelles sur le site</p>
-            <p>• <strong>Profil membre automatique</strong> : Si rôle = "member"</p>
+            <p>• <strong>Profil membre créé</strong> : Avec toutes les informations</p>
+            <p>• <strong>Inscription libre</strong> : La personne s'inscrit avec son email</p>
+            <p>• <strong>Liaison automatique</strong> : Le système lie le compte au profil</p>
+            <p>• <strong>Accès complet</strong> : Documents, entraînements, profil</p>
           </div>
         </div>
 
