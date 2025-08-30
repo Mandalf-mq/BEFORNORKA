@@ -173,7 +173,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         setValidationErrors(errors);
         
       } catch (error: any) {
-        alert(`Erreur lors de la lecture du fichier: ${error.message}`);
+        alert(`❌ Erreur : ${error.message}`);
         setFile(null);
         setCsvData([]);
         setPreviewData([]);
