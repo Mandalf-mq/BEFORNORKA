@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { UserPlus, Save, Eye, EyeOff, RefreshCw, User, Mail, Phone, Calendar, Upload, Download, CheckCircle, XCircle, FileText, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
+interface AccountCreatorProps {
+  onSuccess: () => void;
+}
+
 interface AccountCSVImporterProps {
   onSuccess: () => void;
   onClose: () => void;
@@ -15,6 +19,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+
   const downloadAccountTemplate = () => {
     const headers = [
       'first_name', 'last_name', 'email', 'phone', 'role'
@@ -43,6 +48,153 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     alert('📥 Template téléchargé !\n\n📋 Format :\n• Séparateur : point-virgule (;)\n• Encodage : UTF-8\n• 5 exemples inclus\n\n✏️ Modifiez le fichier avec vos vraies données avant import.');
   };
 
+  // Fonction utilitaire pour parser une ligne CSV avec gestion des guillemets
+  const parseCSVLine = (line: string, separator: string): string[] => {
+    const values: string[] = [];
+    let currentValue = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === separator && !inQuotes) {
+        values.push(currentValue.trim().replace(/^"|"$/g, ''));
+        currentValue = '';
+      } else {
+        currentValue += char;
+      }
+    }
+    
+    // Ajouter la dernière valeur
+    values.push(currentValue.trim().replace(/^"|"$/g, ''));
+    
+    return values;
+  };
+
+  const parseAccountsCSV = (content: string) => {
+    try {
+      console.log('🔍 [parseAccountsCSV] Contenu brut (200 premiers chars):', content.substring(0, 200));
+      
+      // Détection plus robuste du séparateur
+      const semicolonCount = (content.match(/;/g) || []).length;
+      const commaCount = (content.match(/,/g) || []).length;
+      const separator = semicolonCount > commaCount ? ';' : ',';
+      
+      console.log('🔍 [parseAccountsCSV] Séparateur détecté:', separator, '(; count:', semicolonCount, ', count:', commaCount, ')');
+      
+      const lines = content.trim().split(/\r?\n/).filter(line => line.trim());
+      console.log('🔍 [parseAccountsCSV] Nombre de lignes:', lines.length);
+      
+      if (lines.length < 2) {
+        throw new Error('Le fichier CSV doit contenir au moins une ligne d\'en-tête et une ligne de données');
+      }
+      
+      // Parser la ligne d'en-tête
+      const headers = parseCSVLine(lines[0], separator);
+      console.log('🔍 [parseAccountsCSV] Headers parsés:', headers);
+      
+      const data = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        console.log('🔍 [parseAccountsCSV] Ligne', i, 'brute:', line);
+        
+        const values = parseCSVLine(line, separator);
+        console.log('🔍 [parseAccountsCSV] Valeurs parsées ligne', i, ':', values);
+        
+        // S'assurer qu'on a le bon nombre de colonnes
+        while (values.length < headers.length) {
+          values.push('');
+        }
+        
+        const row: any = {};
+        
+        headers.forEach((header, index) => {
+          const value = values[index] || '';
+          const headerLower = header.toLowerCase().trim();
+          
+          console.log('🔍 [parseAccountsCSV] Mapping header:', headerLower, '→ value:', value);
+          
+          switch (headerLower) {
+            case 'first_name':
+            case 'prenom':
+            case 'prénom':
+              row.first_name = value;
+              break;
+            case 'last_name':
+            case 'nom':
+              row.last_name = value;
+              break;
+            case 'email':
+            case 'e-mail':
+            case 'mail':
+              row.email = value;
+              break;
+            case 'phone':
+            case 'telephone':
+            case 'téléphone':
+              row.phone = value;
+              break;
+            case 'role':
+            case 'rôle':
+            case 'rôle':
+              row.role = value;
+              break;
+            default:
+              console.log('🔍 [parseAccountsCSV] Header non reconnu:', headerLower);
+          }
+        });
+        
+        console.log('🔍 [parseAccountsCSV] Objet final ligne', i, ':', row);
+        data.push(row);
+      }
+      
+      console.log('✅ [parseAccountsCSV] Données finales:', data);
+      return data;
+      
+    } catch (error) {
+      console.error('❌ [parseAccountsCSV] Erreur:', error);
+      throw new Error('Erreur lors de l\'analyse du fichier CSV: ' + error);
+    }
+  };
+
+  const validateAccountsData = (data: any[]): string[] => {
+    const errors: string[] = [];
+    const validRoles = ['member', 'entraineur', 'administrateur', 'tresorerie', 'webmaster'];
+    
+    console.log('🔍 [validateAccountsData] Validation de', data.length, 'lignes');
+    console.log('🔍 [validateAccountsData] Première ligne exemple:', data[0]);
+    
+    data.forEach((row, index) => {
+      const lineNum = index + 2;
+      
+      console.log('🔍 [validateAccountsData] Validation ligne', lineNum, ':', row);
+      
+      if (!row.first_name?.trim()) {
+        errors.push(`Ligne ${lineNum}: Le prénom est obligatoire (valeur: "${row.first_name}")`);
+      }
+      if (!row.last_name?.trim()) {
+        errors.push(`Ligne ${lineNum}: Le nom est obligatoire (valeur: "${row.last_name}")`);
+      }
+      if (!row.email?.trim()) {
+        errors.push(`Ligne ${lineNum}: L'email est obligatoire (valeur: "${row.email}")`);
+      }
+      if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+        errors.push(`Ligne ${lineNum}: Format email invalide (valeur: "${row.email}")`);
+      }
+      if (!row.role || !validRoles.includes(row.role)) {
+        errors.push(`Ligne ${lineNum}: Rôle invalide (valeur: "${row.role}"). Rôles valides: ${validRoles.join(', ')}`);
+      }
+    });
+    
+    console.log('🔍 [validateAccountsData] Erreurs trouvées:', errors.length);
+    return errors;
+  };
+
   const handleCsvFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile && selectedFile.type === 'text/csv') {
@@ -54,6 +206,8 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
       reader.onload = (e) => {
         try {
           const content = e.target?.result as string;
+          console.log('🔍 [handleCsvFileSelect] Contenu lu, longueur:', content.length);
+          
           const parsedData = parseAccountsCSV(content);
           setCsvData(parsedData);
           setPreviewData(parsedData.slice(0, 5)); // Aperçu des 5 premières lignes
@@ -67,136 +221,9 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         }
       };
       reader.readAsText(selectedFile, 'UTF-8');
+    } else {
+      alert('⚠️ Veuillez sélectionner un fichier CSV valide');
     }
-  };
-
-  const parseAccountsCSV = (content: string) => {
-    // Détection plus robuste du séparateur
-    const semicolonCount = (content.match(/;/g) || []).length;
-    const commaCount = (content.match(/,/g) || []).length;
-    const separator = semicolonCount > commaCount ? ';' : ',';
-    
-    console.log('🔍 [parseAccountsCSV] Séparateur détecté:', separator);
-    console.log('🔍 [parseAccountsCSV] Contenu brut (100 premiers chars):', content.substring(0, 100));
-    
-    const lines = content.trim().split(/\r?\n/).filter(line => line.trim());
-    console.log('🔍 [parseAccountsCSV] Nombre de lignes:', lines.length);
-    console.log('🔍 [parseAccountsCSV] Première ligne (header):', lines[0]);
-    
-    if (lines.length < 2) {
-      throw new Error('Le fichier CSV doit contenir au moins une ligne d\'en-tête et une ligne de données');
-    }
-    
-    // Parser la ligne d'en-tête avec gestion des guillemets
-    const headers = parseCSVLine(lines[0], separator);
-    console.log('🔍 [parseAccountsCSV] Headers parsés:', headers);
-    
-    const data = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      
-      console.log('🔍 [parseAccountsCSV] Ligne', i, ':', line);
-      
-      const values = parseCSVLine(line, separator);
-      console.log('🔍 [parseAccountsCSV] Valeurs parsées:', values);
-      
-      const row: any = {};
-      
-      headers.forEach((header, index) => {
-        const value = values[index] || '';
-        const headerLower = header.toLowerCase().trim();
-        
-        console.log('🔍 [parseAccountsCSV] Mapping:', headerLower, '→', value);
-        
-        switch (headerLower) {
-          case 'first_name':
-          case 'prenom':
-          case 'prénom':
-            row.first_name = value;
-            break;
-          case 'last_name':
-          case 'nom':
-            row.last_name = value;
-            break;
-          case 'email':
-          case 'e-mail':
-          case 'mail':
-            row.email = value;
-            break;
-          case 'phone':
-          case 'telephone':
-          case 'téléphone':
-            row.phone = value;
-            break;
-          case 'role':
-          case 'rôle':
-            row.role = value;
-            break;
-          default:
-            console.log('🔍 [parseAccountsCSV] Header non reconnu:', headerLower);
-        }
-      });
-      
-      console.log('🔍 [parseAccountsCSV] Objet final ligne', i, ':', row);
-      data.push(row);
-    }
-    
-    console.log('✅ [parseAccountsCSV] Données finales:', data);
-    return data;
-  };
-
-  // Fonction utilitaire pour parser une ligne CSV avec gestion des guillemets
-  const parseCSVLine = (line: string, separator: string): string[] => {
-    const values: string[] = [];
-    let currentValue = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === separator && !inQuotes) {
-        values.push(currentValue.trim());
-        currentValue = '';
-      } else {
-        currentValue += char;
-      }
-    }
-    
-    // Ajouter la dernière valeur
-    values.push(currentValue.trim());
-    
-    return values;
-  };
-
-  const validateAccountsData = (data: any[]): string[] => {
-    const errors: string[] = [];
-    const validRoles = ['member', 'entraineur', 'administrateur', 'tresorerie', 'webmaster'];
-    
-    data.forEach((row, index) => {
-      const lineNum = index + 2;
-      
-      if (!row.first_name?.trim()) {
-        errors.push(`Ligne ${lineNum}: Le prénom est obligatoire`);
-      }
-      if (!row.last_name?.trim()) {
-        errors.push(`Ligne ${lineNum}: Le nom est obligatoire`);
-      }
-      if (!row.email?.trim()) {
-        errors.push(`Ligne ${lineNum}: L'email est obligatoire`);
-      }
-      if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
-        errors.push(`Ligne ${lineNum}: Format email invalide`);
-      }
-      if (!row.role || !validRoles.includes(row.role)) {
-        errors.push(`Ligne ${lineNum}: Rôle invalide. Rôles valides: ${validRoles.join(', ')}`);
-      }
-    });
-    
-    return errors;
   };
 
   const handleAccountsImport = async () => {
@@ -250,123 +277,129 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         {/* Contenu scrollable */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-6">
-          {/* Différence importante */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-semibold text-blue-800 mb-2">🔐 Création de comptes utilisateurs</h4>
-            <div className="text-sm text-blue-700 space-y-1">
-              <p>• <strong>Objectif :</strong> Créer des comptes de connexion (auth.users)</p>
-              <p>• <strong>Rôles :</strong> member, entraineur, administrateur, tresorerie, webmaster</p>
-              <p>• <strong>Authentification :</strong> Comptes Supabase fonctionnels</p>
-              <p>• <strong>Différence :</strong> Pas de profil membre automatique (sauf si rôle = member)</p>
+            {/* Différence importante */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-semibold text-blue-800 mb-2">🔐 Création de comptes utilisateurs</h4>
+              <div className="text-sm text-blue-700 space-y-1">
+                <p>• <strong>Objectif :</strong> Créer des comptes de connexion (auth.users)</p>
+                <p>• <strong>Rôles :</strong> member, entraineur, administrateur, tresorerie, webmaster</p>
+                <p>• <strong>Authentification :</strong> Comptes Supabase fonctionnels</p>
+                <p>• <strong>Différence :</strong> Pas de profil membre automatique (sauf si rôle = member)</p>
+              </div>
             </div>
-          </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-            <h4 className="font-semibold text-amber-800 mb-2">⚠️ Fonctionnalité en développement</h4>
-            <div className="text-sm text-amber-700 space-y-1">
-              <p>• Cette fonctionnalité nécessite une Edge Function Supabase</p>
-              <p>• Pour l'instant, utilisez la création individuelle de comptes</p>
-              <p>• L'import CSV de membres (dans "Membres") fonctionne parfaitement</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h4 className="font-semibold text-amber-800 mb-2">⚠️ Fonctionnalité en développement</h4>
+              <div className="text-sm text-amber-700 space-y-1">
+                <p>• Cette fonctionnalité nécessite une Edge Function Supabase</p>
+                <p>• Pour l'instant, utilisez la création individuelle de comptes</p>
+                <p>• L'import CSV de membres (dans "Membres") fonctionne parfaitement</p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={downloadAccountTemplate}
-              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              <Download className="w-4 h-4" />
-              <span>Télécharger le modèle (comptes)</span>
-            </button>
-            
-            <label className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer transition-colors">
-              <Upload className="w-4 h-4" />
-              <span>Sélectionner CSV</span>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCsvFileSelect}
-                className="hidden"
-              />
-            </label>
-          </div>
-
-          {/* Fichier sélectionné */}
-          {file && (
-            <div className="flex items-center space-x-2 text-sm text-green-600">
-              <CheckCircle className="w-4 h-4" />
-              <span>Fichier sélectionné: {file.name}</span>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={downloadAccountTemplate}
+                className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                <Download className="w-4 h-4" />
+                <span>Télécharger le modèle (comptes)</span>
+              </button>
+              
+              <label className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer transition-colors">
+                <Upload className="w-4 h-4" />
+                <span>Sélectionner CSV</span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCsvFileSelect}
+                  className="hidden"
+                />
+              </label>
             </div>
-          )}
 
-          {/* Validation des données CSV */}
-          {csvData.length > 0 && (
-            <div className="space-y-4">
-              {validationErrors.length > 0 ? (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <XCircle className="w-5 h-5 text-red-500" />
-                    <span className="font-medium text-red-800">Erreurs détectées ({validationErrors.length})</span>
-                  </div>
-                  <ul className="text-sm text-red-700 space-y-1 max-h-32 overflow-y-auto">
-                    {validationErrors.map((error, index) => (
-                      <li key={index}>• {error}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="font-medium text-green-800">
-                      Validation réussie - {csvData.length} comptes prêts à créer
-                    </span>
-                  </div>
-                </div>
-              )}
+            {/* Fichier sélectionné */}
+            {file && (
+              <div className="flex items-center space-x-2 text-sm text-green-600">
+                <CheckCircle className="w-4 h-4" />
+                <span>Fichier sélectionné: {file.name}</span>
+              </div>
+            )}
 
-              {/* Prévisualisation */}
-              {previewData.length > 0 && (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 border-b">
-                    <h4 className="font-medium text-gray-800">Aperçu des données</h4>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Prénom</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rôle</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {previewData.map((account, index) => (
-                          <tr key={index}>
-                            <td className="px-4 py-2 text-sm text-gray-900">{account.first_name}</td>
-                            <td className="px-4 py-2 text-sm text-gray-900">{account.last_name}</td>
-                            <td className="px-4 py-2 text-sm text-blue-600">{account.email}</td>
-                            <td className="px-4 py-2 text-sm text-gray-500">{account.phone || 'Non renseigné'}</td>
-                            <td className="px-4 py-2">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{account.role}</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {csvData.length > 5 && (
-                    <div className="px-4 py-2 bg-gray-50 border-t text-sm text-gray-500">
-                      Affichage de 5 lignes sur {csvData.length} au total
+            {/* Validation des données CSV */}
+            {csvData.length > 0 && (
+              <div className="space-y-4">
+                {validationErrors.length > 0 ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <XCircle className="w-5 h-5 text-red-500" />
+                      <span className="font-medium text-red-800">Erreurs détectées ({validationErrors.length})</span>
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                    <ul className="text-sm text-red-700 space-y-1 max-h-32 overflow-y-auto">
+                      {validationErrors.map((error, index) => (
+                        <li key={index}>• {error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                      <span className="font-medium text-green-800">
+                        Validation réussie - {csvData.length} comptes prêts à créer
+                      </span>
+                    </div>
+                  </div>
+                )}
 
+                {/* Prévisualisation */}
+                {previewData.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-2 border-b">
+                      <h4 className="font-medium text-gray-800">Aperçu des données</h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Prénom</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rôle</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {previewData.map((account, index) => (
+                            <tr key={index}>
+                              <td className="px-4 py-2 text-sm text-gray-900">{account.first_name}</td>
+                              <td className="px-4 py-2 text-sm text-gray-900">{account.last_name}</td>
+                              <td className="px-4 py-2 text-sm text-blue-600">{account.email}</td>
+                              <td className="px-4 py-2 text-sm text-gray-500">{account.phone || 'Non renseigné'}</td>
+                              <td className="px-4 py-2">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {account.role}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {csvData.length > 5 && (
+                      <div className="px-4 py-2 bg-gray-50 border-t text-sm text-gray-500">
+                        Affichage de 5 lignes sur {csvData.length} au total
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer avec boutons - fixe en bas */}
+        <div className="p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
           <div className="flex space-x-3">
             <button
               onClick={onClose}
@@ -396,17 +429,10 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             )}
           </div>
         </div>
-
-        {/* Footer avec boutons - fixe en bas */}
-        <div className="p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
       </div>
     </div>
   );
 };
-
-interface AccountCreatorProps {
-  onSuccess: () => void;
-}
 
 export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => {
   const [categories, setCategories] = useState<any[]>([]);
@@ -450,9 +476,9 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
       console.log('✅ [AccountCreator] Catégories chargées:', data?.length || 0);
       setCategories(data || []);
 
-       if (data && data.length > 0 && !formData.category) {
-      setFormData(prev => ({ ...prev, category: data[0].value }));
-    }
+      if (data && data.length > 0 && !formData.category) {
+        setFormData(prev => ({ ...prev, category: data[0].value }));
+      }
       
     } catch (error) {
       console.error('❌ [AccountCreator] Erreur détaillée:', error);
@@ -528,16 +554,16 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     }
 
     try {
-   const { data, error } = await supabase.rpc('create_member_account_with_password', {
-  p_email: formData.email,
-  p_first_name: formData.firstName,
-  p_last_name: formData.lastName,
-  p_temporary_password: formData.temporaryPassword,  // 👈 Maintenant en 4ème position
-  p_phone: formData.phone,
-  p_birth_date: formData.birthDate,
-  p_category: formData.category,
-  p_role: formData.role
-});
+      const { data, error } = await supabase.rpc('create_member_account_with_password', {
+        p_email: formData.email,
+        p_first_name: formData.firstName,
+        p_last_name: formData.lastName,
+        p_temporary_password: formData.temporaryPassword,
+        p_phone: formData.phone,
+        p_birth_date: formData.birthDate,
+        p_category: formData.category,
+        p_role: formData.role
+      });
 
       if (error) throw error;
 
@@ -581,7 +607,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
           email: '',
           phone: '',
           birthDate: '',
-         category: categories.length > 0 ? categories[0].value : '',
+          category: categories.length > 0 ? categories[0].value : '',
           temporaryPassword: '',
           role: 'member'
         });
@@ -714,7 +740,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Téléphone *
+                  Téléphone
                 </label>
                 <div className="relative">
                   <input
