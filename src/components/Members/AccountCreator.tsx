@@ -20,6 +20,34 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const [importResult, setImportResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  const createAccountsWithEdgeFunction = async (accountsData: any[]) => {
+    try {
+      console.log('🚀 [AccountCreator] Appel Edge Function avec', accountsData.length, 'comptes');
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ accounts: accountsData })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ [AccountCreator] Résultat Edge Function:', result);
+      
+      return result;
+    } catch (error: any) {
+      console.error('❌ [AccountCreator] Erreur Edge Function:', error);
+      throw new Error(`Erreur Edge Function: ${error.message}`);
+    }
+  };
+
   const downloadAccountTemplate = () => {
     const headers = [
       'first_name', 'last_name', 'email', 'phone', 'birth_date', 'category', 'membership_fee'
