@@ -50,14 +50,14 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
 
   const downloadAccountTemplate = () => {
     const headers = [
-      'first_name', 'last_name', 'email', 'phone', 'birth_date', 'category', 'membership_fee'
+      'first_name', 'last_name', 'email', 'phone', 'birth_date', 'role'
     ];
     
     const exampleRows = [
-      ['Sophie', 'Martin', 'sophie.martin@email.com', '0612345678', '1995-03-15', 'loisirs', '200'],
-      ['Paul', 'Durand', 'paul.durand@email.com', '0687654321', '1988-07-22', 'senior', '250'],
-      ['Marie', 'Dubois', 'marie.dubois@email.com', '0698765432', '2010-12-10', 'benjamin', '180'],
-      ['Jean', 'Dupont', 'jean.dupont@email.com', '', '1975-05-18', 'veteran', '200']
+      ['Sophie', 'Martin', 'sophie.martin@email.com', '0612345678', '1995-03-15', 'member'],
+      ['Paul', 'Durand', 'paul.durand@email.com', '0687654321', '1988-07-22', 'entraineur'],
+      ['Marie', 'Dubois', 'marie.dubois@email.com', '0698765432', '2010-12-10', 'member'],
+      ['Jean', 'Dupont', 'jean.dupont@email.com', '', '1975-05-18', 'administrateur']
     ];
     
     const csvContent = headers.join(';') + '\n' + 
@@ -67,7 +67,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', 'modele_creation_profils_membres.csv');
+    link.setAttribute('download', 'modele_creation_comptes.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -134,14 +134,9 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                 row.birth_date = value;
               }
               break;
-            case 'category':
-            case 'catégorie':
-            case 'categorie':
-              row.category = value;
-              break;
-            case 'membership_fee':
-            case 'cotisation':
-              row.membership_fee = value ? parseFloat(value) : null;
+            case 'role':
+            case 'rôle':
+              row.role = value || 'member';
               break;
           }
         });
@@ -347,8 +342,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cotisation</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rôle</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -358,8 +352,11 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                               <td className="px-4 py-2 text-sm text-gray-900">{account.last_name}</td>
                               <td className="px-4 py-2 text-sm text-blue-600">{account.email}</td>
                               <td className="px-4 py-2 text-sm text-gray-500">{account.phone || 'Non renseigné'}</td>
-                              <td className="px-4 py-2 text-sm text-gray-500">{account.category || 'loisirs'}</td>
-                              <td className="px-4 py-2 text-sm text-gray-500">{account.membership_fee || 200}€</td>
+                              <td className="px-4 py-2 text-sm text-gray-500">
+                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {getRoleLabel(account.role || 'member')}
+                                </span>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
