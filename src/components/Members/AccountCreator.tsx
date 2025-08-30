@@ -33,31 +33,122 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
 
   const createAccountsWithEdgeFunction = async (accountsData: any[]) => {
     try {
-      console.log('🚀 [AccountCreator] Appel Edge Function avec', accountsData.length, 'comptes');
+      console.log('🚀 [AccountCreator] Import direct avec', accountsData.length, 'comptes');
       
-      // Utiliser la fonction PostgreSQL existante pour créer les profils
-      const { data, error } = await supabase.rpc('import_members_profiles_only', {
-        p_csv_data: accountsData
-      });
+      // Import direct sans fonction RPC
+      let imported_count = 0;
+      let error_count = 0;
+      const errors: string[] = [];
+      
+      // Récupérer la saison courante
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+      
+      if (seasonError || !currentSeason) {
+        throw new Error('Aucune saison courante trouvée');
+      }
+      
+      // Traiter chaque compte individuellement
+      for (let i = 0; i < accountsData.length; i++) {
+        const account = accountsData[i];
+        
+        try {
+          // Pour les membres, créer un profil membre
+          if (account.role === 'member') {
+            // Vérifier si le membre existe déjà
+            const { data: existingMember } = await supabase
+              .from('members')
+              .select('id')
+              .eq('email', account.email)
+              .single();
+            
+            if (existingMember) {
+              errors.push(`${account.email}: Profil membre déjà existant`);
+              error_count++;
+              continue;
+            }
+            
+            // Créer le profil membre
+            const { data: newMember, error: memberError } = await supabase
+              .from('members')
+              .insert({
+                first_name: account.first_name,
+                last_name: account.last_name,
+                email: account.email,
+                phone: account.phone || null,
+                birth_date: account.birth_date || null,
+                category: 'loisirs',
+                membership_fee: 200,
+                status: 'pending',
+                payment_status: 'pending',
+                season_id: currentSeason.id
+              })
+              .select('id')
+              .single();
+            
+            if (memberError) {
+              errors.push(`${account.email}: ${memberError.message}`);
+              error_count++;
+              continue;
+            }
+            
+            // Ajouter la catégorie principale
+            await supabase
+              .from('member_categories')
+              .insert({
+                member_id: newMember.id,
+                category_value: 'loisirs',
+                is_primary: true
+              });
+          }
+          
+          // Pour tous les rôles, créer l'entrée dans users
+          const { error: userError } = await supabase
+            .from('users')
+            .insert({
+              email: account.email,
+              first_name: account.first_name,
+              last_name: account.last_name,
+              phone: account.phone || null,
+              role: account.role || 'member',
+              is_active: true
+            });
+          
+          if (userError) {
+            // Si l'utilisateur existe déjà dans users, c'est pas grave
+            if (!userError.message.includes('duplicate key')) {
+              console.warn('Erreur création user:', userError);
+            }
+          }
+          
+          imported_count++;
+          
+        } catch (accountError: any) {
+          errors.push(`${account.email}: ${accountError.message}`);
+          error_count++;
+        }
+      }
 
-      if (error) throw error;
-
-      // Adapter le résultat au format attendu
       return {
-        success: data.success,
+        success: true,
         total_processed: accountsData.length,
-        success_count: data.imported_count,
-        error_count: data.error_count,
+        success_count: imported_count,
+        error_count: error_count,
+        imported_count: imported_count,
+        errors: errors,
         results: accountsData.map((account, index) => ({
           email: account.email,
-          success: index < data.imported_count,
-          error: index >= data.imported_count ? 'Erreur lors de la création' : null,
+          success: index < imported_count,
+          error: index >= imported_count ? 'Erreur lors de la création' : null,
           role: account.role || 'member'
         }))
       };
     } catch (error: any) {
-      console.error('❌ [AccountCreator] Erreur Edge Function:', error);
-      throw new Error(`Erreur Edge Function: ${error.message}`);
+      console.error('❌ [AccountCreator] Erreur import direct:', error);
+      throw new Error(`Erreur import: ${error.message}`);
     }
   };
 
