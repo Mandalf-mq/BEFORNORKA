@@ -20,6 +20,17 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const [importResult, setImportResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'webmaster': return 'Webmaster';
+      case 'administrateur': return 'Administrateur';
+      case 'tresorerie': return 'Trésorerie';
+      case 'entraineur': return 'Entraîneur';
+      case 'member': return 'Membre';
+      default: return 'Membre';
+    }
+  };
+
   const createAccountsWithEdgeFunction = async (accountsData: any[]) => {
     try {
       console.log('🚀 [AccountCreator] Appel Edge Function avec', accountsData.length, 'comptes');
