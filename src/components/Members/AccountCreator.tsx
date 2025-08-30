@@ -567,19 +567,19 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
       setCategories(data || []);
     } catch (error) {
       // Créer seulement le profil membre (pas d'entrée dans users)
-      let newMemberId = null;
+      // Créer seulement le profil membre (pas d'entrée dans users)
       
-      if (formData.role === 'member') {
+      if (accountData.role === 'member') {
         const { data: newMember, error: memberError } = await supabase
           .from('members')
           .insert({
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email,
-            phone: formData.phone || null,
-            birth_date: formData.birthDate || null,
-            category: formData.category || 'loisirs',
-            membership_fee: formData.membershipFee || 200,
+            first_name: accountData.firstName,
+            last_name: accountData.lastName,
+            email: accountData.email,
+            phone: accountData.phone || null,
+            birth_date: accountData.birthDate || null,
+            category: accountData.category || 'loisirs',
+            membership_fee: accountData.membershipFee || 200,
             status: 'pending',
             payment_status: 'pending',
             season_id: currentSeason.id
