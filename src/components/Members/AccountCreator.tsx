@@ -311,12 +311,8 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     setLoading(true);
     
     try {
-      // Utiliser la fonction PostgreSQL qui fonctionne
-      const { data, error } = await supabase.rpc('import_members_profiles_only', {
-        p_csv_data: csvData
-      });
-
-      if (error) throw error;
+      // Utiliser l'import direct qui fonctionne
+      const data = await createAccountsDirectly(csvData);
 
       setImportResult(data);
 
@@ -606,37 +602,71 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     setError(null);
 
     try {
-      // Créer le profil avec la fonction PostgreSQL
-      const { data, error } = await supabase.rpc('create_member_profile_only', {
-        p_email: formData.email,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        email: formData.email,
-        phone: formData.phone || null,
-        p_phone: formData.phone || null,
-        p_birth_date: formData.birthDate || null
-      });
+      // Récupérer la saison courante
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+      
+      if (seasonError || !currentSeason) {
+        throw new Error('Aucune saison courante trouvée');
+      }
 
-      if (error) throw error;
-
-      if (data.success) {
-        // Créer aussi l'entrée dans users si c'est un rôle administratif
-        if (formData.role !== 'member') {
-          const { error: userError } = await supabase
-            .from('users')
-            .insert({
-              email: formData.email,
-              first_name: formData.firstName,
-              last_name: formData.lastName,
-              phone: formData.phone || null,
-              role: formData.role,
-              is_active: true
-            });
-          
-          if (userError) {
-            console.warn('Erreur création profil utilisateur:', userError);
-          }
+      // 1. Créer l'entrée dans users
+      const { data: newUser, error: userError } = await supabase
+        .from('users')
+        .insert({
+          email: formData.email,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          phone: formData.phone || null,
+          role: formData.role,
+          is_active: true
+        })
+        .select('id')
+        .single();
+      
+      if (userError) {
+        if (userError.message.includes('duplicate key')) {
+          throw new Error('Un utilisateur existe déjà avec cet email');
         }
+        throw userError;
+      }
+
+      // 2. Si c'est un membre, créer aussi le profil membre
+      let newMemberId = null;
+      if (formData.role === 'member') {
+        const { data: newMember, error: memberError } = await supabase
+          .from('members')
+          .insert({
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            phone: formData.phone || null,
+            birth_date: formData.birthDate || null,
+            category: 'loisirs',
+            membership_fee: 200,
+            status: 'pending',
+            payment_status: 'pending',
+            season_id: currentSeason.id
+          })
+          .select('id')
+          .single();
+        
+        if (memberError) throw memberError;
+        
+        newMemberId = newMember.id;
+        
+        // Ajouter la catégorie principale
+        await supabase
+          .from('member_categories')
+          .insert({
+            member_id: newMember.id,
+            category_value: 'loisirs',
+            is_primary: true
+          });
+      }
 
         alert(`✅ Profil créé avec succès !
 👤 ${formData.firstName} ${formData.lastName}
@@ -666,9 +696,6 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         });
 
         onSuccess();
-      } else {
-        setError(data.error || 'Erreur lors de la création');
-      }
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la création du profil');
     } finally {
