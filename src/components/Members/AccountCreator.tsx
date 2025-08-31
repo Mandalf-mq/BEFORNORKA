@@ -150,27 +150,28 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const generatePassword = () => {
-    // Générer un mot de passe fort avec tous les types de caractères requis
-    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
-    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const numbers = '0123456789';
-    const special = '!@#$%^&*';
+  const generateStrongPassword = () => {
+    const lowercase = 'abcdefghijkmnpqrstuvwxyz';
+    const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+    const numbers = '23456789';
+    const specials = '!@#$%^&*()_+-=[]{}|;:,.<>?';
     
-    // S'assurer d'avoir au moins un caractère de chaque type
+    // Garantir EXACTEMENT un caractère de chaque type requis
     let password = '';
-    password += lowercase[Math.floor(Math.random() * lowercase.length)];
-    password += uppercase[Math.floor(Math.random() * uppercase.length)];
-    password += numbers[Math.floor(Math.random() * numbers.length)];
-    password += special[Math.floor(Math.random() * special.length)];
     
-    // Compléter avec des caractères aléatoires
-    const allChars = lowercase + uppercase + numbers + special;
+    // 1. Un caractère de chaque type OBLIGATOIRE
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];  // a-z
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];  // A-Z
+    password += numbers[Math.floor(Math.random() * numbers.length)];      // 0-9
+    password += specials[Math.floor(Math.random() * specials.length)];    // Spéciaux
+    
+    // 2. Compléter avec 8 caractères supplémentaires
+    const allChars = lowercase + uppercase + numbers + specials;
     for (let i = 4; i < 12; i++) {
       password += allChars[Math.floor(Math.random() * allChars.length)];
     }
     
-    // Mélanger le mot de passe
+    // 3. Mélanger COMPLÈTEMENT le mot de passe
     return password.split('').sort(() => Math.random() - 0.5).join('');
   };
 
@@ -190,7 +191,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         
         try {
           // Générer un mot de passe temporaire
-          const tempPassword = generatePassword();
+          const tempPassword = generateStrongPassword();
           
           // Créer le compte complet
           const result = await createRealAuthAccount(account.email, tempPassword, {
@@ -780,27 +781,12 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
   };
 
   const generatePassword = () => {
-    // Générer un mot de passe fort avec tous les types de caractères requis
-    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
-    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const numbers = '0123456789';
-    const special = '!@#$%^&*';
-    
-    // S'assurer d'avoir au moins un caractère de chaque type
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     let password = '';
-    password += lowercase[Math.floor(Math.random() * lowercase.length)];
-    password += uppercase[Math.floor(Math.random() * uppercase.length)];
-    password += numbers[Math.floor(Math.random() * numbers.length)];
-    password += special[Math.floor(Math.random() * special.length)];
-    
-    // Compléter avec des caractères aléatoires
-    const allChars = lowercase + uppercase + numbers + special;
-    for (let i = 4; i < 12; i++) {
-      password += allChars[Math.floor(Math.random() * allChars.length)];
+    for (let i = 0; i < 8; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    
-    // Mélanger le mot de passe
-    return password.split('').sort(() => Math.random() - 0.5).join('');
+    return password;
   };
 
   if (showCSVImporter) {
