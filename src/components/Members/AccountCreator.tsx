@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Save, Upload, Download, CheckCircle, XCircle, FileText, X, Users } from 'lucide-react';
+import { UserPlus, Save, Upload, Download, CheckCircle, XCircle, FileText, X, Users, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface AccountCreatorProps {
@@ -11,7 +11,7 @@ interface AccountCSVImporterProps {
   onClose: () => void;
 }
 
-// Fonction utilitaire pour les labels de rôles (une seule déclaration)
+// Fonction utilitaire pour les labels de rôles
 const getRoleLabel = (role: string) => {
   switch (role) {
     case 'webmaster': return 'Webmaster';
@@ -23,7 +23,124 @@ const getRoleLabel = (role: string) => {
   }
 };
 
-// Composant CSV pour créer des profils membres
+// Fonction pour créer un vrai compte d'authentification
+const createRealAuthAccount = async (email: string, password: string, userData: any) => {
+  try {
+    console.log('🔐 [AccountCreator] Création compte auth pour:', email);
+    
+    // 1. Créer le compte d'authentification
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: email,
+      password: password,
+      options: {
+        data: {
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          role: userData.role || 'member',
+          phone: userData.phone || null
+        }
+      }
+    });
+
+    if (authError) {
+      console.error('❌ [AccountCreator] Erreur auth:', authError);
+      throw authError;
+    }
+
+    if (!authData.user) {
+      throw new Error('Aucun utilisateur créé');
+    }
+
+    console.log('✅ [AccountCreator] Compte auth créé:', authData.user.id);
+
+    // 2. Créer l'entrée dans la table users
+    const { error: userError } = await supabase
+      .from('users')
+      .insert({
+        id: authData.user.id,
+        email: email,
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        phone: userData.phone || null,
+        role: userData.role || 'member',
+        is_active: true
+      });
+
+    if (userError) {
+      console.warn('⚠️ [AccountCreator] Erreur table users:', userError);
+      // Ne pas bloquer pour cette erreur
+    }
+
+    // 3. Si c'est un membre, créer le profil membre
+    let memberId = null;
+    if (userData.role === 'member' || !userData.role) {
+      // Récupérer la saison courante
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      if (seasonError || !currentSeason) {
+        console.warn('⚠️ [AccountCreator] Aucune saison courante trouvée');
+      }
+
+      const { data: newMember, error: memberError } = await supabase
+        .from('members')
+        .insert({
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          email: email,
+          phone: userData.phone || null,
+          birth_date: userData.birth_date || null,
+          category: userData.category || 'loisirs',
+          membership_fee: userData.membership_fee || 200,
+          status: 'pending',
+          payment_status: 'pending',
+          season_id: currentSeason?.id || null
+        })
+        .select('id')
+        .single();
+
+      if (memberError) {
+        console.warn('⚠️ [AccountCreator] Erreur profil membre:', memberError);
+      } else {
+        memberId = newMember.id;
+        
+        // Ajouter la catégorie principale
+        const { error: categoryError } = await supabase
+          .from('member_categories')
+          .insert({
+            member_id: memberId,
+            category_value: userData.category || 'loisirs',
+            is_primary: true
+          });
+
+        if (categoryError) {
+          console.warn('⚠️ [AccountCreator] Erreur catégorie:', categoryError);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      user_id: authData.user.id,
+      member_id: memberId,
+      email: email,
+      password: password
+    };
+
+  } catch (error: any) {
+    console.error('❌ [AccountCreator] Erreur création compte:', error);
+    return {
+      success: false,
+      error: error.message,
+      email: email
+    };
+  }
+};
+
+// Composant CSV pour créer des comptes avec authentification
 const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onClose }) => {
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
@@ -31,122 +148,89 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  const createAccountsDirectly = async (accountsData: any[]) => {
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let password = '';
+    for (let i = 0; i < 8; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
+  const createAccountsWithAuth = async (accountsData: any[]) => {
     try {
-      console.log('🚀 [AccountCreator] Import direct avec', accountsData.length, 'comptes');
+      console.log('🚀 [AccountCreator] Création de', accountsData.length, 'comptes avec authentification');
       
       let imported_count = 0;
       let error_count = 0;
       const errors: string[] = [];
-      
-      // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
-      
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
-      }
+      const credentials: any[] = [];
       
       // Traiter chaque compte individuellement
       for (let i = 0; i < accountsData.length; i++) {
         const account = accountsData[i];
+        setProgress(Math.round((i / accountsData.length) * 100));
         
         try {
-          // Créer SEULEMENT un profil membre (pas d'entrée dans users)
-          if (account.role === 'member' || !account.role) {
-            // Vérifier si le membre existe déjà
-            const { data: existingMember } = await supabase
-              .from('members')
-              .select('id')
-              .eq('email', account.email)
-              .single();
-            
-            if (existingMember) {
-              errors.push(`${account.email}: Profil membre déjà existant`);
-              error_count++;
-              continue;
-            }
-            
-            // Créer le profil membre
-            const { data: newMember, error: memberError } = await supabase
-              .from('members')
-              .insert({
-                first_name: account.first_name,
-                last_name: account.last_name,
-                email: account.email,
-                phone: account.phone || null,
-                birth_date: account.birth_date || null,
-                category: 'loisirs',
-                membership_fee: 200,
-                status: 'pending',
-                payment_status: 'pending',
-                season_id: currentSeason.id
-              })
-              .select('id')
-              .single();
-            
-            if (memberError) {
-              console.error('❌ Erreur création membre:', memberError);
-              errors.push(`${account.email}: ${memberError.message}`);
-              error_count++;
-              continue;
-            }
-            
-            // Ajouter la catégorie principale
-            const { error: categoryError } = await supabase
-              .from('member_categories')
-              .insert({
-                member_id: newMember.id,
-                category_value: 'loisirs',
-                is_primary: true
-              });
-            
-            if (categoryError) {
-              console.warn('⚠️ Erreur ajout catégorie:', categoryError);
-            }
-            
+          // Générer un mot de passe temporaire
+          const tempPassword = generatePassword();
+          
+          // Créer le compte complet
+          const result = await createRealAuthAccount(account.email, tempPassword, {
+            first_name: account.first_name,
+            last_name: account.last_name,
+            phone: account.phone,
+            birth_date: account.birth_date,
+            category: account.category || 'loisirs',
+            role: account.role || 'member',
+            membership_fee: account.membership_fee || 200
+          });
+          
+          if (result.success) {
+            credentials.push({
+              email: account.email,
+              name: `${account.first_name} ${account.last_name}`,
+              password: tempPassword,
+              role: account.role || 'member'
+            });
             imported_count++;
-            console.log(`✅ Profil membre créé: ${account.first_name} ${account.last_name}`);
+            console.log(`✅ [AccountCreator] Compte créé: ${account.email}`);
+          } else {
+            errors.push(`${account.email}: ${result.error}`);
+            error_count++;
           }
+          
+          // Petite pause pour éviter de surcharger l'API
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
         } catch (error: any) {
-          console.error('❌ Erreur traitement compte:', error);
+          console.error('❌ [AccountCreator] Erreur compte individuel:', error);
           errors.push(`${account.email}: ${error.message}`);
           error_count++;
         }
       }
+      
+      setProgress(100);
       
       return {
         success: imported_count > 0,
         imported_count,
         error_count,
         errors,
-        message: `Import terminé: ${imported_count} créés, ${error_count} erreurs`
+        credentials,
+        message: `Import terminé: ${imported_count} comptes créés, ${error_count} erreurs`
       };
       
-      // Utiliser la fonction PostgreSQL pour l'import
-      const { data, error } = await supabase.rpc('import_csv_members_simple', {
-        p_csv_data: accountsData
-      });
-
-      if (error) {
-        console.error('❌ [AccountCreator] Erreur RPC:', error);
-        throw error;
-      }
-
-      console.log('✅ [AccountCreator] Résultat RPC:', data);
-      return data;
-      
     } catch (error: any) {
-      console.error('❌ Erreur générale import:', error);
+      console.error('❌ [AccountCreator] Erreur générale:', error);
       return {
         success: false,
         imported_count: 0,
         error_count: 1,
         errors: [error.message],
+        credentials: [],
         message: `Erreur d'import: ${error.message}`
       };
     }
@@ -242,6 +326,14 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
             case 'rôle':
               row.role = value || 'member';
               break;
+            case 'category':
+            case 'catégorie':
+              row.category = value || 'loisirs';
+              break;
+            case 'membership_fee':
+            case 'cotisation':
+              row.membership_fee = value ? parseFloat(value) : 200;
+              break;
           }
         });
         
@@ -271,6 +363,9 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
       if (!row.email?.trim()) {
         errors.push(`Ligne ${lineNum}: L'email est obligatoire`);
       }
+      if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+        errors.push(`Ligne ${lineNum}: Format email invalide`);
+      }
     });
     
     return errors;
@@ -286,8 +381,6 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     reader.onload = (event) => {
       try {
         const content = event.target?.result as string;
-        console.log('🚀 [AccountCreator] Import CSV via Edge Function, comptes:', csvData.length);
-        
         const parsedData = parseAccountsCSV(content);
         
         setCsvData(parsedData);
@@ -311,31 +404,36 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     if (!csvData.length || validationErrors.length > 0) return;
     
     setLoading(true);
+    setProgress(0);
     
     try {
-      const data = await createAccountsDirectly(csvData);
+      const data = await createAccountsWithAuth(csvData);
 
       setImportResult(data);
 
-      if (data.success) {
-        alert(`✅ Import de profils réussi !
+      if (data.success && data.credentials.length > 0) {
+        // Afficher les identifiants créés
+        const credentialsText = data.credentials
+          .map(cred => `${cred.name} (${cred.email}): ${cred.password}`)
+          .join('\n');
+
+        alert(`✅ Import réussi !
 
 📊 Résultats :
-• ${data.imported_count} profils créés
+• ${data.imported_count} comptes créés
 • ${data.error_count} erreurs
-📍 Visible dans : Supabase → Table Editor → members
 
-📋 INSTRUCTIONS POUR CHAQUE PERSONNE :
-1. Aller sur : ${window.location.origin}/auth
-2. S'inscrire avec son email (celui du CSV)
-3. Créer son mot de passe
-4. Se connecter normalement
+🔑 IDENTIFIANTS À COMMUNIQUER :
 
-🔗 Le profil sera automatiquement lié !`);
+${credentialsText}
+
+⚠️ Sauvegardez ces identifiants et communiquez-les aux personnes concernées !
+
+🌐 Site de connexion : ${window.location.origin}/auth`);
 
         onSuccess();
       } else {
-        alert(`❌ Erreur d'import : ${data.error}`);
+        alert(`❌ Erreur d'import : ${data.message}`);
       }
       
     } catch (error: any) {
@@ -343,6 +441,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
       alert(`❌ Erreur : ${error.message}`);
     } finally {
       setLoading(false);
+      setProgress(0);
     }
   };
 
@@ -353,7 +452,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         <div className="p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold text-gray-900">
-              👤 Import CSV - Création de profils membres
+              🔐 Import CSV - Création de comptes de connexion
             </h3>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="w-6 h-6" />
@@ -365,14 +464,14 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-6">
             {/* Info workflow */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-semibold text-blue-800 mb-2">🔄 Comment ça marche</h4>
-              <div className="text-sm text-blue-700 space-y-1">
-                <p>1. <strong>Vous importez</strong> : Comptes de connexion + profils créés</p>
-                <p>2. <strong>Vous communiquez</strong> : Email + mot de passe temporaire</p>
-                <p>3. <strong>Ils se connectent</strong> : Directement avec leurs identifiants</p>
-                <p>4. <strong>Accès immédiat</strong> : Documents, entraînements, profil</p>
-                <p>5. <strong>Changement de mot de passe</strong> : Optionnel à la première connexion</p>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h4 className="font-semibold text-green-800 mb-2">🎯 Création de vrais comptes</h4>
+              <div className="text-sm text-green-700 space-y-1">
+                <p>1. <strong>Comptes d'authentification</strong> : Créés dans Supabase Auth</p>
+                <p>2. <strong>Mots de passe temporaires</strong> : Générés automatiquement</p>
+                <p>3. <strong>Connexion immédiate</strong> : Les gens peuvent se connecter tout de suite</p>
+                <p>4. <strong>Profils complets</strong> : Membres + utilisateurs créés</p>
+                <p>5. <strong>Identifiants fournis</strong> : À communiquer aux personnes</p>
               </div>
             </div>
 
@@ -424,7 +523,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                     <div className="flex items-center space-x-2">
                       <CheckCircle className="w-5 h-5 text-green-500" />
                       <span className="font-medium text-green-800">
-                        Validation réussie - {csvData.length} profils prêts à créer
+                        Validation réussie - {csvData.length} comptes prêts à créer
                       </span>
                     </div>
                   </div>
@@ -469,6 +568,22 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               </div>
             )}
 
+            {/* Barre de progression */}
+            {loading && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-800">Création des comptes en cours...</span>
+                  <span className="text-sm text-blue-600">{progress}%</span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+
             {/* Résultats d'import */}
             {importResult && (
               <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -478,13 +593,29 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
                     <div className="grid grid-cols-2 gap-4 text-center">
                       <div className="bg-green-50 rounded-lg p-3">
                         <div className="text-2xl font-bold text-green-600">{importResult.imported_count}</div>
-                        <div className="text-sm text-green-700">Profils créés</div>
+                        <div className="text-sm text-green-700">Comptes créés</div>
                       </div>
                       <div className="bg-red-50 rounded-lg p-3">
                         <div className="text-2xl font-bold text-red-600">{importResult.error_count}</div>
                         <div className="text-sm text-red-700">Erreurs</div>
                       </div>
                     </div>
+
+                    {/* Identifiants créés */}
+                    {importResult.credentials?.length > 0 && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h5 className="font-medium text-green-800 mb-2">🔑 Identifiants créés</h5>
+                        <div className="space-y-2 text-sm text-green-700 max-h-32 overflow-y-auto">
+                          {importResult.credentials.map((cred: any, index: number) => (
+                            <div key={index} className="bg-white rounded p-2 border border-green-200">
+                              <div className="font-medium">{cred.name}</div>
+                              <div className="text-xs">Email: {cred.email}</div>
+                              <div className="text-xs">Mot de passe: <strong>{cred.password}</strong></div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {importResult.errors?.length > 0 && (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -521,17 +652,17 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
               <button
                 onClick={handleImport}
                 disabled={loading}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
               >
                 {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Création des profils...</span>
+                    <span>Création des comptes...</span>
                   </>
                 ) : (
                   <>
                     <UserPlus className="w-4 h-4" />
-                    <span>Créer {csvData.length} profil(s)</span>
+                    <span>Créer {csvData.length} compte(s) de connexion</span>
                   </>
                 )}
               </button>
@@ -584,86 +715,62 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
     setError(null);
 
     try {
-      // Récupérer la saison courante
-      const { data: currentSeason, error: seasonError } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('is_current', true)
-        .single();
+      // Générer un mot de passe temporaire
+      const tempPassword = generatePassword();
       
-      if (seasonError || !currentSeason) {
-        throw new Error('Aucune saison courante trouvée');
-      }
-
-      // Créer seulement le profil membre (pas d'entrée dans users)
-      let newMemberId = null;
-      
-      if (formData.role === 'member') {
-        const { data: newMember, error: memberError } = await supabase
-          .from('members')
-          .insert({
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email,
-            phone: formData.phone || null,
-            birth_date: formData.birthDate || null,
-            category: formData.category || 'loisirs',
-            membership_fee: formData.membershipFee || 200,
-            status: 'pending',
-            payment_status: 'pending',
-            season_id: currentSeason.id
-          })
-          .select('id')
-          .single();
-        
-        if (memberError) {
-          throw memberError;
-        }
-        
-        newMemberId = newMember.id;
-        
-        // Ajouter la catégorie principale
-        const { error: categoryError } = await supabase
-          .from('member_categories')
-          .insert({
-            member_id: newMemberId,
-            category_value: formData.category || 'loisirs',
-            is_primary: true
-          });
-        
-        if (categoryError) {
-          console.warn('⚠️ Erreur ajout catégorie:', categoryError);
-        }
-      }
-
-      alert(`✅ Profil ${getRoleLabel(formData.role)} créé avec succès !
-
-📋 INSTRUCTIONS POUR LA PERSONNE :
-1. Aller sur : ${window.location.origin}/auth
-2. S'inscrire avec son email : ${formData.email}
-3. Créer son mot de passe
-4. Se connecter normalement
-
-🔗 Le profil sera automatiquement lié !`);
-
-      setFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        birthDate: '',
-        category: 'loisirs',
-        membershipFee: 200,
-        role: 'member'
+      // Créer le compte complet
+      const result = await createRealAuthAccount(formData.email, tempPassword, {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        phone: formData.phone,
+        birth_date: formData.birthDate,
+        category: formData.category,
+        role: formData.role,
+        membership_fee: formData.membershipFee
       });
-        
-      onSuccess();
+
+      if (result.success) {
+        alert(`✅ Compte créé avec succès !
+
+👤 ${formData.firstName} ${formData.lastName}
+📧 Email: ${formData.email}
+🔑 Mot de passe temporaire: ${tempPassword}
+
+🌐 Site de connexion: ${window.location.origin}/auth
+
+⚠️ Communiquez ces identifiants à la personne !`);
+
+        // Reset du formulaire
+        setFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          birthDate: '',
+          category: 'loisirs',
+          membershipFee: 200,
+          role: 'member'
+        });
+
+        onSuccess();
+      } else {
+        throw new Error(result.error);
+      }
     } catch (err: any) {
-      console.error('❌ [AccountCreator] Erreur générale:', err);
+      console.error('❌ [AccountCreator] Erreur:', err);
       setError(err.message || 'Une erreur est survenue');
     } finally {
       setLoading(false);
     }
+  };
+
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let password = '';
+    for (let i = 0; i < 8; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
   };
 
   if (showCSVImporter) {
@@ -684,7 +791,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
             <UserPlus className="w-6 h-6 text-primary-600" />
-            <span>Créer un profil</span>
+            <span>Créer un compte de connexion</span>
           </h2>
           <button
             onClick={() => setShowCSVImporter(true)}
@@ -696,20 +803,23 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
         </div>
 
         {/* Info workflow */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <h4 className="font-semibold text-green-800 mb-2">🎯 Workflow simple et efficace</h4>
-          <div className="text-sm text-green-700 space-y-1">
-            <p>• <strong>Vous créez le compte</strong> : Compte de connexion + profil membre</p>
-            <p>• <strong>Vous communiquez</strong> : Email + mot de passe temporaire</p>
-            <p>• <strong>Connexion directe</strong> : La personne se connecte immédiatement</p>
-            <p>• <strong>Accès complet</strong> : Documents, entraînements, profil</p>
-            <p>• <strong>Sécurisé</strong> : Mot de passe temporaire à changer (optionnel)</p>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h4 className="font-semibold text-blue-800 mb-2">🔐 Création de compte complet</h4>
+          <div className="text-sm text-blue-700 space-y-1">
+            <p>• <strong>Compte d'authentification</strong> : Créé dans Supabase Auth</p>
+            <p>• <strong>Mot de passe temporaire</strong> : Généré automatiquement</p>
+            <p>• <strong>Connexion immédiate</strong> : La personne peut se connecter tout de suite</p>
+            <p>• <strong>Profil complet</strong> : Utilisateur + membre créés</p>
+            <p>• <strong>Identifiants fournis</strong> : À communiquer à la personne</p>
           </div>
         </div>
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-800 text-sm">{error}</p>
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <p className="text-red-800 text-sm">{error}</p>
+            </div>
           </div>
         )}
 
@@ -783,11 +893,39 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
                 <option value="administrateur">👨‍💼 Administrateur</option>
                 <option value="webmaster">👑 Webmaster</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Seuls les membres auront un profil dans la table 'members'
-              </p>
             </div>
           </div>
+
+          {/* Catégorie et cotisation (seulement pour les membres) */}
+          {formData.role === 'member' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                >
+                  {categories.map(category => (
+                    <option key={category.id} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cotisation (€)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.membershipFee}
+                  onChange={(e) => setFormData(prev => ({ ...prev, membershipFee: parseFloat(e.target.value) || 0 }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -799,7 +937,7 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                <span>Créer le profil {getRoleLabel(formData.role)}</span>
+                <span>Créer le compte de connexion</span>
               </>
             )}
           </button>
