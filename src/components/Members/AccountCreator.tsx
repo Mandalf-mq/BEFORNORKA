@@ -423,20 +423,43 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     setProgress(0);
     
     try {
-      const data = await createAccountsWithAuth(csvData);
+      // Utiliser l'Edge Function pour éviter le rate limit
+      console.log('🚀 [AccountCreator] Utilisation Edge Function pour éviter rate limit');
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accounts: csvData
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Erreur inconnue');
+      }
 
       setImportResult(data);
 
-      if (data.success && data.credentials.length > 0) {
+      if (data.success && data.results.length > 0) {
         // Afficher les identifiants créés
-        const credentialsText = data.credentials
-          .map(cred => `${cred.name} (${cred.email}): ${cred.password}`)
+        const successfulAccounts = data.results.filter(r => r.success);
+        const credentialsText = successfulAccounts
+          .map(result => `${result.email}: ${result.temporary_password}`)
           .join('\n');
 
         alert(`✅ Import réussi !
 
 📊 Résultats :
-• ${data.imported_count} comptes créés
+• ${data.success_count} comptes créés
 • ${data.error_count} erreurs
 
 🔑 IDENTIFIANTS À COMMUNIQUER :
@@ -449,7 +472,7 @@ ${credentialsText}
 
         onSuccess();
       } else {
-        alert(`❌ Erreur d'import : ${data.message}`);
+        alert(`❌ Erreur d'import : ${data.error || 'Erreur inconnue'}`);
       }
       
     } catch (error: any) {

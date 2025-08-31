@@ -50,14 +50,13 @@ serve(async (req) => {
           email, 
           phone, 
           birth_date, 
-          category, 
-          membership_fee, 
-          temporary_password,
-          role = 'member' // 👈 NOUVEAU : Support des rôles
+          category = 'loisirs',
+          membership_fee = 200,
+          role = 'member'
         } = account
 
         // Validation des données
-        if (!first_name || !last_name || !email || !temporary_password) {
+        if (!first_name || !last_name || !email) {
           results.push({
             email,
             success: false,
@@ -67,22 +66,37 @@ serve(async (req) => {
           continue
         }
 
-        // Validation du rôle
-        const validRoles = ['member', 'entraineur', 'tresorerie', 'administrateur', 'webmaster']
-        if (!validRoles.includes(role)) {
-          results.push({
-            email,
-            success: false,
-            error: `Rôle invalide: ${role}. Rôles autorisés: ${validRoles.join(', ')}`
-          })
-          errorCount++
-          continue
-        }
+        // Générer un mot de passe fort
+        const generateStrongPassword = () => {
+          const lowercase = 'abcdefghijkmnpqrstuvwxyz';
+          const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+          const numbers = '23456789';
+          const specials = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+          
+          let password = '';
+          
+          // Garantir au moins un caractère de chaque type
+          password += lowercase[Math.floor(Math.random() * lowercase.length)];
+          password += uppercase[Math.floor(Math.random() * uppercase.length)];
+          password += numbers[Math.floor(Math.random() * numbers.length)];
+          password += specials[Math.floor(Math.random() * specials.length)];
+          
+          // Compléter avec 8 caractères supplémentaires
+          const allChars = lowercase + uppercase + numbers + specials;
+          for (let i = 4; i < 12; i++) {
+            password += allChars[Math.floor(Math.random() * allChars.length)];
+          }
+          
+          // Mélanger le mot de passe
+          return password.split('').sort(() => Math.random() - 0.5).join('');
+        };
 
-        // 1. Créer l'utilisateur dans auth.users avec l'API admin
+        const temporaryPassword = generateStrongPassword();
+
+        // 1. Créer l'utilisateur dans auth.users avec l'API admin (PAS DE RATE LIMIT)
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email,
-          password: temporary_password,
+          password: temporaryPassword,
           email_confirm: true, // Confirmer l'email automatiquement
           user_metadata: {
             first_name,
@@ -112,9 +126,7 @@ serve(async (req) => {
             last_name,
             phone: phone || null,
             role: role,
-            is_active: true,
-            temp_password: temporary_password,
-            must_change_password: true
+            is_active: true
           })
 
         if (userError) {
@@ -134,8 +146,8 @@ serve(async (req) => {
               email,
               phone: phone || null,
               birth_date: birth_date || null,
-              category: 'loisirs', // Catégorie par défaut
-              membership_fee: 200, // Tarif par défaut
+              category: category,
+              membership_fee: membership_fee,
               status: 'pending',
               payment_status: 'pending',
               season_id: currentSeason?.id
@@ -153,7 +165,7 @@ serve(async (req) => {
               .from('member_categories')
               .insert({
                 member_id: newMember.id,
-                category_value: 'loisirs',
+                category_value: category,
                 is_primary: true
               })
           }
@@ -164,7 +176,7 @@ serve(async (req) => {
           success: true,
           user_id: authUser.user.id,
           member_id: newMemberId,
-          temporary_password,
+          temporary_password: temporaryPassword,
           role: role
         })
         successCount++
