@@ -151,12 +151,27 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
   const [progress, setProgress] = useState(0);
 
   const generatePassword = () => {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    // Générer un mot de passe fort avec tous les types de caractères requis
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    const special = '!@#$%^&*';
+    
+    // S'assurer d'avoir au moins un caractère de chaque type
     let password = '';
-    for (let i = 0; i < 8; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += special[Math.floor(Math.random() * special.length)];
+    
+    // Compléter avec des caractères aléatoires
+    const allChars = lowercase + uppercase + numbers + special;
+    for (let i = 4; i < 12; i++) {
+      password += allChars[Math.floor(Math.random() * allChars.length)];
     }
-    return password;
+    
+    // Mélanger le mot de passe
+    return password.split('').sort(() => Math.random() - 0.5).join('');
   };
 
   const createAccountsWithAuth = async (accountsData: any[]) => {
@@ -765,12 +780,27 @@ export const AccountCreator: React.FC<AccountCreatorProps> = ({ onSuccess }) => 
   };
 
   const generatePassword = () => {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    // Générer un mot de passe fort avec tous les types de caractères requis
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    const special = '!@#$%^&*';
+    
+    // S'assurer d'avoir au moins un caractère de chaque type
     let password = '';
-    for (let i = 0; i < 8; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += special[Math.floor(Math.random() * special.length)];
+    
+    // Compléter avec des caractères aléatoires
+    const allChars = lowercase + uppercase + numbers + special;
+    for (let i = 4; i < 12; i++) {
+      password += allChars[Math.floor(Math.random() * allChars.length)];
     }
-    return password;
+    
+    // Mélanger le mot de passe
+    return password.split('').sort(() => Math.random() - 0.5).join('');
   };
 
   if (showCSVImporter) {
