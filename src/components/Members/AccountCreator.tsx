@@ -423,25 +423,29 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     setProgress(0);
     
     try {
-      // Utiliser l'Edge Function pour éviter le rate limit
-      console.log('🚀 [AccountCreator] Utilisation Edge Function pour éviter rate limit');
+      console.log('🚀 [AccountCreator] Utilisation Edge Function corrigée');
       
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
+          'x-client-info': 'supabase-js-web'
         },
         body: JSON.stringify({
           accounts: csvData
         })
       });
 
+      console.log('📡 [AccountCreator] Réponse Edge Function:', response.status, response.statusText);
       if (!response.ok) {
-        throw new Error(`Erreur HTTP: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ [AccountCreator] Erreur Edge Function:', errorText);
+        throw new Error(`Erreur Edge Function (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('✅ [AccountCreator] Données reçues:', data);
       
       if (!data.success) {
         throw new Error(data.error || 'Erreur inconnue');
@@ -477,7 +481,22 @@ ${credentialsText}
       
     } catch (error: any) {
       console.error('Erreur import:', error);
-      alert(`❌ Erreur : ${error.message}`);
+      
+      // Message d'erreur plus informatif
+      if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+        alert(`🚨 Problème de connexion à l'Edge Function
+
+❌ Erreur: ${error.message}
+
+💡 Solutions:
+1. Attendez 1 heure (rate limit Supabase)
+2. Vérifiez que l'Edge Function est déployée
+3. Utilisez la création manuelle compte par compte
+
+🔧 L'Edge Function doit être déployée dans votre projet Supabase.`);
+      } else {
+        alert(`❌ Erreur : ${error.message}`);
+      }
     } finally {
       setLoading(false);
       setProgress(0);

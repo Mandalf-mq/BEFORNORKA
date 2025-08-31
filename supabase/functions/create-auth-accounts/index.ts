@@ -4,6 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 serve(async (req) => {
@@ -13,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase admin client
+    // Create Supabase admin client with service role key
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -28,7 +29,7 @@ serve(async (req) => {
     const { accounts } = await req.json()
 
     if (!accounts || !Array.isArray(accounts)) {
-      throw new Error('Format de données invalide')
+      throw new Error('Format de données invalide - accounts array requis')
     }
 
     const results = []
@@ -36,12 +37,42 @@ serve(async (req) => {
     let errorCount = 0
 
     // Récupérer la saison courante
-    const { data: currentSeason } = await supabaseAdmin
+    const { data: currentSeason, error: seasonError } = await supabaseAdmin
       .from('seasons')
       .select('id')
       .eq('is_current', true)
       .single()
 
+    if (seasonError) {
+      console.warn('Aucune saison courante trouvée:', seasonError)
+    }
+
+    // Fonction pour générer un mot de passe ultra-fort
+    const generateUltraStrongPassword = () => {
+      const lowercase = 'abcdefghijkmnpqrstuvwxyz';
+      const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+      const numbers = '23456789';
+      const specials = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+      
+      let password = '';
+      
+      // Garantir EXACTEMENT un caractère de chaque type requis
+      password += lowercase[Math.floor(Math.random() * lowercase.length)];  // a-z
+      password += uppercase[Math.floor(Math.random() * uppercase.length)];  // A-Z
+      password += numbers[Math.floor(Math.random() * numbers.length)];      // 0-9
+      password += specials[Math.floor(Math.random() * specials.length)];    // Spéciaux
+      
+      // Compléter avec 8 caractères supplémentaires pour avoir 12 au total
+      const allChars = lowercase + uppercase + numbers + specials;
+      for (let i = 4; i < 12; i++) {
+        password += allChars[Math.floor(Math.random() * allChars.length)];
+      }
+      
+      // Mélanger COMPLÈTEMENT le mot de passe
+      return password.split('').sort(() => Math.random() - 0.5).join('');
+    };
+
+    // Traiter chaque compte
     for (const account of accounts) {
       try {
         const { 
@@ -55,43 +86,31 @@ serve(async (req) => {
           role = 'member'
         } = account
 
-        // Validation des données
+        // Validation des données obligatoires
         if (!first_name || !last_name || !email) {
           results.push({
-            email,
+            email: email || 'Email manquant',
             success: false,
-            error: 'Champs obligatoires manquants'
+            error: 'Champs obligatoires manquants (prénom, nom, email)'
           })
           errorCount++
           continue
         }
 
-        // Générer un mot de passe fort
-        const generateStrongPassword = () => {
-          const lowercase = 'abcdefghijkmnpqrstuvwxyz';
-          const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
-          const numbers = '23456789';
-          const specials = '!@#$%^&*()_+-=[]{}|;:,.<>?';
-          
-          let password = '';
-          
-          // Garantir au moins un caractère de chaque type
-          password += lowercase[Math.floor(Math.random() * lowercase.length)];
-          password += uppercase[Math.floor(Math.random() * uppercase.length)];
-          password += numbers[Math.floor(Math.random() * numbers.length)];
-          password += specials[Math.floor(Math.random() * specials.length)];
-          
-          // Compléter avec 8 caractères supplémentaires
-          const allChars = lowercase + uppercase + numbers + specials;
-          for (let i = 4; i < 12; i++) {
-            password += allChars[Math.floor(Math.random() * allChars.length)];
-          }
-          
-          // Mélanger le mot de passe
-          return password.split('').sort(() => Math.random() - 0.5).join('');
-        };
+        // Validation format email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(email)) {
+          results.push({
+            email,
+            success: false,
+            error: 'Format email invalide'
+          })
+          errorCount++
+          continue
+        }
 
-        const temporaryPassword = generateStrongPassword();
+        // Générer un mot de passe ultra-fort
+        const temporaryPassword = generateUltraStrongPassword()
 
         // 1. Créer l'utilisateur dans auth.users avec l'API admin (PAS DE RATE LIMIT)
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -110,11 +129,13 @@ serve(async (req) => {
           results.push({
             email,
             success: false,
-            error: `Erreur auth: ${authError.message}`
+            error: `Erreur authentification: ${authError.message}`
           })
           errorCount++
           continue
         }
+
+        console.log(`✅ Compte auth créé pour: ${email}`)
 
         // 2. Créer l'entrée dans la table users
         const { error: userError } = await supabaseAdmin
@@ -131,12 +152,21 @@ serve(async (req) => {
 
         if (userError) {
           console.warn('Erreur création profil utilisateur:', userError)
-          // Ne pas bloquer pour cette erreur
+          // Ne pas bloquer pour cette erreur - le compte auth existe
         }
 
         // 3. Si c'est un membre, créer aussi le profil membre
         let newMemberId = null
         if (role === 'member') {
+          // Récupérer la catégorie pour le tarif
+          const { data: categoryData } = await supabaseAdmin
+            .from('categories')
+            .select('membership_fee')
+            .eq('value', category)
+            .single()
+
+          const finalFee = membership_fee || categoryData?.membership_fee || 200
+
           // Créer le profil membre
           const { data: newMember, error: memberError } = await supabaseAdmin
             .from('members')
@@ -147,7 +177,7 @@ serve(async (req) => {
               phone: phone || null,
               birth_date: birth_date || null,
               category: category,
-              membership_fee: membership_fee,
+              membership_fee: finalFee,
               status: 'pending',
               payment_status: 'pending',
               season_id: currentSeason?.id
@@ -181,7 +211,10 @@ serve(async (req) => {
         })
         successCount++
 
+        console.log(`✅ Compte complet créé pour: ${email}`)
+
       } catch (error) {
+        console.error(`❌ Erreur pour ${account.email}:`, error)
         results.push({
           email: account.email || 'Email manquant',
           success: false,
@@ -215,7 +248,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
-      }
+      },
     )
   }
 })
