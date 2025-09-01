@@ -223,7 +223,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
           
         } catch (error: any) {
           console.error('❌ [AccountCreator] Erreur compte individuel:', error);
-          errors.push(`${account.email}: ${error.message}`);
+          alert(`Erreur : ${error.message}`);
           error_count++;
         }
       }
@@ -387,14 +387,14 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     return errors;
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
     setFile(selectedFile);
     
     const reader = new FileReader();
-    reader.onload = async (event) => {
+    reader.onload = (event) => {
       try {
         const content = event.target?.result as string;
         const parsedData = parseAccountsCSV(content);
@@ -406,11 +406,10 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         setValidationErrors(errors);
         
       } catch (error: any) {
-        console.error('Erreur lecture fichier:', error);
-        setValidationErrors([error.message]);
+        alert(`Erreur lors de la lecture du fichier: ${error.message}`);
+        alert(`Erreur technique : ${error.message}\n\nVérifiez :\n• Edge Function déployée et active\n• Logs dans Supabase → Edge Functions → create-auth-accounts`);
       }
     };
-    
     reader.readAsText(selectedFile, 'UTF-8');
   };
 
