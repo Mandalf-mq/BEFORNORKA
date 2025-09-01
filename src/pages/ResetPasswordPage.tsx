@@ -46,13 +46,14 @@ export const ResetPasswordPage: React.FC = () => {
     return {
       accessToken: allParams.get('access_token'),
       refreshToken: allParams.get('refresh_token'),
+      code: allParams.get('code'), // Nouveau paramètre Supabase
       type: allParams.get('type'),
       error_description: allParams.get('error_description'),
       error_code: allParams.get('error') || allParams.get('error_code')
     };
   };
 
-  const { accessToken, refreshToken, type, error_description, error_code } = parseTokensFromUrl();
+  const { accessToken, refreshToken, code, type, error_description, error_code } = parseTokensFromUrl();
 
   useEffect(() => {
     console.log('🔍 [ResetPassword] URL complète:', window.location.href);
@@ -61,6 +62,7 @@ export const ResetPasswordPage: React.FC = () => {
     console.log('🔍 [ResetPassword] Tokens parsés:', {
       accessToken: accessToken ? 'Présent' : 'Manquant',
       refreshToken: refreshToken ? 'Présent' : 'Manquant',
+      code: code ? 'Présent' : 'Manquant',
       type: type,
       error_description: error_description,
       error_code: error_code
@@ -138,8 +140,48 @@ export const ResetPasswordPage: React.FC = () => {
       return;
     }
 
+    // 🔧 NOUVEAU : Gérer le paramètre 'code' de Supabase
+    if (code && !hasExpiredError) {
+      console.log('🔑 [ResetPassword] Code de récupération détecté:', code);
+      
+      // Échanger le code contre une session
+      supabase.auth.exchangeCodeForSession(code).then(async ({ data, error }) => {
+        if (error) {
+          console.error('❌ [ResetPassword] Erreur échange code:', error);
+          
+          // Déconnexion forcée si erreur
+          await supabase.auth.signOut({ scope: 'global' });
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          setError(`🚨 Code de récupération invalide
+          
+❌ Erreur : ${error.message}
+          
+🔍 Détails techniques :
+• Code reçu : ${code}
+• Erreur Supabase : ${error.message}
+• URL complète : ${window.location.href}
+
+💡 Solutions :
+1. Demandez un NOUVEAU lien de récupération
+2. Cliquez IMMÉDIATEMENT sur le lien dans l'email
+3. Ne copiez/collez PAS l'URL manuellement
+4. Vérifiez la configuration Supabase :
+   • Site URL : https://www.befornorka.fr
+   • Additional Redirect URLs : https://www.befornorka.fr/*
+
+🔧 Si le problème persiste, c'est une limitation du plan Supabase gratuit.`);
+        } else if (data.session) {
+          console.log('✅ [ResetPassword] Session établie via code pour:', data.session.user.email);
+          setSessionReady(true);
+        } else {
+          setError('❌ Aucune session créée malgré le code valide');
+        }
+      });
+    }
     // Si on a les tokens de récupération ET pas d'erreur, les utiliser
-    if (accessToken && refreshToken && type === 'recovery' && !hasExpiredError) {
+    else if (accessToken && refreshToken && type === 'recovery' && !hasExpiredError) {
       console.log('🔑 [ResetPassword] Tokens de récupération détectés, établissement de la session...');
       
       supabase.auth.setSession({
@@ -168,11 +210,12 @@ export const ResetPasswordPage: React.FC = () => {
           setSessionReady(true);
         }
       });
-    } else if (!accessToken || !refreshToken || !type) {
+    } else if (!accessToken && !refreshToken && !type && !code) {
       console.log('⚠️ [ResetPassword] Tokens manquants dans l\'URL');
       console.log('🔍 [ResetPassword] Détails manquants:', {
         accessToken: accessToken ? 'Présent' : 'MANQUANT',
         refreshToken: refreshToken ? 'Présent' : 'MANQUANT', 
+        code: code ? 'Présent' : 'MANQUANT',
         type: type || 'MANQUANT',
         urlHash: window.location.hash,
         urlSearch: window.location.search
@@ -193,6 +236,7 @@ export const ResetPasswordPage: React.FC = () => {
 🔍 Détails techniques :
 • access_token: ${accessToken ? 'Présent' : 'MANQUANT'}
 • refresh_token: ${refreshToken ? 'Présent' : 'MANQUANT'}
+• code: ${code ? 'Présent' : 'MANQUANT'}
 • type: ${type || 'MANQUANT'}
 • URL actuelle: ${window.location.href}
 
@@ -209,7 +253,7 @@ export const ResetPasswordPage: React.FC = () => {
 
 📧 Si vous continuez à recevoir des liens sans tokens, contactez l'administrateur.`);
     }
-  }, [accessToken, refreshToken, type, error_description, error_code]);
+  }, [accessToken, refreshToken, code, type, error_description, error_code]);
 
   const validatePassword = (password: string) => {
     const errors = [];
