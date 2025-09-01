@@ -39,9 +39,21 @@ export const AuthPage: React.FC = () => {
     setError(null);
 
     try {
-      await resetPassword(resetEmail);
+      console.log('🔄 [AuthPage] Envoi email de récupération pour:', resetEmail);
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+      
+      if (error) {
+        console.error('❌ [AuthPage] Erreur envoi email:', error);
+        throw error;
+      }
+      
+      console.log('✅ [AuthPage] Email de récupération envoyé avec succès');
       setResetSent(true);
     } catch (err: any) {
+      console.error('❌ [AuthPage] Erreur récupération:', err);
       setError(err.message || 'Erreur lors de l\'envoi');
     }
   };

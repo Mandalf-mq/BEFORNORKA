@@ -22,7 +22,12 @@ export const ResetPasswordPage: React.FC = () => {
   useEffect(() => {
     // Si on a les tokens de récupération, les utiliser pour établir la session
     if (accessToken && refreshToken && type === 'recovery') {
-      console.log('🔑 [ResetPassword] Tokens de récupération détectés');
+      console.log('🔑 [ResetPassword] Tokens de récupération détectés:', {
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        type: type,
+        fullUrl: window.location.href
+      });
       
       supabase.auth.setSession({
         access_token: accessToken,
@@ -35,10 +40,20 @@ export const ResetPasswordPage: React.FC = () => {
           console.log('✅ [ResetPassword] Session établie pour changement de mot de passe');
         }
       });
-    } else if (!accessToken && !refreshToken) {
+    } else {
       // Si pas de tokens, rediriger vers la page de connexion
-      console.log('⚠️ [ResetPassword] Pas de tokens, redirection vers auth');
-      navigate('/auth');
+      console.log('⚠️ [ResetPassword] Pas de tokens de récupération:', {
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        type: type,
+        searchParams: Object.fromEntries(searchParams.entries()),
+        fullUrl: window.location.href
+      });
+      
+      // Attendre 2 secondes avant de rediriger pour permettre le debug
+      setTimeout(() => {
+        navigate('/auth');
+      }, 2000);
     }
   }, [accessToken, refreshToken, type, navigate]);
 

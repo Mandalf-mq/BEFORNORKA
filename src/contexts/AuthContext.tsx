@@ -361,13 +361,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (email: string) => {
+    console.log('🔄 [AuthContext] Demande de récupération pour:', email);
+    console.log('🔄 [AuthContext] URL de redirection:', `${window.location.origin}/auth/reset-password`);
+    
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     });
 
     if (error) {
+      console.error('❌ [AuthContext] Erreur resetPasswordForEmail:', error);
       throw error;
     }
+    
+    console.log('✅ [AuthContext] Email de récupération envoyé avec succès');
   };
 
   const hasPermission = (permission: string) => {
