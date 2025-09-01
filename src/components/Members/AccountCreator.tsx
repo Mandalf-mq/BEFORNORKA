@@ -135,12 +135,10 @@ const createRealAuthAccount = async (email: string, password: string, userData: 
     return {
       success: false,
       error: error.message,
-      email: email
     };
   }
 };
 
-// Composant CSV pour créer des comptes avec authentification
 const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onClose }) => {
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
@@ -223,7 +221,7 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
           
         } catch (error: any) {
           console.error('❌ [AccountCreator] Erreur compte individuel:', error);
-          alert(`Erreur : ${error.message}`);
+          errors.push(`${account.email}: ${error.message}`);
           error_count++;
         }
       }
@@ -407,7 +405,10 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         
       } catch (error: any) {
         alert(`Erreur lors de la lecture du fichier: ${error.message}`);
-        alert(`Erreur technique : ${error.message}\n\nVérifiez :\n• Edge Function déployée et active\n• Logs dans Supabase → Edge Functions → create-auth-accounts`);
+        setFile(null);
+        setCsvData([]);
+        setPreviewData([]);
+        setValidationErrors([]);
       }
     };
     reader.readAsText(selectedFile, 'UTF-8');
