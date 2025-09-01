@@ -41,10 +41,14 @@ export const AuthPage: React.FC = () => {
 
     try {
       console.log('🔄 [AuthPage] Envoi email de récupération pour:', resetEmail);
+      console.log('🔄 [AuthPage] URL actuelle:', window.location.href);
+      console.log('🔄 [AuthPage] Origin:', window.location.origin);
       
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: `${window.location.origin}/auth/reset-password`,
       });
+      
+      console.log('🔄 [AuthPage] URL de redirection envoyée:', `${window.location.origin}/auth/reset-password`);
       
       if (error) {
         console.error('❌ [AuthPage] Erreur envoi email:', error);
