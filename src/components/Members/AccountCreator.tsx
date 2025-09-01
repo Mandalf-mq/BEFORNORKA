@@ -703,7 +703,7 @@ Les membres créeront ensuite leur compte eux-mêmes.`);
           </div>
         </div>
 
-        {/* Footer fixe */}
+        {/* Footer avec boutons */}
         <div className="p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
           <div className="flex space-x-3">
             <button
