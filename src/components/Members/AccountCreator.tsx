@@ -496,6 +496,20 @@ ${credentialsText}
 ${errorDetails}`);
       }
       
+      // Proposer de télécharger les identifiants
+      if (result.success && result.success_count > 0) {
+        const shouldDownload = confirm(`💾 Voulez-vous télécharger les identifiants au format CSV ?
+
+Cela vous permettra de :
+• Conserver une trace des mots de passe
+• Envoyer les identifiants par email facilement
+• Imprimer la liste si nécessaire`);
+        
+        if (shouldDownload) {
+          downloadCredentials(result.results.filter((r: any) => r.success));
+        }
+      }
+      
     } catch (error: any) {
       console.error('Erreur import:', error);
       
@@ -508,6 +522,32 @@ Les membres créeront ensuite leur compte eux-mêmes.`);
       setLoading(false);
       setProgress(0);
     }
+  };
+
+  const downloadCredentials = (credentials: any[]) => {
+    const headers = ['Nom', 'Email', 'Mot de passe temporaire', 'Rôle', 'Instructions'];
+    const rows = credentials.map(cred => [
+      cred.name || `${cred.first_name} ${cred.last_name}`,
+      cred.email,
+      cred.temporary_password,
+      getRoleLabel(cred.role || 'member'),
+      `Se connecter sur ${window.location.origin}/auth`
+    ]);
+    
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.join(';'))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `identifiants_comptes_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -532,11 +572,12 @@ Les membres créeront ensuite leur compte eux-mêmes.`);
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h4 className="font-semibold text-green-800 mb-2">🎯 Création de vrais comptes</h4>
               <div className="text-sm text-green-700 space-y-1">
-                <p>1. <strong>Comptes d'authentification</strong> : Créés dans Supabase Auth</p>
-                <p>2. <strong>Mots de passe temporaires</strong> : Générés automatiquement</p>
-                <p>3. <strong>Connexion immédiate</strong> : Les gens peuvent se connecter tout de suite</p>
-                <p>4. <strong>Profils complets</strong> : Membres + utilisateurs créés</p>
-                <p>5. <strong>Identifiants fournis</strong> : À communiquer aux personnes</p>
+                <p>✅ <strong>Edge Function active</strong> : Création de vrais comptes Supabase</p>
+                <p>🔐 <strong>Authentification</strong> : Comptes créés dans Supabase Auth</p>
+                <p>🔑 <strong>Mots de passe</strong> : Générés automatiquement (sécurisés)</p>
+                <p>👤 <strong>Profils complets</strong> : Utilisateurs + membres créés</p>
+                <p>📧 <strong>Connexion immédiate</strong> : Les gens peuvent se connecter maintenant</p>
+                <p>💾 <strong>Export CSV</strong> : Téléchargement des identifiants proposé</p>
               </div>
             </div>
 
