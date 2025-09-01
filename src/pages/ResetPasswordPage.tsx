@@ -20,8 +20,28 @@ export const ResetPasswordPage: React.FC = () => {
     const hash = window.location.hash.slice(1); // Supprimer le #
     const search = window.location.search.slice(1); // Supprimer le ?
     
+    console.log('🔍 [ResetPassword] URL complète:', window.location.href);
+    console.log('🔍 [ResetPassword] Hash brut:', window.location.hash);
+    console.log('🔍 [ResetPassword] Search brut:', window.location.search);
+    
     // Créer un objet avec tous les paramètres (hash + search)
-    const allParams = new URLSearchParams(hash + '&' + search);
+    const hashParams = new URLSearchParams(hash);
+    const searchParams = new URLSearchParams(search);
+    
+    // Combiner les deux sources de paramètres
+    const allParams = new URLSearchParams();
+    
+    // Ajouter les paramètres du hash
+    hashParams.forEach((value, key) => {
+      allParams.set(key, value);
+    });
+    
+    // Ajouter les paramètres de search (peuvent écraser ceux du hash)
+    searchParams.forEach((value, key) => {
+      allParams.set(key, value);
+    });
+    
+    console.log('🔍 [ResetPassword] Paramètres combinés:', Array.from(allParams.entries()));
     
     return {
       accessToken: allParams.get('access_token'),
@@ -139,6 +159,13 @@ export const ResetPasswordPage: React.FC = () => {
       });
     } else if (!accessToken || !refreshToken || !type) {
       console.log('⚠️ [ResetPassword] Tokens manquants dans l\'URL');
+      console.log('🔍 [ResetPassword] Détails manquants:', {
+        accessToken: accessToken ? 'Présent' : 'MANQUANT',
+        refreshToken: refreshToken ? 'Présent' : 'MANQUANT', 
+        type: type || 'MANQUANT',
+        urlHash: window.location.hash,
+        urlSearch: window.location.search
+      });
       
       // Déconnexion préventive
       const signOutPreventive = async () => {
@@ -150,7 +177,13 @@ export const ResetPasswordPage: React.FC = () => {
       
       setError(`🔗 Lien de récupération invalide ou incomplet
       
-❌ Les tokens d'authentification sont manquants dans l'URL.
+❌ Tokens manquants dans l'URL
+
+🔍 Détails techniques :
+• access_token: ${accessToken ? 'Présent' : 'MANQUANT'}
+• refresh_token: ${refreshToken ? 'Présent' : 'MANQUANT'}
+• type: ${type || 'MANQUANT'}
+• URL actuelle: ${window.location.href}
 
 💡 Solutions :
 1. Cliquez directement sur le lien dans votre email
@@ -158,7 +191,12 @@ export const ResetPasswordPage: React.FC = () => {
 3. Demandez un nouveau lien si celui-ci ne fonctionne pas
 4. Vérifiez vos spams
 
-🔧 Si le problème persiste, il y a un problème de configuration Supabase.`);
+🔧 Configuration Supabase :
+• Vérifiez les "Additional Redirect URLs" dans Authentication → Settings
+• Le domaine ${window.location.hostname} doit être autorisé
+• Template email doit utiliser {{ .ConfirmationURL }}
+
+📧 Si vous continuez à recevoir des liens sans tokens, contactez l'administrateur.`);
     }
   }, [accessToken, refreshToken, type, error_description, error_code]);
 
