@@ -423,67 +423,77 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     setProgress(0);
     
     try {
-      console.log('🚀 [AccountCreator] Utilisation solution de contournement');
+      console.log('🚀 [AccountCreator] Tentative Edge Function create-auth-accounts');
       
-      // Solution de contournement : créer seulement les profils membres
-      console.log('🔍 [AccountCreator] Création des profils membres sans comptes auth');
-      
-      // Utiliser la fonction PostgreSQL pour créer les profils
-      const { data, error } = await supabase.rpc('import_csv_members_simple', {
-        p_csv_data: csvData
-      });
-
-      console.log('📡 [AccountCreator] Réponse PostgreSQL:', data);
-      
-      if (error) {
-        console.error('❌ [AccountCreator] Erreur PostgreSQL:', error);
-        throw new Error(`Erreur base de données: ${error.message}`);
-      }
-
-      console.log('✅ [AccountCreator] Profils créés:', data);
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Erreur inconnue');
-      }
-
-      // Générer les mots de passe pour les comptes à créer manuellement
-      const accountsWithPasswords = data.credentials.map((cred: any) => ({
-        ...cred,
-        password: generateStrongPassword(),
-        status: 'Profil créé - Compte à créer manuellement'
+      // Préparer les données avec mots de passe temporaires
+      const accountsWithPasswords = csvData.map(account => ({
+        ...account,
+        temporary_password: generateStrongPassword()
       }));
-
-      setImportResult({
-        ...data,
-        credentials: accountsWithPasswords,
-        manual_creation_required: true
+      
+      console.log('🔍 [AccountCreator] Données préparées:', accountsWithPasswords.length, 'comptes');
+      
+      // Appeler l'Edge Function
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          accounts: accountsWithPasswords
+        })
       });
-
-      if (data.success && data.imported_count > 0) {
-        const credentialsText = accountsWithPasswords
-          .map(cred => `${cred.email}: ${cred.password}`)
+      
+      console.log('📡 [AccountCreator] Réponse Edge Function status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [AccountCreator] Erreur Edge Function:', errorText);
+        throw new Error(`Edge Function error (${response.status}): ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ [AccountCreator] Résultat Edge Function:', result);
+      
+      setImportResult(result);
+      
+      if (result.success && result.success_count > 0) {
+        const credentialsText = result.results
+          .filter((r: any) => r.success)
+          .map((r: any) => `${r.email}: ${r.temporary_password}`)
           .join('\n');
 
-        alert(`✅ Profils membres créés !
+        alert(`✅ Comptes créés avec succès !
 
 📊 Résultats :
-• ${data.imported_count} profils membres créés
-• ${data.error_count} erreurs
+• ${result.success_count} comptes créés
+• ${result.error_count} erreurs
 
-🔑 MOTS DE PASSE GÉNÉRÉS (pour création manuelle) :
+🔑 IDENTIFIANTS DE CONNEXION :
 
 ${credentialsText}
 
-⚠️ ÉTAPES SUIVANTES :
-1. Sauvegardez ces mots de passe
-2. Créez les comptes manuellement dans Supabase Dashboard
-3. Ou attendez 1h pour la création automatique
+🌐 Site de connexion : ${window.location.origin}/auth
 
-🌐 Site de connexion : ${window.location.origin}/auth`);
+⚠️ Communiquez ces identifiants aux personnes !`);
 
         onSuccess();
       } else {
-        alert(`❌ Erreur d'import : ${data.error || 'Erreur inconnue'}`);
+        // Afficher les erreurs détaillées
+        const errorDetails = result.results
+          ?.filter((r: any) => !r.success)
+          .map((r: any) => `• ${r.email}: ${r.error}`)
+          .join('\n') || 'Erreurs inconnues';
+
+        alert(`❌ Erreur d'import :
+
+📊 Résultats :
+• ${result.success_count || 0} comptes créés
+• ${result.error_count || 0} erreurs
+
+🔍 Détails des erreurs :
+${errorDetails}`);
       }
       
     } catch (error: any) {
