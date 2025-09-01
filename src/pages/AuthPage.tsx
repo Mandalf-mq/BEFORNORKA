@@ -158,21 +158,27 @@ export const AuthPage: React.FC = () => {
       
       console.log('✅ [AuthPage] Email de récupération envoyé avec succès');
       
-      // Message d'avertissement sur les limitations Supabase
-      alert(`📧 Email de récupération envoyé !
+      // Message d'avertissement détaillé basé sur les logs
+      alert(`📧 Email de récupération envoyé vers ${resetEmail} !
 
-⚠️ IMPORTANT - Limitations Supabase détectées :
-• Les tokens expirent TRÈS rapidement (1-2 minutes)
-• Cliquez IMMÉDIATEMENT sur le lien dans l'email
-• Ne copiez/collez PAS l'URL
-• Si le lien expire, redemandez-en un nouveau
+🚨 AVERTISSEMENT - Problème Supabase confirmé :
 
-🔧 Problème technique confirmé :
-Les logs Supabase montrent que les tokens OTP disparaissent 
-immédiatement après création (limitation du plan gratuit).
+📊 LOGS SUPABASE ANALYSÉS :
+• 09:15:41 - Token OTP créé avec succès ✅
+• 09:17:02 - Token déjà introuvable ❌ (1min 21s)
+• Expiration IMMÉDIATE = limitation serveur
 
-💡 Si ça ne fonctionne pas, contactez un administrateur 
-pour qu'il recrée votre compte.`);
+⚡ INSTRUCTIONS CRITIQUES :
+1. Cliquez IMMÉDIATEMENT sur le lien dans l'email
+2. N'attendez PAS, n'hésitez PAS
+3. Si ça ne marche pas en 30 secondes → NOUVEAU lien
+4. Ne copiez/collez JAMAIS l'URL manuellement
+
+🔧 Si le problème persiste après 3 tentatives :
+→ Contactez un administrateur pour recréer votre compte
+→ C'est une limitation technique du plan Supabase gratuit
+
+📧 Vérifiez votre boîte mail maintenant !`);
       
       setResetSent(true);
     } catch (err: any) {

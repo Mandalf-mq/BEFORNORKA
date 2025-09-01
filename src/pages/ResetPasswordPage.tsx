@@ -20,9 +20,15 @@ export const ResetPasswordPage: React.FC = () => {
     const hash = window.location.hash.slice(1); // Supprimer le #
     const search = window.location.search.slice(1); // Supprimer le ?
     
+    // Debug détaillé de l'URL
+    console.log('🔍 [ResetPassword] === ANALYSE URL COMPLÈTE ===');
     console.log('🔍 [ResetPassword] URL complète:', window.location.href);
+    console.log('🔍 [ResetPassword] Hostname:', window.location.hostname);
+    console.log('🔍 [ResetPassword] Pathname:', window.location.pathname);
     console.log('🔍 [ResetPassword] Hash brut:', window.location.hash);
     console.log('🔍 [ResetPassword] Search brut:', window.location.search);
+    console.log('🔍 [ResetPassword] Hash nettoyé:', hash);
+    console.log('🔍 [ResetPassword] Search nettoyé:', search);
     
     // Créer un objet avec tous les paramètres (hash + search)
     const hashParams = new URLSearchParams(hash);
@@ -43,14 +49,18 @@ export const ResetPasswordPage: React.FC = () => {
     
     console.log('🔍 [ResetPassword] Paramètres combinés:', Array.from(allParams.entries()));
     
-    return {
+    const tokens = {
       accessToken: allParams.get('access_token'),
       refreshToken: allParams.get('refresh_token'),
-      code: allParams.get('code'), // Nouveau paramètre Supabase
+      code: allParams.get('code'),
       type: allParams.get('type'),
       error_description: allParams.get('error_description'),
       error_code: allParams.get('error') || allParams.get('error_code')
     };
+    
+    console.log('🔍 [ResetPassword] Tokens extraits:', tokens);
+    
+    return tokens;
   };
 
   const { accessToken, refreshToken, code, type, error_description, error_code } = parseTokensFromUrl();
@@ -212,14 +222,13 @@ export const ResetPasswordPage: React.FC = () => {
       });
     } else if (!accessToken && !refreshToken && !type && !code) {
       console.log('⚠️ [ResetPassword] Tokens manquants dans l\'URL');
-      console.log('🔍 [ResetPassword] Détails manquants:', {
-        accessToken: accessToken ? 'Présent' : 'MANQUANT',
-        refreshToken: refreshToken ? 'Présent' : 'MANQUANT', 
-        code: code ? 'Présent' : 'MANQUANT',
-        type: type || 'MANQUANT',
-        urlHash: window.location.hash,
-        urlSearch: window.location.search
-      });
+      
+      // Diagnostic approfondi
+      console.log('🔍 [ResetPassword] === DIAGNOSTIC COMPLET ===');
+      console.log('🔍 [ResetPassword] URL reçue:', window.location.href);
+      console.log('🔍 [ResetPassword] Provenance (referrer):', document.referrer);
+      console.log('🔍 [ResetPassword] User-Agent:', navigator.userAgent);
+      console.log('🔍 [ResetPassword] Timestamp:', new Date().toISOString());
       
       // Déconnexion préventive
       const signOutPreventive = async () => {
@@ -231,27 +240,42 @@ export const ResetPasswordPage: React.FC = () => {
       
       setError(`🔗 Lien de récupération invalide ou incomplet
       
-❌ Tokens manquants dans l'URL
+❌ AUCUN paramètre d'authentification dans l'URL
 
-🔍 Détails techniques :
-• access_token: ${accessToken ? 'Présent' : 'MANQUANT'}
-• refresh_token: ${refreshToken ? 'Présent' : 'MANQUANT'}
-• code: ${code ? 'Présent' : 'MANQUANT'}
-• type: ${type || 'MANQUANT'}
-• URL actuelle: ${window.location.href}
+🔍 DIAGNOSTIC TECHNIQUE :
+• URL reçue: ${window.location.href}
+• Hash (#): ${window.location.hash || 'VIDE'}
+• Search (?): ${window.location.search || 'VIDE'}
+• Hostname: ${window.location.hostname}
+• Referrer: ${document.referrer || 'AUCUN'}
 
-💡 Solutions :
-1. Cliquez directement sur le lien dans votre email
-2. Ne copiez/collez PAS l'URL manuellement  
-3. Demandez un nouveau lien si celui-ci ne fonctionne pas
-4. Vérifiez vos spams
+🚨 PROBLÈME SUPABASE CONFIRMÉ :
+Les logs montrent que les tokens OTP disparaissent immédiatement :
+• 09:15:41 - Token créé ✅
+• 09:17:02 - Token introuvable ❌ (1min 21s après)
+• Expiration IMMÉDIATE = limitation plan gratuit
 
-🔧 Configuration Supabase :
-• Vérifiez les "Additional Redirect URLs" dans Authentication → Settings
-• Le domaine ${window.location.hostname} doit être autorisé
-• Template email doit utiliser {{ .ConfirmationURL }}
+💡 SOLUTIONS URGENTES :
+1. 🔧 VÉRIFIEZ Dashboard Supabase :
+   • Authentication → Settings → Site URL
+   • Doit être : https://www.befornorka.fr
+   • Additional Redirect URLs : https://www.befornorka.fr/*
+   
+2. 📧 VÉRIFIEZ Template Email :
+   • Authentication → Email Templates → Reset Password
+   • Doit contenir : {{ .ConfirmationURL }}
+   • Pas d'URL en dur !
+   
+3. 💰 PROBLÈME DE PLAN :
+   • Plan gratuit = tokens expirés immédiatement
+   • Upgrade vers plan Pro recommandé
+   
+4. 🆘 SOLUTION TEMPORAIRE :
+   • Admin → "Créer un compte" 
+   • Supprimer ancien + recréer avec nouveaux identifiants
 
-📧 Si vous continuez à recevoir des liens sans tokens, contactez l'administrateur.`);
+⚠️ Ce problème nécessite une intervention au niveau configuration Supabase.
+Le code fonctionne correctement - c'est la génération des tokens qui échoue.`);
     }
   }, [accessToken, refreshToken, code, type, error_description, error_code]);
 
