@@ -362,10 +362,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string) => {
     console.log('🔄 [AuthContext] Demande de récupération pour:', email);
-    console.log('🔄 [AuthContext] URL de redirection:', `${window.location.origin}/auth/reset-password`);
+    
+    // Déterminer l'URL de redirection selon l'environnement
+    const baseUrl = window.location.origin;
+    const redirectUrl = `${baseUrl}/auth/reset-password`;
+    
+    console.log('🔄 [AuthContext] URL de redirection:', redirectUrl);
+    console.log('🔄 [AuthContext] Base URL:', baseUrl);
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+      redirectTo: redirectUrl,
     });
 
     if (error) {
@@ -373,7 +379,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw error;
     }
     
-    console.log('✅ [AuthContext] Email de récupération envoyé avec succès');
+    console.log('✅ [AuthContext] Email de récupération envoyé avec succès vers:', redirectUrl);
   };
 
   const hasPermission = (permission: string) => {
