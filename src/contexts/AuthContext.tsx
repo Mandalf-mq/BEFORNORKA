@@ -257,19 +257,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // 🚨 VÉRIFICATION STRICTE : Empêcher l'initialisation sur page de reset avec erreur
         const isResetPage = window.location.pathname.includes('reset-password');
-        const hasError = window.location.hash.includes('error') || window.location.search.includes('error');
-        const hasExpiredError = window.location.href.includes('otp_expired');
+        const hasError = window.location.hash.includes('error') || 
+                         window.location.search.includes('error') ||
+                         window.location.href.includes('otp_expired') ||
+                         window.location.href.includes('access_denied') ||
+                         window.location.href.includes('invalid');
         
-        if (isResetPage && (hasError || hasExpiredError)) {
-          console.log('🚨 [AuthContext] Page de reset avec erreur détectée - AUCUNE initialisation session');
+        if (isResetPage && hasError) {
+          console.log('🚨 [AuthContext] Page de reset avec erreur détectée - BLOCAGE TOTAL');
           
-          // Forcer la déconnexion si on détecte un lien expiré
-          if (hasExpiredError) {
-            console.log('🚨 [AuthContext] Lien expiré - Déconnexion forcée');
-            await supabase.auth.signOut({ scope: 'local' });
-            localStorage.removeItem('supabase.auth.token');
-            sessionStorage.clear();
-          }
+          // DÉCONNEXION FORCÉE IMMÉDIATE
+          console.log('🚨 [AuthContext] Déconnexion forcée pour lien invalide');
+          await supabase.auth.signOut({ scope: 'global' });
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          // Supprimer tous les cookies Supabase
+          document.cookie.split(";").forEach(function(c) { 
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+          });
           
           setLoading(false);
           setUser(null);

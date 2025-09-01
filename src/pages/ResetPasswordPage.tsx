@@ -46,64 +46,69 @@ export const ResetPasswordPage: React.FC = () => {
       error_code: error_code
     });
 
-    // 🚨 DÉCONNEXION FORCÉE IMMÉDIATE si lien expiré
-    if (error_code === 'otp_expired' || error_description?.includes('expired')) {
-      console.log('🚨 [ResetPassword] Lien expiré détecté - DÉCONNEXION FORCÉE IMMÉDIATE');
+    // 🚨 DÉTECTION IMMÉDIATE des liens expirés ou invalides
+    const hasExpiredError = error_code === 'otp_expired' || 
+                           error_description?.includes('expired') ||
+                           error_description?.includes('invalid') ||
+                           error_code === 'access_denied';
+    
+    if (hasExpiredError) {
+      console.log('🚨 [ResetPassword] Lien expiré/invalide détecté - BLOCAGE IMMÉDIAT');
       
-      // Déconnexion forcée SYNCHRONE
-      supabase.auth.signOut({ scope: 'local' }).then(() => {
-        console.log('✅ [ResetPassword] Déconnexion locale forcée terminée');
-        
-        // Nettoyer complètement la session
-        localStorage.removeItem('supabase.auth.token');
-        sessionStorage.clear();
-        
-        // Forcer le rechargement pour nettoyer l'état
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-      }).catch((err) => {
-        console.warn('⚠️ [ResetPassword] Erreur déconnexion, nettoyage manuel:', err);
-        
-        // Nettoyage manuel si la déconnexion échoue
-        localStorage.removeItem('supabase.auth.token');
-        sessionStorage.clear();
-        window.location.reload();
-      });
+      // BLOQUER IMMÉDIATEMENT toute tentative de session
+      setSessionReady(false);
+      setLoading(false);
       
-      setError(`🕐 Lien de récupération expiré
+      // Déconnexion forcée IMMÉDIATE et SYNCHRONE
+      const forceSignOut = async () => {
+        try {
+          console.log('🚨 [ResetPassword] Déconnexion forcée en cours...');
+          
+          // 1. Déconnexion Supabase
+          await supabase.auth.signOut({ scope: 'global' });
+          
+          // 2. Nettoyage complet du stockage
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          // 3. Supprimer tous les cookies Supabase
+          document.cookie.split(";").forEach(function(c) { 
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+          });
+          
+          console.log('✅ [ResetPassword] Nettoyage complet terminé');
+          
+        } catch (err) {
+          console.warn('⚠️ [ResetPassword] Erreur déconnexion:', err);
+        }
+      };
+      
+      // Exécuter la déconnexion immédiatement
+      forceSignOut();
+      
+      setError(`🚨 Lien de récupération expiré ou invalide
 
-Le lien de récupération a expiré ou est invalide.
+❌ Erreur Supabase : "${error_description || error_code}"
 
 🔍 Causes possibles :
-• Le lien a plus d'1 heure
-• Configuration Supabase incorrecte
-• URLs de redirection mal configurées
+• Le lien a expiré (durée de vie : 1 heure maximum)
+• Le lien a déjà été utilisé
+• Token OTP introuvable côté serveur Supabase
+• Configuration des URLs de redirection incorrecte
 
 💡 Solutions :
-1. Cliquez "Demander un nouveau lien" ci-dessous
-2. Utilisez le nouveau lien dans les 5 minutes
-3. Vérifiez votre configuration Supabase
+1. Demandez un NOUVEAU lien de récupération
+2. Utilisez le nouveau lien IMMÉDIATEMENT (dans les 5 minutes)
+3. Ne copiez/collez PAS l'URL - cliquez directement depuis l'email
+4. Vérifiez vos spams si vous ne recevez pas l'email
 
-⚠️ La page va se recharger pour nettoyer la session.`);
+🔧 Si le problème persiste, contactez l'administrateur.`);
       
       return;
     }
 
-    // Vérifier s'il y a d'autres erreurs
-    if (error_code || error_description) {
-      console.error('❌ [ResetPassword] Autre erreur dans l\'URL:', { error_code, error_description });
-      setError(`Erreur de récupération: ${error_description || error_code}
-        
-💡 Solutions :
-• Demandez un nouveau lien de récupération
-• Vérifiez que vous cliquez directement depuis l'email
-• Contactez l'administration si le problème persiste`);
-      return;
-    }
-
-    // Si on a les tokens de récupération, les utiliser pour établir la session
-    if (accessToken && refreshToken && type === 'recovery') {
+    // Si on a les tokens de récupération ET pas d'erreur, les utiliser
+    if (accessToken && refreshToken && type === 'recovery' && !hasExpiredError) {
       console.log('🔑 [ResetPassword] Tokens de récupération détectés, établissement de la session...');
       
       supabase.auth.setSession({
@@ -112,32 +117,47 @@ Le lien de récupération a expiré ou est invalide.
       }).then(({ error }) => {
         if (error) {
           console.error('❌ [ResetPassword] Erreur session:', error);
-          setError(`Lien de récupération invalide ou expiré: ${error.message}
+          
+          // Déconnexion forcée si erreur de session
+          await supabase.auth.signOut({ scope: 'global' });
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          setError(`🚨 Session de récupération invalide
+          
+❌ Erreur : ${error.message}
           
 💡 Solutions :
-• Demandez un nouveau lien de récupération
-• Vérifiez que le lien n'a pas expiré (1 heure)
-• Contactez l'administration si le problème persiste`);
+1. Demandez un NOUVEAU lien de récupération
+2. Utilisez le lien IMMÉDIATEMENT après réception
+3. Cliquez directement depuis l'email (ne copiez pas l'URL)
+4. Vérifiez que votre domaine est bien configuré dans Supabase`);
         } else {
           console.log('✅ [ResetPassword] Session établie pour changement de mot de passe');
           setSessionReady(true);
         }
       });
-    } else if (!accessToken || !refreshToken) {
-      console.log('⚠️ [ResetPassword] Tokens manquants ou lien expiré');
-      setError(`🔗 Lien de récupération invalide ou expiré
+    } else if (!accessToken || !refreshToken || !type) {
+      console.log('⚠️ [ResetPassword] Tokens manquants dans l\'URL');
       
-Les tokens d'authentification sont manquants ou le lien a expiré.
+      // Déconnexion préventive
+      await supabase.auth.signOut({ scope: 'global' });
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      setError(`🔗 Lien de récupération invalide ou incomplet
+      
+❌ Les tokens d'authentification sont manquants dans l'URL.
 
 💡 Solutions :
-• Demandez un nouveau lien de récupération
-• Utilisez le lien dans les 60 minutes suivant l'envoi
-• Vérifiez que vous cliquez directement depuis l'email
-• Ne copiez/collez pas l'URL manuellement
+1. Cliquez directement sur le lien dans votre email
+2. Ne copiez/collez PAS l'URL manuellement  
+3. Demandez un nouveau lien si celui-ci ne fonctionne pas
+4. Vérifiez vos spams
 
-⚠️ Vous pouvez demander un nouveau lien directement ci-dessous.`);
+🔧 Si le problème persiste, il y a un problème de configuration Supabase.`);
     }
-  }, [accessToken, refreshToken, type, error_description, error_code, navigate]);
+  }, [accessToken, refreshToken, type, error_description, error_code]);
 
   const validatePassword = (password: string) => {
     const errors = [];
