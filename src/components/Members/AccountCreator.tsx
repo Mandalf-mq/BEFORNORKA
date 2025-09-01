@@ -387,14 +387,14 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     return errors;
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
     setFile(selectedFile);
     
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const content = event.target?.result as string;
         const parsedData = parseAccountsCSV(content);
@@ -406,13 +406,11 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         setValidationErrors(errors);
         
       } catch (error: any) {
-        alert(`Erreur lors de la lecture du fichier: ${error.message}`);
-        setFile(null);
-        setCsvData([]);
-        setPreviewData([]);
-        setValidationErrors([]);
+        console.error('Erreur lecture fichier:', error);
+        setValidationErrors([error.message]);
       }
     };
+    
     reader.readAsText(selectedFile, 'UTF-8');
   };
 
@@ -438,15 +436,21 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ accounts: accountsWithPasswords })
+        body: JSON.stringify({
+          accounts: accountsWithPasswords
+        })
       });
-
+      
+      console.log('📡 [AccountCreator] Réponse Edge Function status:', response.status);
+      
       if (!response.ok) {
-        throw new Error(`Erreur HTTP: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ [AccountCreator] Erreur Edge Function:', errorText);
+        throw new Error(`Edge Function error (${response.status}): ${errorText}`);
       }
-
+      
       const result = await response.json();
       console.log('✅ [AccountCreator] Résultat Edge Function:', result);
       
