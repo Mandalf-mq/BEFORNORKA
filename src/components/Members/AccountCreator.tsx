@@ -135,10 +135,12 @@ const createRealAuthAccount = async (email: string, password: string, userData: 
     return {
       success: false,
       error: error.message,
+      email: email
     };
   }
 };
 
+// Composant CSV pour créer des comptes avec authentification
 const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onClose }) => {
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
@@ -701,12 +703,12 @@ Les membres créeront ensuite leur compte eux-mêmes.`);
           </div>
         </div>
 
-        {/* Footer avec boutons */}
+        {/* Footer fixe */}
         <div className="p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
           <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Annuler
             </button>
