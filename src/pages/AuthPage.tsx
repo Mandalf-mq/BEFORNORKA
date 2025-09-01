@@ -39,56 +39,52 @@ export const AuthPage: React.FC = () => {
   // Si on a des tokens de récupération, rediriger vers la page de reset
   if (accessToken && refreshToken && type === 'recovery') {
     console.log('🔄 [AuthPage] Tokens de récupération détectés, redirection vers reset-password');
-    // Préserver les tokens dans le fragment pour éviter les problèmes de parsing
-    const resetUrl = `/auth/reset-password#access_token=${accessToken}&refresh_token=${refreshToken}&type=${type}`;
+    // Préserver TOUS les paramètres dans le fragment
+    const resetUrl = `/auth/reset-password${window.location.hash}`;
     return <Navigate to={resetUrl} replace />;
   }
 
-  // Si on a une erreur dans les paramètres, l'afficher
-  if (errorParam || errorDescription) {
+  // Si on a une erreur dans les paramètres ET qu'on n'est pas déjà en train de rediriger
+  if ((errorParam || errorDescription) && !window.location.pathname.includes('reset-password')) {
     console.error('❌ [AuthPage] Erreur dans les paramètres URL:', { errorParam, errorDescription });
     
     // Afficher un message d'erreur spécifique pour les liens expirés
     if (errorParam === 'otp_expired' || errorDescription?.includes('expired')) {
+      // Rediriger vers reset-password avec l'erreur pour affichage
+      const resetUrl = `/auth/reset-password${window.location.hash}`;
+      return <Navigate to={resetUrl} replace />;
+    }
+  }
+
+  // Gestion des autres erreurs (non liées au reset)
+  if ((errorParam || errorDescription) && !errorParam?.includes('otp_expired')) {
+    console.error('❌ [AuthPage] Autre erreur:', { errorParam, errorDescription });
+    
+    if (errorParam === 'access_denied') {
       return (
         <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200/50 p-8 text-center">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🕐</span>
+                <span className="text-2xl">🔒</span>
               </div>
               <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                Lien de récupération expiré
+                Accès refusé
               </h1>
-              <div className="text-left text-gray-600 mb-6 space-y-2">
-                <p className="font-semibold text-red-600">Le lien de récupération a expiré immédiatement.</p>
-                <div className="text-sm space-y-1">
-                  <p><strong>🔍 Causes possibles :</strong></p>
-                  <p>• Configuration Supabase incorrecte</p>
-                  <p>• URLs de redirection mal configurées</p>
-                  <p>• Problème de synchronisation serveur</p>
-                </div>
-                <div className="text-sm space-y-1 mt-3">
-                  <p><strong>💡 Solutions :</strong></p>
-                  <p>• Vérifiez la config Supabase (Site URL)</p>
-                  <p>• Demandez un nouveau lien</p>
-                  <p>• Contactez l'admin si ça persiste</p>
-                </div>
+              <div className="text-gray-600 mb-6">
+                <p className="font-semibold text-red-600">Erreur d'authentification.</p>
+                <p className="text-sm mt-2">Veuillez vous connecter normalement.</p>
               </div>
               <button
-                onClick={() => setView('reset')}
+                onClick={() => {
+                  setError(null);
+                  // Nettoyer l'URL
+                  window.history.replaceState({}, '', '/auth');
+                }}
                 className="w-full bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                Demander un nouveau lien
+                Retour à la connexion
               </button>
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-700">
-                  <strong>🔧 Pour l'administrateur :</strong><br/>
-                  Vérifiez dans Supabase Dashboard → Authentication → Settings :<br/>
-                  • Site URL : https://www.befornorka.fr<br/>
-                  • Redirect URLs : .../auth/reset-password
-                </p>
-              </div>
             </div>
           </div>
         </div>

@@ -53,19 +53,19 @@ export const ResetPasswordPage: React.FC = () => {
       if (error_code === 'otp_expired' || error_description?.includes('expired')) {
         setError(`🕐 Lien de récupération expiré
         
-Le lien de récupération a expiré immédiatement après génération.
+Le lien de récupération a expiré ou est invalide.
 
 🔍 Causes possibles :
+• Le lien a plus d'1 heure
 • Configuration Supabase incorrecte
-• Problème de synchronisation d'horloge
 • URLs de redirection mal configurées
 
 💡 Solutions :
-1. Vérifiez la configuration Supabase (Site URL + Redirect URLs)
-2. Demandez un nouveau lien et utilisez-le IMMÉDIATEMENT
-3. Contactez l'administrateur si le problème persiste
+1. Demandez un nouveau lien ci-dessous
+2. Utilisez-le dans les 5 minutes
+3. Vérifiez votre configuration Supabase
 
-⚠️ Si tous les liens expirent instantanément, c'est un problème de configuration.`);
+⚠️ Vous pouvez demander un nouveau lien directement ici.`);
       } else {
         setError(`Erreur de récupération: ${error_description || error_code}
         
@@ -75,10 +75,7 @@ Le lien de récupération a expiré immédiatement après génération.
 • Contactez l'administration si le problème persiste`);
       }
       
-      // Rediriger vers la page de connexion après 10 secondes pour laisser le temps de lire
-      setTimeout(() => {
-        navigate('/auth');
-      }, 10000);
+      // NE PAS rediriger automatiquement - laisser l'utilisateur sur la page
       return;
     }
 
