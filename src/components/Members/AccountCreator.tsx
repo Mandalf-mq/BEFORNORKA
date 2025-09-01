@@ -425,12 +425,21 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     try {
       console.log('🚀 [AccountCreator] Utilisation Edge Function corrigée');
       
+      // Test de connectivité Edge Function
+      console.log('🔍 [AccountCreator] Test de l\'Edge Function...');
+      console.log('🔍 [AccountCreator] URL:', `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`);
+      console.log('🔍 [AccountCreator] Headers:', {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json'
+      });
+      
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
-          'x-client-info': 'supabase-js-web'
+          'x-client-info': 'supabase-js-web',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           accounts: csvData
@@ -438,10 +447,22 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
       });
 
       console.log('📡 [AccountCreator] Réponse Edge Function:', response.status, response.statusText);
+      console.log('📡 [AccountCreator] Headers de réponse:', Object.fromEntries(response.headers.entries()));
+      
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ [AccountCreator] Erreur Edge Function:', errorText);
-        throw new Error(`Erreur Edge Function (${response.status}): ${errorText}`);
+        
+        // Messages d'erreur plus informatifs
+        if (response.status === 404) {
+          throw new Error(`Edge Function non trouvée (404). Vérifiez qu'elle est bien déployée dans votre Dashboard Supabase.`);
+        } else if (response.status === 403) {
+          throw new Error(`Accès refusé (403). Vérifiez les permissions de l'Edge Function.`);
+        } else if (response.status === 500) {
+          throw new Error(`Erreur serveur (500). Vérifiez les logs de l'Edge Function dans Supabase.`);
+        } else {
+          throw new Error(`Erreur Edge Function (${response.status}): ${errorText}`);
+        }
       }
 
       const data = await response.json();
@@ -483,17 +504,23 @@ ${credentialsText}
       console.error('Erreur import:', error);
       
       // Message d'erreur plus informatif
-      if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+      if (error.message.includes('CORS') || error.message.includes('Failed to fetch') || error.message.includes('blocked by CORS')) {
         alert(`🚨 Problème de connexion à l'Edge Function
 
 ❌ Erreur: ${error.message}
 
-💡 Solutions:
-1. Attendez 1 heure (rate limit Supabase)
-2. Vérifiez que l'Edge Function est déployée
-3. Utilisez la création manuelle compte par compte
+💡 Diagnostic:
+• L'Edge Function n'est peut-être pas correctement déployée
+• Ou il y a un problème de configuration CORS
+• Ou les permissions ne sont pas bonnes
 
-🔧 L'Edge Function doit être déployée dans votre projet Supabase.`);
+🔧 Solutions:
+1. Vérifiez dans Supabase Dashboard → Edge Functions
+2. Redéployez la fonction si nécessaire
+3. Vérifiez les logs de la fonction
+4. Ou attendez 1 heure et utilisez la création directe
+
+🌐 Dashboard Supabase: https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_URL?.split('//')[1]?.split('.')[0]}`);
       } else {
         alert(`❌ Erreur : ${error.message}`);
       }
