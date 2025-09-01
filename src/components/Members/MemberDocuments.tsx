@@ -103,6 +103,8 @@ export const MemberDocuments: React.FC = () => {
         .from('members')
         .select('id, email, season_id, birth_date')
         .eq('email', user.email)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (memberError) {
