@@ -60,15 +60,35 @@ export const AuthPage: React.FC = () => {
               <h1 className="text-2xl font-bold text-gray-900 mb-4">
                 Lien de récupération expiré
               </h1>
-              <p className="text-gray-600 mb-6">
-                Le lien de récupération a expiré. Pour votre sécurité, les liens ne sont valides que pendant 1 heure.
-              </p>
+              <div className="text-left text-gray-600 mb-6 space-y-2">
+                <p className="font-semibold text-red-600">Le lien de récupération a expiré immédiatement.</p>
+                <div className="text-sm space-y-1">
+                  <p><strong>🔍 Causes possibles :</strong></p>
+                  <p>• Configuration Supabase incorrecte</p>
+                  <p>• URLs de redirection mal configurées</p>
+                  <p>• Problème de synchronisation serveur</p>
+                </div>
+                <div className="text-sm space-y-1 mt-3">
+                  <p><strong>💡 Solutions :</strong></p>
+                  <p>• Vérifiez la config Supabase (Site URL)</p>
+                  <p>• Demandez un nouveau lien</p>
+                  <p>• Contactez l'admin si ça persiste</p>
+                </div>
+              </div>
               <button
                 onClick={() => setView('reset')}
                 className="w-full bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 Demander un nouveau lien
               </button>
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  <strong>🔧 Pour l'administrateur :</strong><br/>
+                  Vérifiez dans Supabase Dashboard → Authentication → Settings :<br/>
+                  • Site URL : https://www.befornorka.fr<br/>
+                  • Redirect URLs : .../auth/reset-password
+                </p>
+              </div>
             </div>
           </div>
         </div>
