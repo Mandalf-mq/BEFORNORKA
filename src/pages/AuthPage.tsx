@@ -3,9 +3,10 @@ import { Navigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 export const AuthPage: React.FC = () => {
-  const { user, signIn, resetPassword, loading } = useAuth();
+  const { user, signIn, loading } = useAuth();
   const [view, setView] = useState<'login' | 'reset'>('login');
   const [formData, setFormData] = useState({
     email: '',
@@ -41,14 +42,32 @@ export const AuthPage: React.FC = () => {
 
     try {
       console.log('🔄 [AuthPage] Envoi email de récupération pour:', resetEmail);
-      console.log('🔄 [AuthPage] URL actuelle:', window.location.href);
-      console.log('🔄 [AuthPage] Origin:', window.location.origin);
       
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      // Détecter l'environnement et utiliser la bonne URL
+      const isProduction = window.location.hostname.includes('befornorka.fr');
+      const isBolt = window.location.hostname.includes('bolt.new');
+      
+      let redirectUrl;
+      if (isProduction) {
+        redirectUrl = 'https://www.befornorka.fr/auth/reset-password';
+      } else if (isBolt) {
+        redirectUrl = `${window.location.origin}/auth/reset-password`;
+      } else {
+        redirectUrl = 'http://localhost:5173/auth/reset-password';
+      }
+      
+      console.log('🔄 [AuthPage] Environnement détecté:', {
+        hostname: window.location.hostname,
+        isProduction,
+        isBolt,
+        redirectUrl
       });
       
-      console.log('🔄 [AuthPage] URL de redirection envoyée:', `${window.location.origin}/auth/reset-password`);
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: redirectUrl
+      });
+      
+      console.log('🔄 [AuthPage] URL de redirection envoyée:', redirectUrl);
       
       if (error) {
         console.error('❌ [AuthPage] Erreur envoi email:', error);
