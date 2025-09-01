@@ -423,75 +423,61 @@ const AccountCSVImporter: React.FC<AccountCSVImporterProps> = ({ onSuccess, onCl
     setProgress(0);
     
     try {
-      console.log('🚀 [AccountCreator] Utilisation Edge Function corrigée');
+      console.log('🚀 [AccountCreator] Utilisation solution de contournement');
       
-      // Test de connectivité Edge Function
-      console.log('🔍 [AccountCreator] Test de l\'Edge Function...');
-      console.log('🔍 [AccountCreator] URL:', `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`);
-      console.log('🔍 [AccountCreator] Headers:', {
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json'
-      });
+      // Solution de contournement : créer seulement les profils membres
+      console.log('🔍 [AccountCreator] Création des profils membres sans comptes auth');
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-accounts`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          'x-client-info': 'supabase-js-web',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          accounts: csvData
-        })
+      // Utiliser la fonction PostgreSQL pour créer les profils
+      const { data, error } = await supabase.rpc('import_csv_members_simple', {
+        p_csv_data: csvData
       });
 
-      console.log('📡 [AccountCreator] Réponse Edge Function:', response.status, response.statusText);
-      console.log('📡 [AccountCreator] Headers de réponse:', Object.fromEntries(response.headers.entries()));
+      console.log('📡 [AccountCreator] Réponse PostgreSQL:', data);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ [AccountCreator] Erreur Edge Function:', errorText);
-        
-        // Messages d'erreur plus informatifs
-        if (response.status === 404) {
-          throw new Error(`Edge Function non trouvée (404). Vérifiez qu'elle est bien déployée dans votre Dashboard Supabase.`);
-        } else if (response.status === 403) {
-          throw new Error(`Accès refusé (403). Vérifiez les permissions de l'Edge Function.`);
-        } else if (response.status === 500) {
-          throw new Error(`Erreur serveur (500). Vérifiez les logs de l'Edge Function dans Supabase.`);
-        } else {
-          throw new Error(`Erreur Edge Function (${response.status}): ${errorText}`);
-        }
+      if (error) {
+        console.error('❌ [AccountCreator] Erreur PostgreSQL:', error);
+        throw new Error(`Erreur base de données: ${error.message}`);
       }
 
-      const data = await response.json();
-      console.log('✅ [AccountCreator] Données reçues:', data);
+      console.log('✅ [AccountCreator] Profils créés:', data);
       
       if (!data.success) {
         throw new Error(data.error || 'Erreur inconnue');
       }
 
-      setImportResult(data);
+      // Générer les mots de passe pour les comptes à créer manuellement
+      const accountsWithPasswords = data.credentials.map((cred: any) => ({
+        ...cred,
+        password: generateStrongPassword(),
+        status: 'Profil créé - Compte à créer manuellement'
+      }));
 
-      if (data.success && data.results.length > 0) {
-        // Afficher les identifiants créés
-        const successfulAccounts = data.results.filter(r => r.success);
-        const credentialsText = successfulAccounts
-          .map(result => `${result.email}: ${result.temporary_password}`)
+      setImportResult({
+        ...data,
+        credentials: accountsWithPasswords,
+        manual_creation_required: true
+      });
+
+      if (data.success && data.imported_count > 0) {
+        const credentialsText = accountsWithPasswords
+          .map(cred => `${cred.email}: ${cred.password}`)
           .join('\n');
 
-        alert(`✅ Import réussi !
+        alert(`✅ Profils membres créés !
 
 📊 Résultats :
-• ${data.success_count} comptes créés
+• ${data.imported_count} profils membres créés
 • ${data.error_count} erreurs
 
-🔑 IDENTIFIANTS À COMMUNIQUER :
+🔑 MOTS DE PASSE GÉNÉRÉS (pour création manuelle) :
 
 ${credentialsText}
 
-⚠️ Sauvegardez ces identifiants et communiquez-les aux personnes concernées !
+⚠️ ÉTAPES SUIVANTES :
+1. Sauvegardez ces mots de passe
+2. Créez les comptes manuellement dans Supabase Dashboard
+3. Ou attendez 1h pour la création automatique
 
 🌐 Site de connexion : ${window.location.origin}/auth`);
 
@@ -503,27 +489,11 @@ ${credentialsText}
     } catch (error: any) {
       console.error('Erreur import:', error);
       
-      // Message d'erreur plus informatif
-      if (error.message.includes('CORS') || error.message.includes('Failed to fetch') || error.message.includes('blocked by CORS')) {
-        alert(`🚨 Problème de connexion à l'Edge Function
+      alert(`❌ Erreur : ${error.message}
 
-❌ Erreur: ${error.message}
-
-💡 Diagnostic:
-• L'Edge Function n'est peut-être pas correctement déployée
-• Ou il y a un problème de configuration CORS
-• Ou les permissions ne sont pas bonnes
-
-🔧 Solutions:
-1. Vérifiez dans Supabase Dashboard → Edge Functions
-2. Redéployez la fonction si nécessaire
-3. Vérifiez les logs de la fonction
-4. Ou attendez 1 heure et utilisez la création directe
-
-🌐 Dashboard Supabase: https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_URL?.split('//')[1]?.split('.')[0]}`);
-      } else {
-        alert(`❌ Erreur : ${error.message}`);
-      }
+💡 Solution alternative :
+Utilisez l'import CSV normal dans "Membres" → "Import CSV (Profils)"
+Les membres créeront ensuite leur compte eux-mêmes.`);
     } finally {
       setLoading(false);
       setProgress(0);
