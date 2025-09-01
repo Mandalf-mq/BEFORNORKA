@@ -138,9 +138,16 @@ export const AuthPage: React.FC = () => {
         redirectUrl
       });
       
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      // Timeout personnalisé pour l'envoi d'email
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout envoi email (20s)')), 20000);
+      });
+      
+      const resetPromise = supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: redirectUrl
       });
+      
+      const { error } = await Promise.race([resetPromise, timeoutPromise]) as any;
       
       console.log('🔄 [AuthPage] URL de redirection envoyée:', redirectUrl);
       

@@ -357,10 +357,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     console.log('🔐 [AuthContext] Tentative de connexion pour:', email);
     
-    const { data, error } = await supabase.auth.signInWithPassword({
+    // Timeout personnalisé pour la connexion
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout de connexion (30s)')), 30000);
+    });
+    
+    const signInPromise = supabase.auth.signInWithPassword({
       email,
       password,
     });
+    
+    const { data, error } = await Promise.race([signInPromise, timeoutPromise]) as any;
 
     if (error) {
       console.error('❌ [AuthContext] Erreur connexion:', error);
