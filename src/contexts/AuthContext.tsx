@@ -255,13 +255,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log('🚀 [AuthContext] Initialisation de l\'authentification...');
         
-        // Vérifier si on est sur une page de reset avec erreur
-        const isResetPageWithError = window.location.pathname.includes('reset-password') && 
-          (window.location.hash.includes('error') || window.location.search.includes('error'));
+        // 🚨 VÉRIFICATION STRICTE : Empêcher l'initialisation sur page de reset avec erreur
+        const isResetPage = window.location.pathname.includes('reset-password');
+        const hasError = window.location.hash.includes('error') || window.location.search.includes('error');
+        const hasExpiredError = window.location.href.includes('otp_expired');
         
-        if (isResetPageWithError) {
-          console.log('🚨 [AuthContext] Page de reset avec erreur détectée - Pas d\'initialisation session');
+        if (isResetPage && (hasError || hasExpiredError)) {
+          console.log('🚨 [AuthContext] Page de reset avec erreur détectée - AUCUNE initialisation session');
+          
+          // Forcer la déconnexion si on détecte un lien expiré
+          if (hasExpiredError) {
+            console.log('🚨 [AuthContext] Lien expiré - Déconnexion forcée');
+            await supabase.auth.signOut({ scope: 'local' });
+            localStorage.removeItem('supabase.auth.token');
+            sessionStorage.clear();
+          }
+          
           setLoading(false);
+          setUser(null);
+          setUserProfile(null);
           return;
         }
         
