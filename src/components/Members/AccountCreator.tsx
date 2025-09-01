@@ -630,6 +630,21 @@ Les membres créeront ensuite leur compte eux-mêmes.`);
                     </div>
                   </div>
                 )}
+                
+                {/* Instructions pour les personnes */}
+                {importResult && importResult.success_count > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h5 className="font-medium text-blue-800 mb-2">📋 Instructions à communiquer</h5>
+                    <div className="text-sm text-blue-700 space-y-1">
+                      <p>1. Aller sur : <strong>{window.location.origin}/auth</strong></p>
+                      <p>2. Cliquer "Mot de passe oublié"</p>
+                      <p>3. Entrer son email (celui du CSV)</p>
+                      <p>4. Suivre le lien reçu par email</p>
+                      <p>5. Créer son mot de passe personnel</p>
+                      <p>6. Se connecter normalement</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -657,11 +672,11 @@ Les membres créeront ensuite leur compte eux-mêmes.`);
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-4 text-center">
                       <div className="bg-green-50 rounded-lg p-3">
-                        <div className="text-2xl font-bold text-green-600">{importResult.imported_count}</div>
+                        <div className="text-2xl font-bold text-green-600">{importResult.success_count}</div>
                         <div className="text-sm text-green-700">Comptes créés</div>
                       </div>
                       <div className="bg-red-50 rounded-lg p-3">
-                        <div className="text-2xl font-bold text-red-600">{importResult.error_count}</div>
+                        <div className="text-2xl font-bold text-red-600">{importResult.error_count || 0}</div>
                         <div className="text-sm text-red-700">Erreurs</div>
                       </div>
                     </div>
@@ -695,7 +710,7 @@ Les membres créeront ensuite leur compte eux-mêmes.`);
                   </div>
                 ) : (
                   <div className="text-red-600">
-                    ❌ Erreur : {importResult.error}
+                    ❌ Erreur : {importResult.error || 'Erreur inconnue'}
                   </div>
                 )}
               </div>
