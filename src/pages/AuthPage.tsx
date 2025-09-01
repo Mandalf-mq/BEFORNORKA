@@ -17,23 +17,63 @@ export const AuthPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
 
-  // Vérifier si on arrive avec des tokens de récupération
-  const accessToken = searchParams.get('access_token');
-  const refreshToken = searchParams.get('refresh_token');
-  const type = searchParams.get('type');
-  const errorParam = searchParams.get('error');
-  const errorDescription = searchParams.get('error_description');
+  // Fonction pour parser les tokens depuis le fragment URL (#) ou les paramètres (?)
+  const parseTokensFromUrl = () => {
+    const hash = window.location.hash.slice(1); // Supprimer le #
+    const search = window.location.search.slice(1); // Supprimer le ?
+    
+    // Créer un objet avec tous les paramètres (hash + search)
+    const allParams = new URLSearchParams(hash + '&' + search);
+    
+    return {
+      accessToken: allParams.get('access_token'),
+      refreshToken: allParams.get('refresh_token'),
+      type: allParams.get('type'),
+      errorParam: allParams.get('error') || allParams.get('error_code'),
+      errorDescription: allParams.get('error_description')
+    };
+  };
+
+  const { accessToken, refreshToken, type, errorParam, errorDescription } = parseTokensFromUrl();
 
   // Si on a des tokens de récupération, rediriger vers la page de reset
   if (accessToken && refreshToken && type === 'recovery') {
     console.log('🔄 [AuthPage] Tokens de récupération détectés, redirection vers reset-password');
-    const resetUrl = `/auth/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&type=${type}`;
+    // Préserver les tokens dans le fragment pour éviter les problèmes de parsing
+    const resetUrl = `/auth/reset-password#access_token=${accessToken}&refresh_token=${refreshToken}&type=${type}`;
     return <Navigate to={resetUrl} replace />;
   }
 
   // Si on a une erreur dans les paramètres, l'afficher
   if (errorParam || errorDescription) {
     console.error('❌ [AuthPage] Erreur dans les paramètres URL:', { errorParam, errorDescription });
+    
+    // Afficher un message d'erreur spécifique pour les liens expirés
+    if (errorParam === 'otp_expired' || errorDescription?.includes('expired')) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md">
+            <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200/50 p-8 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">🕐</span>
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-4">
+                Lien de récupération expiré
+              </h1>
+              <p className="text-gray-600 mb-6">
+                Le lien de récupération a expiré. Pour votre sécurité, les liens ne sont valides que pendant 1 heure.
+              </p>
+              <button
+                onClick={() => setView('reset')}
+                className="w-full bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+              >
+                Demander un nouveau lien
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
   }
 
   // Rediriger si déjà connecté

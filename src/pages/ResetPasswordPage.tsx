@@ -15,28 +15,65 @@ export const ResetPasswordPage: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
 
-  // Vérifier si on a les tokens nécessaires
-  const accessToken = searchParams.get('access_token');
-  const refreshToken = searchParams.get('refresh_token');
-  const type = searchParams.get('type');
-  const error_description = searchParams.get('error_description');
-  const error_code = searchParams.get('error');
+  // Fonction pour parser les tokens depuis le fragment URL (#) ou les paramètres (?)
+  const parseTokensFromUrl = () => {
+    const hash = window.location.hash.slice(1); // Supprimer le #
+    const search = window.location.search.slice(1); // Supprimer le ?
+    
+    // Créer un objet avec tous les paramètres (hash + search)
+    const allParams = new URLSearchParams(hash + '&' + search);
+    
+    return {
+      accessToken: allParams.get('access_token'),
+      refreshToken: allParams.get('refresh_token'),
+      type: allParams.get('type'),
+      error_description: allParams.get('error_description'),
+      error_code: allParams.get('error') || allParams.get('error_code')
+    };
+  };
+
+  const { accessToken, refreshToken, type, error_description, error_code } = parseTokensFromUrl();
 
   useEffect(() => {
     console.log('🔍 [ResetPassword] URL complète:', window.location.href);
-    console.log('🔍 [ResetPassword] Paramètres URL:', {
+    console.log('🔍 [ResetPassword] Fragment (#):', window.location.hash);
+    console.log('🔍 [ResetPassword] Search (?):', window.location.search);
+    console.log('🔍 [ResetPassword] Tokens parsés:', {
       accessToken: accessToken ? 'Présent' : 'Manquant',
       refreshToken: refreshToken ? 'Présent' : 'Manquant',
       type: type,
       error_description: error_description,
-      error_code: error_code,
-      allParams: Object.fromEntries(searchParams.entries())
+      error_code: error_code
     });
 
-    // Vérifier s'il y a une erreur dans l'URL
+    // Vérifier s'il y a une erreur (lien expiré, etc.)
     if (error_code || error_description) {
       console.error('❌ [ResetPassword] Erreur dans l\'URL:', { error_code, error_description });
-      setError(`Erreur de récupération: ${error_description || error_code}`);
+      
+      if (error_code === 'otp_expired' || error_description?.includes('expired')) {
+        setError(`🕐 Lien de récupération expiré
+        
+Le lien de récupération a expiré (durée de vie : 1 heure).
+
+💡 Solutions :
+• Retournez à la page de connexion
+• Demandez un nouveau lien de récupération
+• Utilisez le nouveau lien rapidement (dans l'heure)
+
+⚠️ Pour votre sécurité, les liens expirent automatiquement.`);
+      } else {
+        setError(`Erreur de récupération: ${error_description || error_code}
+        
+💡 Solutions :
+• Demandez un nouveau lien de récupération
+• Vérifiez que vous cliquez directement depuis l'email
+• Contactez l'administration si le problème persiste`);
+      }
+      
+      // Rediriger vers la page de connexion après 8 secondes
+      setTimeout(() => {
+        navigate('/auth');
+      }, 8000);
       return;
     }
 
@@ -61,34 +98,26 @@ export const ResetPasswordPage: React.FC = () => {
           setSessionReady(true);
         }
       });
-    } else if (!accessToken && !refreshToken) {
-      console.log('⚠️ [ResetPassword] Aucun token de récupération détecté');
-      setError(`Lien de récupération invalide ou incomplet.
+    } else if (!accessToken || !refreshToken) {
+      console.log('⚠️ [ResetPassword] Tokens manquants ou lien expiré');
+      setError(`🔗 Lien de récupération invalide ou expiré
       
+Les tokens d'authentification sont manquants ou le lien a expiré.
+
 💡 Solutions :
-• Cliquez directement sur le lien dans votre email
-• Ne copiez/collez pas l'URL manuellement
-• Demandez un nouveau lien si celui-ci a expiré
-• Vérifiez vos spams`);
-      
-      // Rediriger vers la page de connexion après 5 secondes
-      setTimeout(() => {
-        navigate('/auth');
-      }, 5000);
-    } else {
-      console.log('⚠️ [ResetPassword] Tokens incomplets:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
-      setError(`Lien de récupération incomplet.
-      
-💡 Solutions :
-• Utilisez le lien complet depuis votre email
 • Demandez un nouveau lien de récupération
-• Contactez l'administration`);
+• Utilisez le lien dans les 60 minutes suivant l'envoi
+• Vérifiez que vous cliquez directement depuis l'email
+• Ne copiez/collez pas l'URL manuellement
+
+🔄 Redirection automatique vers la page de connexion...`);
       
+      // Rediriger vers la page de connexion après 6 secondes
       setTimeout(() => {
         navigate('/auth');
-      }, 5000);
+      }, 6000);
     }
-  }, [accessToken, refreshToken, type, error_description, error_code, navigate, searchParams]);
+  }, [accessToken, refreshToken, type, error_description, error_code, navigate]);
 
   const validatePassword = (password: string) => {
     const errors = [];
