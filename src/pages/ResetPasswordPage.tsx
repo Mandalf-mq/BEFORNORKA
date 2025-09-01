@@ -114,7 +114,7 @@ export const ResetPasswordPage: React.FC = () => {
       supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken
-      }).then(({ error }) => {
+      }).then(async ({ error }) => {
         if (error) {
           console.error('❌ [ResetPassword] Erreur session:', error);
           
