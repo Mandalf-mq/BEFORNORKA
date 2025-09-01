@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
 
 export const AuthPage: React.FC = () => {
   const { user, signIn, loading } = useAuth();
+  const [searchParams] = useSearchParams();
   const [view, setView] = useState<'login' | 'reset'>('login');
   const [formData, setFormData] = useState({
     email: '',
@@ -16,6 +16,25 @@ export const AuthPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
+
+  // Vérifier si on arrive avec des tokens de récupération
+  const accessToken = searchParams.get('access_token');
+  const refreshToken = searchParams.get('refresh_token');
+  const type = searchParams.get('type');
+  const errorParam = searchParams.get('error');
+  const errorDescription = searchParams.get('error_description');
+
+  // Si on a des tokens de récupération, rediriger vers la page de reset
+  if (accessToken && refreshToken && type === 'recovery') {
+    console.log('🔄 [AuthPage] Tokens de récupération détectés, redirection vers reset-password');
+    const resetUrl = `/auth/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&type=${type}`;
+    return <Navigate to={resetUrl} replace />;
+  }
+
+  // Si on a une erreur dans les paramètres, l'afficher
+  if (errorParam || errorDescription) {
+    console.error('❌ [AuthPage] Erreur dans les paramètres URL:', { errorParam, errorDescription });
+  }
 
   // Rediriger si déjà connecté
   if (user) {

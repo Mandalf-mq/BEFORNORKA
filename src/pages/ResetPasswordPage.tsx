@@ -50,20 +50,43 @@ export const ResetPasswordPage: React.FC = () => {
       }).then(({ error }) => {
         if (error) {
           console.error('❌ [ResetPassword] Erreur session:', error);
-          setError(`Lien de récupération invalide ou expiré: ${error.message}`);
+          setError(`Lien de récupération invalide ou expiré: ${error.message}
+          
+💡 Solutions :
+• Demandez un nouveau lien de récupération
+• Vérifiez que le lien n'a pas expiré (1 heure)
+• Contactez l'administration si le problème persiste`);
         } else {
           console.log('✅ [ResetPassword] Session établie pour changement de mot de passe');
           setSessionReady(true);
         }
       });
-    } else {
-      // Si pas de tokens, rediriger vers la page de connexion
-      console.log('⚠️ [ResetPassword] Pas de tokens de récupération, redirection vers /auth');
+    } else if (!accessToken && !refreshToken) {
+      console.log('⚠️ [ResetPassword] Aucun token de récupération détecté');
+      setError(`Lien de récupération invalide ou incomplet.
       
-      setError('Lien de récupération invalide. Redirection vers la page de connexion...');
+💡 Solutions :
+• Cliquez directement sur le lien dans votre email
+• Ne copiez/collez pas l'URL manuellement
+• Demandez un nouveau lien si celui-ci a expiré
+• Vérifiez vos spams`);
+      
+      // Rediriger vers la page de connexion après 5 secondes
       setTimeout(() => {
         navigate('/auth');
-      }, 3000);
+      }, 5000);
+    } else {
+      console.log('⚠️ [ResetPassword] Tokens incomplets:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+      setError(`Lien de récupération incomplet.
+      
+💡 Solutions :
+• Utilisez le lien complet depuis votre email
+• Demandez un nouveau lien de récupération
+• Contactez l'administration`);
+      
+      setTimeout(() => {
+        navigate('/auth');
+      }, 5000);
     }
   }, [accessToken, refreshToken, type, error_description, error_code, navigate, searchParams]);
 
