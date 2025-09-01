@@ -255,6 +255,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log('🚀 [AuthContext] Initialisation de l\'authentification...');
         
+        // Vérifier si on est sur une page de reset avec erreur
+        const isResetPageWithError = window.location.pathname.includes('reset-password') && 
+          (window.location.hash.includes('error') || window.location.search.includes('error'));
+        
+        if (isResetPageWithError) {
+          console.log('🚨 [AuthContext] Page de reset avec erreur détectée - Pas d\'initialisation session');
+          setLoading(false);
+          return;
+        }
+        
         // Récupérer la session actuelle UNE SEULE FOIS
         const { data: { session }, error } = await supabase.auth.getSession();
         
@@ -291,6 +301,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('🔄 [AuthContext] Auth event:', event);
         
         if (!mounted) return;
+        
+        // Ignorer les événements sur la page de reset avec erreur
+        const isResetPageWithError = window.location.pathname.includes('reset-password') && 
+          (window.location.hash.includes('error') || window.location.search.includes('error'));
+        
+        if (isResetPageWithError && event !== 'SIGNED_OUT') {
+          console.log('🚨 [AuthContext] Événement ignoré sur page de reset avec erreur:', event);
+          return;
+        }
         
         if (event === 'SIGNED_OUT') {
           console.log('👋 [AuthContext] Déconnexion détectée');

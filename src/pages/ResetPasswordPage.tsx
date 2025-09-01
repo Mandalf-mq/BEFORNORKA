@@ -50,6 +50,16 @@ export const ResetPasswordPage: React.FC = () => {
     if (error_code || error_description) {
       console.error('❌ [ResetPassword] Erreur dans l\'URL:', { error_code, error_description });
       
+      // FORCER LA DÉCONNEXION si on a un lien expiré
+      if (error_code === 'otp_expired' || error_description?.includes('expired')) {
+        console.log('🚨 [ResetPassword] Lien expiré détecté - Déconnexion forcée');
+        supabase.auth.signOut().then(() => {
+          console.log('✅ [ResetPassword] Déconnexion forcée terminée');
+        }).catch((err) => {
+          console.warn('⚠️ [ResetPassword] Erreur déconnexion forcée:', err);
+        });
+      }
+      
       if (error_code === 'otp_expired' || error_description?.includes('expired')) {
         setError(`🕐 Lien de récupération expiré
         
@@ -112,12 +122,7 @@ Les tokens d'authentification sont manquants ou le lien a expiré.
 • Vérifiez que vous cliquez directement depuis l'email
 • Ne copiez/collez pas l'URL manuellement
 
-🔄 Redirection automatique vers la page de connexion...`);
-      
-      // Rediriger vers la page de connexion après 6 secondes
-      setTimeout(() => {
-        navigate('/auth');
-      }, 6000);
+⚠️ Vous pouvez demander un nouveau lien directement ci-dessous.`);
     }
   }, [accessToken, refreshToken, type, error_description, error_code, navigate]);
 
@@ -280,6 +285,19 @@ Les tokens d'authentification sont manquants ou le lien a expiré.
                 <AlertCircle className="w-5 h-5 text-red-500" />
                 <p className="text-red-800 text-sm whitespace-pre-line">{error}</p>
               </div>
+              
+              {/* Bouton pour demander un nouveau lien */}
+              <div className="mt-4 pt-4 border-t border-red-200">
+                <button
+                  onClick={() => {
+                    // Rediriger vers la page de demande de nouveau lien
+                    navigate('/auth');
+                  }}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  🔄 Demander un nouveau lien de récupération
+                </button>
+              </div>
             </div>
           )}
 
@@ -296,12 +314,14 @@ Les tokens d'authentification sont manquants ou le lien a expiré.
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-300"
                   placeholder="••••••••"
+                  disabled={!sessionReady || !!error}
                 />
                 <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                  disabled={!sessionReady || !!error}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -351,12 +371,14 @@ Les tokens d'authentification sont manquants ou le lien a expiré.
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-300"
                   placeholder="••••••••"
+                  disabled={!sessionReady || !!error}
                 />
                 <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                  disabled={!sessionReady || !!error}
                 >
                   {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -382,7 +404,7 @@ Les tokens d'authentification sont manquants ou le lien a expiré.
 
             <button
               type="submit"
-              disabled={loading || newPassword !== confirmPassword || validatePassword(newPassword).length > 0}
+              disabled={loading || newPassword !== confirmPassword || validatePassword(newPassword).length > 0 || !sessionReady || !!error}
               className="w-full bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -390,6 +412,8 @@ Les tokens d'authentification sont manquants ou le lien a expiré.
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   <span>Modification...</span>
                 </div>
+              ) : !sessionReady || !!error ? (
+                'Lien expiré - Demandez un nouveau lien'
               ) : (
                 'Changer le mot de passe'
               )}
