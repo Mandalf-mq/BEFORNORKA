@@ -8,13 +8,11 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Create Supabase admin client with service role key
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -26,10 +24,15 @@ serve(async (req) => {
       }
     )
 
-    const { accounts } = await req.json()
+    // 🔧 CORRECTION: Support des deux formats
+    const body = await req.json()
+    const accounts = body.accounts || body.members || []
+    const createAccounts = body.create_accounts !== false
+
+    console.log(`🚀 Traitement de ${accounts.length} comptes, création auth: ${createAccounts}`)
 
     if (!accounts || !Array.isArray(accounts)) {
-      throw new Error('Format de données invalide - accounts array requis')
+      throw new Error('Format de données invalide - accounts/members array requis')
     }
 
     const results = []
@@ -56,19 +59,19 @@ serve(async (req) => {
       
       let password = '';
       
-      // Garantir EXACTEMENT un caractère de chaque type requis
-      password += lowercase[Math.floor(Math.random() * lowercase.length)];  // a-z
-      password += uppercase[Math.floor(Math.random() * uppercase.length)];  // A-Z
-      password += numbers[Math.floor(Math.random() * numbers.length)];      // 0-9
-      password += specials[Math.floor(Math.random() * specials.length)];    // Spéciaux
+      // Garantir au moins un caractère de chaque type
+      password += lowercase[Math.floor(Math.random() * lowercase.length)];
+      password += uppercase[Math.floor(Math.random() * uppercase.length)];
+      password += numbers[Math.floor(Math.random() * numbers.length)];
+      password += specials[Math.floor(Math.random() * specials.length)];
       
-      // Compléter avec 8 caractères supplémentaires pour avoir 12 au total
+      // Compléter avec 8 caractères supplémentaires
       const allChars = lowercase + uppercase + numbers + specials;
       for (let i = 4; i < 12; i++) {
         password += allChars[Math.floor(Math.random() * allChars.length)];
       }
       
-      // Mélanger COMPLÈTEMENT le mot de passe
+      // Mélanger le mot de passe
       return password.split('').sort(() => Math.random() - 0.5).join('');
     };
 
@@ -109,109 +112,116 @@ serve(async (req) => {
           continue
         }
 
-        // Générer un mot de passe ultra-fort
-        const temporaryPassword = generateUltraStrongPassword()
+        // 🔍 Vérifier si l'email existe déjà
+        const { data: existingMember, error: checkError } = await supabaseAdmin
+          .from('members')
+          .select('id, email')
+          .eq('email', email)
+          .single()
 
-        // 1. Créer l'utilisateur dans auth.users avec l'API admin (PAS DE RATE LIMIT)
-        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          password: temporaryPassword,
-          email_confirm: true, // Confirmer l'email automatiquement
-          user_metadata: {
-            first_name,
-            last_name,
-            role,
-            phone: phone || null
-          }
-        })
+        if (checkError && checkError.code !== 'PGRST116') {
+          throw checkError
+        }
 
-        if (authError) {
+        if (existingMember) {
           results.push({
             email,
             success: false,
-            error: `Erreur authentification: ${authError.message}`
+            error: 'Email existe déjà dans les membres'
           })
           errorCount++
           continue
         }
 
-        console.log(`✅ Compte auth créé pour: ${email}`)
+        let temporaryPassword = null
+        let authUserId = null
 
-        // 2. Créer l'entrée dans la table users
-        const { error: userError } = await supabaseAdmin
-          .from('users')
-          .insert({
-            id: authUser.user.id,
+        // 🔐 Créer le compte d'authentification si demandé
+        if (createAccounts) {
+          temporaryPassword = generateUltraStrongPassword()
+
+          const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email,
-            first_name,
-            last_name,
-            phone: phone || null,
-            role: role,
-            is_active: true
-          })
-
-        if (userError) {
-          console.warn('Erreur création profil utilisateur:', userError)
-          // Ne pas bloquer pour cette erreur - le compte auth existe
-        }
-
-        // 3. Si c'est un membre, créer aussi le profil membre
-        let newMemberId = null
-        if (role === 'member') {
-          // Récupérer la catégorie pour le tarif
-          const { data: categoryData } = await supabaseAdmin
-            .from('categories')
-            .select('membership_fee')
-            .eq('value', category)
-            .single()
-
-          const finalFee = membership_fee || categoryData?.membership_fee || 200
-
-          // Créer le profil membre
-          const { data: newMember, error: memberError } = await supabaseAdmin
-            .from('members')
-            .insert({
+            password: temporaryPassword,
+            email_confirm: true,
+            user_metadata: {
               first_name,
               last_name,
-              email,
-              phone: phone || null,
-              birth_date: birth_date || null,
-              category: category,
-              membership_fee: finalFee,
-              status: 'pending',
-              payment_status: 'pending',
-              season_id: currentSeason?.id
-            })
-            .select('id')
-            .single()
+              role,
+              phone: phone || null
+            }
+          })
 
-          if (memberError) {
-            console.warn('Erreur création profil membre:', memberError)
-          } else {
-            newMemberId = newMember.id
-            
-            // Ajouter la catégorie principale
-            await supabaseAdmin
-              .from('member_categories')
-              .insert({
-                member_id: newMember.id,
-                category_value: category,
-                is_primary: true
-              })
+          if (authError) {
+            results.push({
+              email,
+              success: false,
+              error: `Erreur authentification: ${authError.message}`
+            })
+            errorCount++
+            continue
           }
+
+          authUserId = authUser.user.id
+          console.log(`✅ Compte auth créé pour: ${email}`)
+
+          // Créer l'entrée dans la table users
+          await supabaseAdmin
+            .from('users')
+            .insert({
+              id: authUserId,
+              email,
+              first_name,
+              last_name,
+              phone: phone || null,
+              role: role,
+              is_active: true
+            })
         }
+
+        // 👤 Créer le profil membre
+        const { data: newMember, error: memberError } = await supabaseAdmin
+          .from('members')
+          .insert({
+            first_name,
+            last_name,
+            email,
+            phone: phone || null,
+            birth_date: birth_date || null,
+            category: category,
+            membership_fee: membership_fee,
+            status: 'pending',
+            payment_status: 'pending',
+            season_id: currentSeason?.id
+          })
+          .select('id')
+          .single()
+
+        if (memberError) {
+          throw new Error(`Erreur création membre: ${memberError.message}`)
+        }
+
+        // Ajouter la catégorie principale
+        await supabaseAdmin
+          .from('member_categories')
+          .insert({
+            member_id: newMember.id,
+            category_value: category,
+            is_primary: true
+          })
 
         results.push({
           email,
           success: true,
-          user_id: authUser.user.id,
-          member_id: newMemberId,
+          user_id: authUserId,
+          member_id: newMember.id,
           temporary_password: temporaryPassword,
-          role: role
+          role: role,
+          name: `${first_name} ${last_name}`
         })
         successCount++
 
-        console.log(`✅ Compte complet créé pour: ${email}`)
+        console.log(`✅ ${createAccounts ? 'Compte complet' : 'Membre'} créé pour: ${email}`)
 
       } catch (error) {
         console.error(`❌ Erreur pour ${account.email}:`, error)
@@ -226,29 +236,33 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: true,
+        success: successCount > 0,
         total_processed: accounts.length,
         success_count: successCount,
         error_count: errorCount,
-        results
+        results,
+        message: `Traitement terminé: ${successCount} réussis, ${errorCount} erreurs`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
-      },
+      }
     )
 
   } catch (error) {
-    console.error('Erreur Edge Function:', error)
+    console.error('❌ Erreur Edge Function:', error)
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message,
+        total_processed: 0,
+        success_count: 0,
+        error_count: 1
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
-      },
+      }
     )
   }
 })
