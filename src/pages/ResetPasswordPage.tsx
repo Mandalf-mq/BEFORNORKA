@@ -141,9 +141,12 @@ export const ResetPasswordPage: React.FC = () => {
       console.log('⚠️ [ResetPassword] Tokens manquants dans l\'URL');
       
       // Déconnexion préventive
-      await supabase.auth.signOut({ scope: 'global' });
-      localStorage.clear();
-      sessionStorage.clear();
+      const signOutPreventive = async () => {
+        await supabase.auth.signOut({ scope: 'global' });
+        localStorage.clear();
+        sessionStorage.clear();
+      };
+      signOutPreventive();
       
       setError(`🔗 Lien de récupération invalide ou incomplet
       
