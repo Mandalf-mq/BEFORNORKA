@@ -13,21 +13,36 @@ export const ResetPasswordPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
 
   // Vérifier si on a les tokens nécessaires
   const accessToken = searchParams.get('access_token');
   const refreshToken = searchParams.get('refresh_token');
   const type = searchParams.get('type');
+  const error_description = searchParams.get('error_description');
+  const error_code = searchParams.get('error');
 
   useEffect(() => {
+    console.log('🔍 [ResetPassword] URL complète:', window.location.href);
+    console.log('🔍 [ResetPassword] Paramètres URL:', {
+      accessToken: accessToken ? 'Présent' : 'Manquant',
+      refreshToken: refreshToken ? 'Présent' : 'Manquant',
+      type: type,
+      error_description: error_description,
+      error_code: error_code,
+      allParams: Object.fromEntries(searchParams.entries())
+    });
+
+    // Vérifier s'il y a une erreur dans l'URL
+    if (error_code || error_description) {
+      console.error('❌ [ResetPassword] Erreur dans l\'URL:', { error_code, error_description });
+      setError(`Erreur de récupération: ${error_description || error_code}`);
+      return;
+    }
+
     // Si on a les tokens de récupération, les utiliser pour établir la session
     if (accessToken && refreshToken && type === 'recovery') {
-      console.log('🔑 [ResetPassword] Tokens de récupération détectés:', {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        type: type,
-        fullUrl: window.location.href
-      });
+      console.log('🔑 [ResetPassword] Tokens de récupération détectés, établissement de la session...');
       
       supabase.auth.setSession({
         access_token: accessToken,
@@ -35,27 +50,22 @@ export const ResetPasswordPage: React.FC = () => {
       }).then(({ error }) => {
         if (error) {
           console.error('❌ [ResetPassword] Erreur session:', error);
-          setError('Lien de récupération invalide ou expiré');
+          setError(`Lien de récupération invalide ou expiré: ${error.message}`);
         } else {
           console.log('✅ [ResetPassword] Session établie pour changement de mot de passe');
+          setSessionReady(true);
         }
       });
     } else {
       // Si pas de tokens, rediriger vers la page de connexion
-      console.log('⚠️ [ResetPassword] Pas de tokens de récupération:', {
-        accessToken: accessToken,
-        refreshToken: refreshToken,
-        type: type,
-        searchParams: Object.fromEntries(searchParams.entries()),
-        fullUrl: window.location.href
-      });
+      console.log('⚠️ [ResetPassword] Pas de tokens de récupération, redirection vers /auth');
       
-      // Attendre 2 secondes avant de rediriger pour permettre le debug
+      setError('Lien de récupération invalide. Redirection vers la page de connexion...');
       setTimeout(() => {
         navigate('/auth');
-      }, 2000);
+      }, 3000);
     }
-  }, [accessToken, refreshToken, type, navigate]);
+  }, [accessToken, refreshToken, type, error_description, error_code, navigate, searchParams]);
 
   const validatePassword = (password: string) => {
     const errors = [];
@@ -93,6 +103,16 @@ export const ResetPasswordPage: React.FC = () => {
       }
 
       console.log('🔄 [ResetPassword] Tentative de changement de mot de passe...');
+      
+      // Vérifier qu'on a bien une session active
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.error('❌ [ResetPassword] Pas de session active:', userError);
+        throw new Error('Session expirée. Veuillez redemander un nouveau lien de récupération.');
+      }
+      
+      console.log('✅ [ResetPassword] Session active pour:', user.email);
 
       // Changer le mot de passe
       const { error } = await supabase.auth.updateUser({
@@ -119,6 +139,31 @@ export const ResetPasswordPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Affichage de debug pendant le chargement
+  if (!sessionReady && accessToken && refreshToken && !error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200/50 p-8 text-center">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">
+              Préparation du changement de mot de passe...
+            </h1>
+            <p className="text-gray-600 text-sm">
+              Établissement de la session sécurisée
+            </p>
+            <div className="mt-4 text-xs text-gray-500">
+              <p>Tokens détectés ✅</p>
+              <p>Type: {type}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Si succès, afficher le message de confirmation
   if (success) {
