@@ -363,11 +363,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const resetPassword = async (email: string) => {
     console.log('🔄 [AuthContext] Demande de récupération pour:', email);
     
-    // Forcer l'URL complète avec le bon chemin
-    const redirectUrl = `${window.location.origin}/auth/reset-password`;
+    // Détecter l'environnement et utiliser la bonne URL
+    const isProduction = window.location.hostname === 'www.befornorka.fr' || window.location.hostname === 'befornorka.fr';
+    const baseUrl = isProduction ? 'https://www.befornorka.fr' : window.location.origin;
+    const redirectUrl = `${baseUrl}/auth/reset-password`;
     
     console.log('🔄 [AuthContext] URL de redirection:', redirectUrl);
-    console.log('🔄 [AuthContext] Origin:', window.location.origin);
+    console.log('🔄 [AuthContext] Base URL détectée:', baseUrl);
+    console.log('🔄 [AuthContext] Environnement:', isProduction ? 'Production' : 'Développement');
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl,
