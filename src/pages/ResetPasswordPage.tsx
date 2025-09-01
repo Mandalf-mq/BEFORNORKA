@@ -110,19 +110,30 @@ export const ResetPasswordPage: React.FC = () => {
 
 ❌ Erreur Supabase : "${error_description || error_code}"
 
-🔍 Causes possibles :
-• Le lien a expiré (durée de vie : 1 heure maximum)
-• Le lien a déjà été utilisé
-• Token OTP introuvable côté serveur Supabase
-• Configuration des URLs de redirection incorrecte
+🔍 PROBLÈME CONFIRMÉ par les logs Supabase :
+• Token OTP créé à 09:15:41 ✅
+• Token déjà introuvable à 09:17:02 ❌ (1min 21s après)
+• Expiration IMMÉDIATE = problème de configuration Supabase
 
-💡 Solutions :
-1. Demandez un NOUVEAU lien de récupération
-2. Utilisez le nouveau lien IMMÉDIATEMENT (dans les 5 minutes)
-3. Ne copiez/collez PAS l'URL - cliquez directement depuis l'email
-4. Vérifiez vos spams si vous ne recevez pas l'email
+💡 Solutions URGENTES :
+1. 🔧 VÉRIFIEZ la configuration Supabase :
+   • Dashboard → Authentication → Settings
+   • Site URL : https://www.befornorka.fr
+   • Additional Redirect URLs : https://www.befornorka.fr/*
+   
+2. 📧 VÉRIFIEZ le template email :
+   • Authentication → Email Templates → Reset Password
+   • Doit contenir : {{ .ConfirmationURL }}
+   
+3. 🏗️ PROBLÈME DE PLAN SUPABASE :
+   • Plan gratuit = limitations sévères sur les tokens
+   • Considérez un upgrade vers plan Pro
+   
+4. 🆘 SOLUTION TEMPORAIRE :
+   • Utilisez "Créer un compte" dans l'admin
+   • Supprimez l'ancien compte et recréez-le
 
-🔧 Si le problème persiste, contactez l'administrateur.`);
+🔧 Ce problème nécessite une intervention au niveau Supabase - pas de solution côté code.`);
       
       return;
     }
