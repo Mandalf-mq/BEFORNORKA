@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Lock, Eye, EyeOff, CheckCircle, ArrowLeft, Mail } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export const ResetPasswordPage: React.FC = () => {
@@ -15,7 +15,6 @@ export const ResetPasswordPage: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
 
-  // Fonction pour parser les tokens depuis l'URL complète
   const parseTokensFromUrl = () => {
     const hash = window.location.hash.slice(1);
     const search = window.location.search.slice(1);
@@ -26,7 +25,7 @@ export const ResetPasswordPage: React.FC = () => {
       accessToken: allParams.get('access_token'),
       refreshToken: allParams.get('refresh_token'),
       code: allParams.get('code'),
-      token: allParams.get('token'), // Token PKCE
+      token: allParams.get('token'),
       type: allParams.get('type'),
       error_description: allParams.get('error_description'),
       error_code: allParams.get('error') || allParams.get('error_code')
@@ -36,53 +35,37 @@ export const ResetPasswordPage: React.FC = () => {
   const { accessToken, refreshToken, code, token, type, error_description, error_code } = parseTokensFromUrl();
 
   useEffect(() => {
-    // Détecter les erreurs dans l'URL
     const hasError = error_code || error_description;
     
     if (hasError) {
       setError('Lien de récupération invalide ou expiré. Veuillez demander un nouveau lien.');
-      
-      // Déconnexion forcée
       supabase.auth.signOut({ scope: 'global' });
-      localStorage.clear();
-      sessionStorage.clear();
       return;
     }
 
-    // Gérer le code de récupération
     if (code && !hasError) {
-      console.log('🔑 [ResetPassword] Code de récupération détecté:', code);
-      
       supabase.auth.exchangeCodeForSession(code).then(async ({ data, error }) => {
         if (error) {
-          console.error('❌ [ResetPassword] Erreur échange code:', error);
-          setError('Code de récupération invalide ou expiré. Veuillez demander un nouveau lien.');
+          setError('Lien de récupération invalide ou expiré. Veuillez demander un nouveau lien.');
         } else if (data.session) {
-          console.log('✅ [ResetPassword] Session établie via code');
           setSessionReady(true);
         }
       });
     }
-    // Gérer les tokens directs
     else if (accessToken && refreshToken && type === 'recovery' && !hasError) {
-      console.log('🔑 [ResetPassword] Tokens directs détectés');
-      
       supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken
       }).then(({ error }) => {
         if (error) {
-          console.error('❌ [ResetPassword] Erreur session:', error);
-          setError('Session invalide. Veuillez demander un nouveau lien.');
+          setError('Lien de récupération invalide ou expiré. Veuillez demander un nouveau lien.');
         } else {
-          console.log('✅ [ResetPassword] Session établie');
           setSessionReady(true);
         }
       });
     }
-    // Aucun token valide trouvé
     else if (!hasError) {
-      setError('Lien de récupération incomplet. Veuillez demander un nouveau lien.');
+      setError('Lien de récupération invalide ou expiré. Veuillez demander un nouveau lien.');
     }
   }, [accessToken, refreshToken, code, token, type, error_description, error_code]);
 
@@ -261,7 +244,6 @@ export const ResetPasswordPage: React.FC = () => {
             </div>
           ) : null}
 
-          {/* Bouton retour */}
           <div className="mt-6 text-center">
             <button
               onClick={() => navigate('/auth')}
