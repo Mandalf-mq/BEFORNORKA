@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, Users, CheckCircle, XCircle, AlertCircle, Eye, X } from 'lucide-react';
+import { CalendarExport } from '../Calendar/CalendarExport';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { CalendarExport } from '../Calendar/CalendarExport';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -52,6 +54,7 @@ export const MemberTraining: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState<string | null>(null);
   const [viewingSession, setViewingSession] = useState<TrainingSession | null>(null);
+  const [showCalendarExport, setShowCalendarExport] = useState(false);
 
   useEffect(() => {
     initializeData();
@@ -387,6 +390,22 @@ export const MemberTraining: React.FC = () => {
             }
           </span>
         </p>
+        
+        {/* Bouton d'export calendrier */}
+        {sessions.length > 0 && (
+          <div className="mt-4">
+            <button
+              onClick={() => setShowCalendarExport(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>📅 Ajouter à mon calendrier</span>
+            </button>
+            <p className="text-xs text-gray-500 mt-1">
+              Synchronisez vos entraînements avec Google Calendar, iPhone, etc.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Liste des entraînements */}
@@ -724,6 +743,15 @@ export const MemberTraining: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal d'export calendrier */}
+      {showCalendarExport && memberData && (
+        <CalendarExport
+          memberData={memberData}
+          sessions={sessions}
+          onClose={() => setShowCalendarExport(false)}
+        />
       )}
     </div>
   );
