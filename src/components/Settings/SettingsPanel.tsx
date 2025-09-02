@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Save, Plus, Edit, Trash2, Users, Tag, Euro, Building, Palette, Globe, Mail, Phone, MapPin, X, UserCheck, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { AdminPasswordReset } from './AdminPasswordReset';
 
 interface ClubSettings {
   clubName: string;
@@ -109,6 +110,7 @@ export const SettingsPanel: React.FC = () => {
     supplements: { competition: 0, equipment: 0 },
     conditions: { requiresParent: false }
   });
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   // Vérifier les permissions d'accès
   const userRole = userProfile?.role || '';
