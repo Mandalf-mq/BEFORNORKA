@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, Plus, Edit, Trash2, Users, Tag, Euro, Building, Palette, Globe, Mail, Phone, MapPin, X, UserCheck, AlertCircle } from 'lucide-react';
+import { Settings, Save, Plus, Edit, Trash2, Users, Tag, Euro, Building, Palette, Globe, Mail, Phone, MapPin, X, UserCheck, AlertCircle, UserPlus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { AdminPasswordReset } from './AdminPasswordReset';
 
 interface ClubSettings {
   clubName: string;
@@ -110,7 +109,6 @@ export const AccountCreator: React.FC = () => {
     supplements: { competition: 0, equipment: 0 },
     conditions: { requiresParent: false }
   });
-  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   // Vérifier les permissions d'accès
   const userRole = userProfile?.role || '';
@@ -1237,17 +1235,6 @@ export const AccountCreator: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal CSV Importer */}
-      {showCSVImporter && (
-        <CSVImporter
-          onClose={() => setShowCSVImporter(false)}
-          onSuccess={() => {
-            setShowCSVImporter(false);
-            onSuccess();
-          }}
-        />
       )}
     </div>
   );
