@@ -158,30 +158,9 @@ export const AuthPage: React.FC = () => {
       
       console.log('✅ [AuthPage] Email de récupération envoyé avec succès');
       
-      // Message d'avertissement avec diagnostic du problème
       alert(`📧 Email de récupération envoyé vers ${resetEmail} !
-
-🚨 PROBLÈME SUPABASE CONFIRMÉ :
-
-📊 DIAGNOSTIC BASÉ SUR VOS LOGS :
-• Token PKCE généré : pkce_55b27e6fdadbf415a3b01fc4ac4eb5671d5a0d895f2298b3647dd233
-• Erreur serveur : "One-time token not found" (403)
-• URL de redirection : VIDE (aucun paramètre)
-• Plan : Pro (donc pas de limitation)
-
-🔍 PROBLÈME IDENTIFIÉ :
-Supabase génère les tokens mais l'URL de redirection arrive vide.
-C'est un problème de configuration du template email ou de l'API.
-
-⚡ INSTRUCTIONS :
-1. Cliquez sur le lien dans l'email
-2. Si l'URL arrive vide → Utilisez le système de fallback
-3. Si ça ne marche toujours pas → Problème côté Supabase
-
-🔧 SOLUTION TEMPORAIRE :
-Le système de fallback sur la page de reset peut créer un nouveau lien.
-
-📧 Vérifiez votre email maintenant !`);
+      
+Vérifiez votre boîte mail et cliquez sur le lien reçu.`);
       
       setResetSent(true);
     } catch (err: any) {
