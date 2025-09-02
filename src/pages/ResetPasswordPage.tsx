@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export const ResetPasswordPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -25,14 +24,13 @@ export const ResetPasswordPage: React.FC = () => {
       accessToken: allParams.get('access_token'),
       refreshToken: allParams.get('refresh_token'),
       code: allParams.get('code'),
-      token: allParams.get('token'),
       type: allParams.get('type'),
       error_description: allParams.get('error_description'),
       error_code: allParams.get('error') || allParams.get('error_code')
     };
   };
 
-  const { accessToken, refreshToken, code, token, type, error_description, error_code } = parseTokensFromUrl();
+  const { accessToken, refreshToken, code, type, error_description, error_code } = parseTokensFromUrl();
 
   useEffect(() => {
     const hasError = error_code || error_description;
@@ -67,7 +65,7 @@ export const ResetPasswordPage: React.FC = () => {
     else if (!hasError) {
       setError('Lien de récupération invalide ou expiré. Veuillez demander un nouveau lien.');
     }
-  }, [accessToken, refreshToken, code, token, type, error_description, error_code]);
+  }, [accessToken, refreshToken, code, type, error_description, error_code]);
 
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,13 +155,11 @@ export const ResetPasswordPage: React.FC = () => {
               />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              Réinitialisation du mot de passe
+              Nouveau mot de passe
             </h1>
-            {sessionReady ? (
-              <p className="text-gray-600">Choisissez votre nouveau mot de passe</p>
-            ) : (
-              <p className="text-gray-600">Vérification du lien de récupération...</p>
-            )}
+            <p className="text-gray-600">
+              Choisissez votre nouveau mot de passe
+            </p>
           </div>
 
           {error && (
