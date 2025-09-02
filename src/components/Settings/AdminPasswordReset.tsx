@@ -243,18 +243,6 @@ Continuer ?`);
             </button>
           </div>
 
-          {/* Diagnostic du problème */}
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-red-800 mb-2">🚨 Problème Supabase confirmé</h3>
-            <div className="text-sm text-red-700 space-y-1">
-              <p>• <strong>Erreur serveur :</strong> "One-time token not found"</p>
-              <p>• <strong>Code HTTP :</strong> 403 - Email link is invalid or has expired</p>
-              <p>• <strong>URL générée :</strong> Vide (aucun paramètre)</p>
-              <p>• <strong>Plan :</strong> Pro (donc pas de limitation)</p>
-              <p>• <strong>Cause :</strong> Bug de synchronisation Supabase</p>
-            </div>
-          </div>
-
           {success ? (
             <div className="text-center py-8">
               <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
@@ -350,18 +338,17 @@ Continuer ?`);
 
               {/* Actions */}
               {foundUser && newPassword && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-yellow-800 mb-3">⚠️ Contournement du bug Supabase</h4>
-                  <div className="text-sm text-yellow-700 space-y-2 mb-4">
-                    <p>Le système de récupération Supabase ne fonctionne pas (bug confirmé).</p>
-                    <p><strong>Solution :</strong> Réinitialisation manuelle par l'administrateur.</p>
-                    <p><strong>Méthode :</strong> Suppression et recréation du compte avec le même email.</p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-800 mb-3">🔑 Réinitialisation du mot de passe</h4>
+                  <div className="text-sm text-blue-700 space-y-2 mb-4">
+                    <p>Cliquez sur le bouton ci-dessous pour réinitialiser le mot de passe de cet utilisateur.</p>
+                    <p><strong>Nouveau mot de passe :</strong> {newPassword}</p>
                   </div>
                   
                   <button
                     onClick={resetPassword}
                     disabled={resetting}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                    className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
                   >
                     {resetting ? (
                       <>
@@ -371,7 +358,7 @@ Continuer ?`);
                     ) : (
                       <>
                         <Key className="w-4 h-4" />
-                        <span>🆘 Réinitialiser le mot de passe (ADMIN)</span>
+                        <span>Réinitialiser le mot de passe</span>
                       </>
                     )}
                   </button>
@@ -384,9 +371,8 @@ Continuer ?`);
                 <div className="text-sm text-blue-700 space-y-1">
                   <p>1. <strong>Recherchez</strong> l'utilisateur par email</p>
                   <p>2. <strong>Générez</strong> un mot de passe temporaire sécurisé</p>
-                  <p>3. <strong>Réinitialisez</strong> le compte (suppression + recréation)</p>
+                  <p>3. <strong>Réinitialisez</strong> le mot de passe</p>
                   <p>4. <strong>Communiquez</strong> les nouveaux identifiants à l'utilisateur</p>
-                  <p>5. <strong>L'utilisateur</strong> se connecte et change son mot de passe</p>
                 </div>
               </div>
 
