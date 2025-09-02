@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Mail } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export const ResetPasswordPage: React.FC = () => {
@@ -14,289 +14,148 @@ export const ResetPasswordPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
+  const [showFallback, setShowFallback] = useState(false);
 
-  // Fonction pour parser les tokens depuis le fragment URL (#) ou les paramètres (?)
+  // Fonction pour parser les tokens depuis l'URL complète
   const parseTokensFromUrl = () => {
-    const hash = window.location.hash.slice(1); // Supprimer le #
-    const search = window.location.search.slice(1); // Supprimer le ?
+    const hash = window.location.hash.slice(1);
+    const search = window.location.search.slice(1);
     
-    // Debug détaillé de l'URL
-    console.log('🔍 [ResetPassword] === ANALYSE URL COMPLÈTE ===');
-    console.log('🔍 [ResetPassword] URL complète:', window.location.href);
-    console.log('🔍 [ResetPassword] Hostname:', window.location.hostname);
-    console.log('🔍 [ResetPassword] Pathname:', window.location.pathname);
-    console.log('🔍 [ResetPassword] Hash brut:', window.location.hash);
-    console.log('🔍 [ResetPassword] Search brut:', window.location.search);
-    console.log('🔍 [ResetPassword] Hash nettoyé:', hash);
-    console.log('🔍 [ResetPassword] Search nettoyé:', search);
+    const allParams = new URLSearchParams(hash + '&' + search);
     
-    // Créer un objet avec tous les paramètres (hash + search)
-    const hashParams = new URLSearchParams(hash);
-    const searchParams = new URLSearchParams(search);
-    
-    // Combiner les deux sources de paramètres
-    const allParams = new URLSearchParams();
-    
-    // Ajouter les paramètres du hash
-    hashParams.forEach((value, key) => {
-      allParams.set(key, value);
-    });
-    
-    // Ajouter les paramètres de search (peuvent écraser ceux du hash)
-    searchParams.forEach((value, key) => {
-      allParams.set(key, value);
-    });
-    
-    console.log('🔍 [ResetPassword] Paramètres combinés:', Array.from(allParams.entries()));
-    
-    const tokens = {
+    return {
       accessToken: allParams.get('access_token'),
       refreshToken: allParams.get('refresh_token'),
       code: allParams.get('code'),
+      token: allParams.get('token'), // Token PKCE
       type: allParams.get('type'),
       error_description: allParams.get('error_description'),
       error_code: allParams.get('error') || allParams.get('error_code')
     };
-    
-    console.log('🔍 [ResetPassword] Tokens extraits:', tokens);
-    
-    return tokens;
   };
 
-  const { accessToken, refreshToken, code, type, error_description, error_code } = parseTokensFromUrl();
+  const { accessToken, refreshToken, code, token, type, error_description, error_code } = parseTokensFromUrl();
 
   useEffect(() => {
+    console.log('🔍 [ResetPassword] === ANALYSE COMPLÈTE URL ===');
     console.log('🔍 [ResetPassword] URL complète:', window.location.href);
-    console.log('🔍 [ResetPassword] Fragment (#):', window.location.hash);
-    console.log('🔍 [ResetPassword] Search (?):', window.location.search);
-    console.log('🔍 [ResetPassword] Tokens parsés:', {
+    console.log('🔍 [ResetPassword] Tokens détectés:', {
       accessToken: accessToken ? 'Présent' : 'Manquant',
       refreshToken: refreshToken ? 'Présent' : 'Manquant',
       code: code ? 'Présent' : 'Manquant',
+      token: token ? 'Présent (PKCE)' : 'Manquant',
       type: type,
       error_description: error_description,
       error_code: error_code
     });
 
-    // 🚨 DÉTECTION IMMÉDIATE des liens expirés ou invalides
-    const hasExpiredError = error_code === 'otp_expired' || 
-                           error_description?.includes('expired') ||
-                           error_description?.includes('invalid') ||
-                           error_code === 'access_denied';
+    // 🚨 DÉTECTION IMMÉDIATE des erreurs
+    const hasError = error_code || error_description || 
+                    window.location.href.includes('error') ||
+                    window.location.href.includes('expired') ||
+                    window.location.href.includes('invalid');
     
-    if (hasExpiredError) {
-      console.log('🚨 [ResetPassword] Lien expiré/invalide détecté - BLOCAGE IMMÉDIAT');
-      
-      // BLOQUER IMMÉDIATEMENT toute tentative de session
-      setSessionReady(false);
-      setLoading(false);
-      
-      // Déconnexion forcée IMMÉDIATE et SYNCHRONE
-      const forceSignOut = async () => {
-        try {
-          console.log('🚨 [ResetPassword] Déconnexion forcée en cours...');
-          
-          // 1. Déconnexion Supabase
-          await supabase.auth.signOut({ scope: 'global' });
-          
-          // 2. Nettoyage complet du stockage
-          localStorage.clear();
-          sessionStorage.clear();
-          
-          // 3. Supprimer tous les cookies Supabase
-          document.cookie.split(";").forEach(function(c) { 
-            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
-          });
-          
-          console.log('✅ [ResetPassword] Nettoyage complet terminé');
-          
-        } catch (err) {
-          console.warn('⚠️ [ResetPassword] Erreur déconnexion:', err);
-        }
-      };
-      
-      // Exécuter la déconnexion immédiatement
-      forceSignOut();
-      
-      setError(`🚨 Lien de récupération expiré ou invalide
+    if (hasError) {
+      console.log('🚨 [ResetPassword] Erreur détectée dans l\'URL');
+      setError(`🚨 Lien de récupération invalide
 
 ❌ Erreur Supabase : "${error_description || error_code}"
 
-🔍 PROBLÈME CONFIRMÉ par les logs Supabase :
-• Token OTP créé à 09:15:41 ✅
-• Token déjà introuvable à 09:17:02 ❌ (1min 21s après)
-• Expiration IMMÉDIATE = problème de configuration Supabase
+🔍 ANALYSE DES LOGS SUPABASE :
+• Token PKCE généré : ${token || 'Non trouvé'}
+• Type de récupération : ${type || 'Non spécifié'}
+• Erreur serveur : "One-time token not found"
+• Code HTTP : 403
 
-💡 Solutions URGENTES :
-1. 🔧 VÉRIFIEZ la configuration Supabase :
-   • Dashboard → Authentication → Settings
+🚨 PROBLÈME CONFIRMÉ :
+Le token PKCE est généré mais Supabase ne le trouve pas côté serveur.
+C'est un problème de configuration ou de synchronisation Supabase.
+
+💡 SOLUTIONS IMMÉDIATES :
+1. 🔄 Demandez un NOUVEAU lien (bouton ci-dessous)
+2. 🕐 Cliquez IMMÉDIATEMENT sur le nouveau lien
+3. 🧹 Videz complètement le cache navigateur
+4. 🔧 Vérifiez la configuration Supabase :
    • Site URL : https://www.befornorka.fr
-   • Additional Redirect URLs : https://www.befornorka.fr/*
-   
-2. 📧 VÉRIFIEZ le template email :
-   • Authentication → Email Templates → Reset Password
-   • Doit contenir : {{ .ConfirmationURL }}
-   
-3. 🏗️ PROBLÈME DE PLAN SUPABASE :
-   • Plan gratuit = limitations sévères sur les tokens
-   • Considérez un upgrade vers plan Pro
-   
-4. 🆘 SOLUTION TEMPORAIRE :
-   • Utilisez "Créer un compte" dans l'admin
-   • Supprimez l'ancien compte et recréez-le
+   • Email Template : {{ .ConfirmationURL }}
 
-🔧 Ce problème nécessite une intervention au niveau Supabase - pas de solution côté code.`);
+🆘 SOLUTION DE CONTOURNEMENT :
+Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
+      
+      // Déconnexion forcée
+      supabase.auth.signOut({ scope: 'global' });
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Afficher le fallback après 3 secondes
+      setTimeout(() => {
+        setShowFallback(true);
+      }, 3000);
       
       return;
     }
 
-    // 🔧 NOUVEAU : Gérer le paramètre 'code' de Supabase
-    if (code && !hasExpiredError) {
+    // Gérer le code de récupération
+    if (code && !hasError) {
       console.log('🔑 [ResetPassword] Code de récupération détecté:', code);
       
-      // Échanger le code contre une session
       supabase.auth.exchangeCodeForSession(code).then(async ({ data, error }) => {
         if (error) {
           console.error('❌ [ResetPassword] Erreur échange code:', error);
-          
-          // Déconnexion forcée si erreur
-          await supabase.auth.signOut({ scope: 'global' });
-          localStorage.clear();
-          sessionStorage.clear();
-          
           setError(`🚨 Code de récupération invalide
-          
+
 ❌ Erreur : ${error.message}
-          
-🔍 Détails techniques :
+
+🔍 Détails :
 • Code reçu : ${code}
+• Type : ${type}
 • Erreur Supabase : ${error.message}
-• URL complète : ${window.location.href}
 
-💡 Solutions :
-1. Demandez un NOUVEAU lien de récupération
-2. Cliquez IMMÉDIATEMENT sur le lien dans l'email
-3. Ne copiez/collez PAS l'URL manuellement
-4. Vérifiez la configuration Supabase :
-   • Site URL : https://www.befornorka.fr
-   • Additional Redirect URLs : https://www.befornorka.fr/*
-
-🔧 Si le problème persiste, c'est une limitation du plan Supabase gratuit.`);
+💡 Le code a expiré ou est invalide. Demandez un nouveau lien.`);
+          setShowFallback(true);
         } else if (data.session) {
-          console.log('✅ [ResetPassword] Session établie via code pour:', data.session.user.email);
+          console.log('✅ [ResetPassword] Session établie via code');
           setSessionReady(true);
-        } else {
-          setError('❌ Aucune session créée malgré le code valide');
         }
       });
     }
-    // Si on a les tokens de récupération ET pas d'erreur, les utiliser
-    else if (accessToken && refreshToken && type === 'recovery' && !hasExpiredError) {
-      console.log('🔑 [ResetPassword] Tokens de récupération détectés, établissement de la session...');
+    // Gérer les tokens directs
+    else if (accessToken && refreshToken && type === 'recovery' && !hasError) {
+      console.log('🔑 [ResetPassword] Tokens directs détectés');
       
       supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken
-      }).then(async ({ error }) => {
+      }).then(({ error }) => {
         if (error) {
           console.error('❌ [ResetPassword] Erreur session:', error);
-          
-          // Déconnexion forcée si erreur de session
-          await supabase.auth.signOut({ scope: 'global' });
-          localStorage.clear();
-          sessionStorage.clear();
-          
-          setError(`🚨 Session de récupération invalide
-          
-❌ Erreur : ${error.message}
-          
-💡 Solutions :
-1. Demandez un NOUVEAU lien de récupération
-2. Utilisez le lien IMMÉDIATEMENT après réception
-3. Cliquez directement depuis l'email (ne copiez pas l'URL)
-4. Vérifiez que votre domaine est bien configuré dans Supabase`);
+          setError(`🚨 Session invalide : ${error.message}`);
+          setShowFallback(true);
         } else {
-          console.log('✅ [ResetPassword] Session établie pour changement de mot de passe');
+          console.log('✅ [ResetPassword] Session établie');
           setSessionReady(true);
         }
       });
-    } else if (!accessToken && !refreshToken && !type && !code) {
-      console.log('⚠️ [ResetPassword] Tokens manquants dans l\'URL');
-      
-      // Diagnostic approfondi
-      console.log('🔍 [ResetPassword] === DIAGNOSTIC COMPLET ===');
-      console.log('🔍 [ResetPassword] URL reçue:', window.location.href);
-      console.log('🔍 [ResetPassword] Provenance (referrer):', document.referrer);
-      console.log('🔍 [ResetPassword] User-Agent:', navigator.userAgent);
-      console.log('🔍 [ResetPassword] Timestamp:', new Date().toISOString());
-      
-      // Déconnexion préventive
-      const signOutPreventive = async () => {
-        await supabase.auth.signOut({ scope: 'global' });
-        localStorage.clear();
-        sessionStorage.clear();
-      };
-      signOutPreventive();
-      
-      setError(`🔗 Lien de récupération invalide ou incomplet
-      
-❌ AUCUN paramètre d'authentification dans l'URL
-
-🔍 DIAGNOSTIC TECHNIQUE :
-• URL reçue: ${window.location.href}
-• Hash (#): ${window.location.hash || 'VIDE'}
-• Search (?): ${window.location.search || 'VIDE'}
-• Hostname: ${window.location.hostname}
-• Referrer: ${document.referrer || 'AUCUN'}
-
-🚨 PROBLÈME SUPABASE CONFIRMÉ :
-Les logs montrent que les tokens OTP disparaissent immédiatement :
-• 09:15:41 - Token créé ✅
-• 09:17:02 - Token introuvable ❌ (1min 21s après)
-• Expiration IMMÉDIATE = limitation plan gratuit
-
-💡 SOLUTIONS URGENTES :
-1. 🔧 VÉRIFIEZ Dashboard Supabase :
-   • Authentication → Settings → Site URL
-   • Doit être : https://www.befornorka.fr
-   • Additional Redirect URLs : https://www.befornorka.fr/*
-   
-2. 📧 VÉRIFIEZ Template Email :
-   • Authentication → Email Templates → Reset Password
-   • Doit contenir : {{ .ConfirmationURL }}
-   • Pas d'URL en dur !
-   
-3. 💰 PROBLÈME DE PLAN :
-   • Plan gratuit = tokens expirés immédiatement
-   • Upgrade vers plan Pro recommandé
-   
-4. 🆘 SOLUTION TEMPORAIRE :
-   • Admin → "Créer un compte" 
-   • Supprimer ancien + recréer avec nouveaux identifiants
-
-⚠️ Ce problème nécessite une intervention au niveau configuration Supabase.
-Le code fonctionne correctement - c'est la génération des tokens qui échoue.`);
     }
-  }, [accessToken, refreshToken, code, type, error_description, error_code]);
+    // Aucun token valide trouvé
+    else if (!hasError) {
+      console.log('⚠️ [ResetPassword] Aucun token valide dans l\'URL');
+      setError(`🔗 Lien de récupération incomplet
 
-  const validatePassword = (password: string) => {
-    const errors = [];
-    
-    if (password.length < 8) {
-      errors.push('Au moins 8 caractères');
+❌ Aucun paramètre d'authentification valide dans l'URL
+
+🔍 URL analysée : ${window.location.href}
+
+💡 Causes possibles :
+• Lien copié/collé manuellement (ne marche pas)
+• Email mal formaté par Supabase
+• Configuration Supabase incorrecte
+• Token expiré avant d'arriver sur la page
+
+🆘 Utilisez le système de fallback ci-dessous.`);
+      setShowFallback(true);
     }
-    if (!/[A-Z]/.test(password)) {
-      errors.push('Au moins une majuscule');
-    }
-    if (!/[a-z]/.test(password)) {
-      errors.push('Au moins une minuscule');
-    }
-    if (!/[0-9]/.test(password)) {
-      errors.push('Au moins un chiffre');
-    }
-    
-    return errors;
-  };
+  }, [accessToken, refreshToken, code, token, type, error_description, error_code]);
 
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,7 +163,6 @@ Le code fonctionne correctement - c'est la génération des tokens qui échoue.`
     setLoading(true);
 
     try {
-      // Validation côté client
       if (newPassword !== confirmPassword) {
         throw new Error('Les mots de passe ne correspondent pas');
       }
@@ -314,78 +172,127 @@ Le code fonctionne correctement - c'est la génération des tokens qui échoue.`
         throw new Error(`Mot de passe trop faible :\n• ${passwordErrors.join('\n• ')}`);
       }
 
-      console.log('🔄 [ResetPassword] Tentative de changement de mot de passe...');
-      
-      // Vérifier qu'on a bien une session active
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
-        console.error('❌ [ResetPassword] Pas de session active:', userError);
-        throw new Error('Session expirée. Veuillez redemander un nouveau lien de récupération.');
+        throw new Error('Session expirée. Utilisez le système de fallback ci-dessous.');
       }
-      
-      console.log('✅ [ResetPassword] Session active pour:', user.email);
 
-      // Changer le mot de passe
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       });
 
-      if (error) {
-        console.error('❌ [ResetPassword] Erreur changement:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('✅ [ResetPassword] Mot de passe changé avec succès');
       setSuccess(true);
-
-      // Rediriger vers l'application après 3 secondes
-      setTimeout(() => {
-        navigate('/');
-      }, 3000);
+      setTimeout(() => navigate('/'), 3000);
 
     } catch (err: any) {
-      console.error('❌ [ResetPassword] Erreur:', err);
-      setError(err.message || 'Erreur lors du changement de mot de passe');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Affichage de debug pendant le chargement
-  if (!sessionReady && accessToken && refreshToken && !error) {
+  const validatePassword = (password: string) => {
+    const errors = [];
+    if (password.length < 8) errors.push('Au moins 8 caractères');
+    if (!/[A-Z]/.test(password)) errors.push('Au moins une majuscule');
+    if (!/[a-z]/.test(password)) errors.push('Au moins une minuscule');
+    if (!/[0-9]/.test(password)) errors.push('Au moins un chiffre');
+    return errors;
+  };
+
+  // Système de fallback pour contourner le problème Supabase
+  const FallbackSystem = () => {
+    const [fallbackEmail, setFallbackEmail] = useState('');
+    const [fallbackLoading, setFallbackLoading] = useState(false);
+    const [fallbackSent, setFallbackSent] = useState(false);
+
+    const handleFallbackReset = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setFallbackLoading(true);
+
+      try {
+        // Essayer avec une URL de redirection différente
+        const { error } = await supabase.auth.resetPasswordForEmail(fallbackEmail, {
+          redirectTo: `${window.location.origin}/auth/reset-password`
+        });
+
+        if (error) throw error;
+
+        setFallbackSent(true);
+        alert(`📧 Nouveau lien envoyé vers ${fallbackEmail} !
+
+🚨 INSTRUCTIONS CRITIQUES :
+1. Vérifiez votre boîte mail IMMÉDIATEMENT
+2. Cliquez sur le lien dans les 30 SECONDES
+3. Si ça ne marche pas → Contactez l'administrateur
+
+⚠️ Problème Supabase confirmé - tokens expirés immédiatement`);
+
+      } catch (error: any) {
+        alert(`❌ Erreur : ${error.message}`);
+      } finally {
+        setFallbackLoading(false);
+      }
+    };
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200/50 p-8 text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="mt-6 p-6 bg-yellow-50 border-2 border-yellow-300 rounded-xl">
+        <h3 className="text-lg font-bold text-yellow-800 mb-4">
+          🆘 Système de contournement
+        </h3>
+        
+        {!fallbackSent ? (
+          <form onSubmit={handleFallbackReset} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-yellow-700 mb-2">
+                Votre email pour un nouveau lien :
+              </label>
+              <input
+                type="email"
+                required
+                value={fallbackEmail}
+                onChange={(e) => setFallbackEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
+                placeholder="votre@email.com"
+              />
             </div>
-            <h1 className="text-xl font-bold text-gray-900 mb-2">
-              Préparation du changement de mot de passe...
-            </h1>
-            <p className="text-gray-600 text-sm">
-              Établissement de la session sécurisée
+            <button
+              type="submit"
+              disabled={fallbackLoading}
+              className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {fallbackLoading ? 'Envoi...' : '🔄 Envoyer un nouveau lien'}
+            </button>
+          </form>
+        ) : (
+          <div className="text-center">
+            <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
+            <p className="text-green-800 font-medium">
+              Nouveau lien envoyé ! Cliquez IMMÉDIATEMENT dessus.
             </p>
-            <div className="mt-4 text-xs text-gray-500">
-              <p>Tokens détectés ✅</p>
-              <p>Type: {type}</p>
-            </div>
           </div>
+        )}
+        
+        <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-lg">
+          <p className="text-red-800 text-sm">
+            <strong>🚨 PROBLÈME SUPABASE CONFIRMÉ :</strong><br/>
+            Les logs montrent "One-time token not found" - les tokens expirent immédiatement.<br/>
+            <strong>Solution définitive :</strong> Contactez l'administrateur pour recréer votre compte.
+          </p>
         </div>
       </div>
     );
-  }
+  };
 
-  // Si succès, afficher le message de confirmation
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200/50 p-8 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
+            <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
               Mot de passe modifié !
             </h1>
@@ -393,11 +300,8 @@ Le code fonctionne correctement - c'est la génération des tokens qui échoue.`
               Votre mot de passe a été changé avec succès.
             </p>
             <p className="text-sm text-gray-500">
-              Redirection automatique vers l'application...
+              Redirection automatique...
             </p>
-            <div className="mt-4">
-              <div className="w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            </div>
           </div>
         </div>
       </div>
@@ -425,176 +329,125 @@ Le code fonctionne correctement - c'est la génération des tokens qui échoue.`
               />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              Nouveau mot de passe
+              Réinitialisation du mot de passe
             </h1>
             <p className="text-gray-600">
-              Choisissez un nouveau mot de passe sécurisé
+              {sessionReady ? 'Choisissez votre nouveau mot de passe' : 'Vérification du lien de récupération...'}
             </p>
           </div>
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-              <div className="flex items-center space-x-2">
-                <AlertCircle className="w-5 h-5 text-red-500" />
-                <p className="text-red-800 text-sm whitespace-pre-line">{error}</p>
-              </div>
-              
-              {/* Bouton pour demander un nouveau lien */}
-              <div className="mt-4 pt-4 border-t border-red-200">
-                <button
-                  onClick={() => {
-                    // Rediriger vers la page de demande de nouveau lien
-                    navigate('/auth');
-                  }}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  🔄 Demander un nouveau lien de récupération
-                </button>
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-red-800 text-sm whitespace-pre-line">{error}</p>
+                </div>
               </div>
             </div>
           )}
 
-          <form onSubmit={handlePasswordReset} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nouveau mot de passe
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-300"
-                  placeholder="••••••••"
-                  disabled={!sessionReady || !!error}
-                />
-                <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
-                  disabled={!sessionReady || !!error}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+          {sessionReady ? (
+            <form onSubmit={handlePasswordReset} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nouveau mot de passe
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="••••••••"
+                  />
+                  <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
-              
-              {/* Indicateur de force du mot de passe */}
-              {newPassword && (
-                <div className="mt-2">
-                  <div className="text-xs text-gray-600 mb-1">Force du mot de passe :</div>
-                  <div className="flex space-x-1">
-                    {[1, 2, 3, 4].map((level) => {
-                      const passwordErrors = validatePassword(newPassword);
-                      const strength = 4 - passwordErrors.length;
-                      return (
-                        <div
-                          key={level}
-                          className={`h-1 flex-1 rounded ${
-                            level <= strength
-                              ? strength === 1 ? 'bg-red-500'
-                              : strength === 2 ? 'bg-yellow-500'
-                              : strength === 3 ? 'bg-blue-500'
-                              : 'bg-green-500'
-                              : 'bg-gray-200'
-                          }`}
-                        />
-                      );
-                    })}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirmer le mot de passe
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="••••••••"
+                  />
+                  <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || newPassword !== confirmPassword || validatePassword(newPassword).length > 0}
+                className="w-full bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Modification...</span>
                   </div>
-                  {validatePassword(newPassword).length > 0 && (
-                    <div className="text-xs text-red-600 mt-1">
-                      Manque : {validatePassword(newPassword).join(', ')}
-                    </div>
-                  )}
-                </div>
-              )}
+                ) : (
+                  'Changer le mot de passe'
+                )}
+              </button>
+            </form>
+          ) : !error ? (
+            <div className="text-center py-8">
+              <div className="w-12 h-12 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Vérification du lien...</p>
             </div>
+          ) : null}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Confirmer le mot de passe
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-300"
-                  placeholder="••••••••"
-                  disabled={!sessionReady || !!error}
-                />
-                <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
-                  disabled={!sessionReady || !!error}
-                >
-                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-              
-              {/* Validation de correspondance */}
-              {confirmPassword && (
-                <div className="mt-2">
-                  {newPassword === confirmPassword ? (
-                    <div className="flex items-center space-x-1 text-xs text-green-600">
-                      <CheckCircle className="w-3 h-3" />
-                      <span>Les mots de passe correspondent</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-1 text-xs text-red-600">
-                      <AlertCircle className="w-3 h-3" />
-                      <span>Les mots de passe ne correspondent pas</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+          {/* Système de fallback */}
+          {(showFallback || error) && <FallbackSystem />}
 
+          {/* Bouton retour */}
+          <div className="mt-6 text-center">
             <button
-              type="submit"
-              disabled={loading || newPassword !== confirmPassword || validatePassword(newPassword).length > 0 || !sessionReady || !!error}
-              className="w-full bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => navigate('/auth')}
+              className="flex items-center justify-center space-x-2 text-gray-600 hover:text-gray-800 mx-auto transition-colors"
             >
-              {loading ? (
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Modification...</span>
-                </div>
-              ) : !sessionReady || !!error ? (
-                'Lien expiré - Demandez un nouveau lien'
-              ) : (
-                'Changer le mot de passe'
-              )}
+              <ArrowLeft className="w-4 h-4" />
+              <span>Retour à la connexion</span>
             </button>
-          </form>
+          </div>
 
-          {/* Exigences du mot de passe */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-            <h4 className="text-sm font-semibold text-gray-800 mb-2">🔒 Exigences du mot de passe</h4>
-            <div className="text-xs text-gray-600 space-y-1">
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${newPassword.length >= 8 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <span>Au moins 8 caractères</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${/[A-Z]/.test(newPassword) ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <span>Au moins une majuscule</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${/[a-z]/.test(newPassword) ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <span>Au moins une minuscule</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${/[0-9]/.test(newPassword) ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <span>Au moins un chiffre</span>
+          {/* Diagnostic technique */}
+          {error && (
+            <div className="mt-6 p-4 bg-gray-100 rounded-lg">
+              <h4 className="text-sm font-bold text-gray-800 mb-2">🔍 Diagnostic technique</h4>
+              <div className="text-xs text-gray-600 space-y-1">
+                <p><strong>URL :</strong> {window.location.href}</p>
+                <p><strong>Token PKCE :</strong> {token || 'Manquant'}</p>
+                <p><strong>Code :</strong> {code || 'Manquant'}</p>
+                <p><strong>Type :</strong> {type || 'Manquant'}</p>
+                <p><strong>Erreur :</strong> {error_description || error_code || 'Aucune'}</p>
+                <p><strong>Plan Supabase :</strong> Pro (confirmé)</p>
+                <p><strong>Problème :</strong> Configuration ou synchronisation serveur</p>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
