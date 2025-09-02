@@ -25,7 +25,7 @@ export const DocumentsManager: React.FC = () => {
   const [newTemplate, setNewTemplate] = useState({
     name: '',
     description: '',
-    document_type: 'registration_form',
+    document_type: 'ffvbForm',
     file_name: '',
     file: null as File | null
   });
@@ -232,17 +232,17 @@ export const DocumentsManager: React.FC = () => {
 
   const getDocumentTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      // Nouveaux noms standardisés
+      // Anciens formats pour compatibilité
+      'ffvbForm': 'Formulaire FFVB',
+      'medicalCertificate': 'Certificat médical',
+      'idPhoto': 'Photo d\'identité',
+      'parentalConsent': 'Autorisation parentale',
+      // Nouveaux formats standardisés
       'registration_form': 'Formulaire d\'inscription',
       'medical_certificate': 'Certificat médical',
       'photo': 'Photo d\'identité',
       'parental_authorization': 'Autorisation parentale',
-      'identity_copy': 'Copie pièce d\'identité',
-      // Anciens noms pour compatibilité
-      'ffvbForm': 'Formulaire FFVB',
-      'medicalCertificate': 'Certificat médical',
-      'idPhoto': 'Photo d\'identité',
-      'parentalConsent': 'Autorisation parentale'
+      'identity_copy': 'Copie pièce d\'identité'
     };
     return labels[type] || type;
   };
@@ -453,11 +453,11 @@ export const DocumentsManager: React.FC = () => {
                   onChange={(e) => setNewTemplate(prev => ({ ...prev, document_type: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
-                  <option value="registration_form">Formulaire d'inscription</option>
-                  <option value="medical_certificate">Certificat médical</option>
-                  <option value="photo">Photo d'identité</option>
-                  <option value="parental_authorization">Autorisation parentale</option>
-                  <option value="identity_copy">Copie pièce d'identité</option>
+                  <option value="ffvbForm">Formulaire FFVB</option>
+                  <option value="medicalCertificate">Certificat médical</option>
+                  <option value="idPhoto">Photo d'identité</option>
+                  <option value="parentalConsent">Autorisation parentale</option>
+                  <option value="identityCopy">Copie pièce d'identité</option>
                 </select>
               </div>
 
