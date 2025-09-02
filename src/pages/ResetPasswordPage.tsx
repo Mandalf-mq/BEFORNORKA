@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Mail } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle, ArrowLeft, Mail } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export const ResetPasswordPage: React.FC = () => {
@@ -14,8 +14,6 @@ export const ResetPasswordPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
-  const [showFallback, setShowFallback] = useState(false);
-  const [urlAnalysis, setUrlAnalysis] = useState<any>(null);
 
   // Fonction pour parser les tokens depuis l'URL complète
   const parseTokensFromUrl = () => {
@@ -38,103 +36,16 @@ export const ResetPasswordPage: React.FC = () => {
   const { accessToken, refreshToken, code, token, type, error_description, error_code } = parseTokensFromUrl();
 
   useEffect(() => {
-    // Analyser immédiatement l'URL pour diagnostic
-    const analysis = {
-      fullUrl: window.location.href,
-      pathname: window.location.pathname,
-      search: window.location.search,
-      hash: window.location.hash,
-      hasAnyParams: !!(window.location.search || window.location.hash),
-      detectedTokens: { accessToken, refreshToken, code, token, type, error_description, error_code }
-    };
-    setUrlAnalysis(analysis);
-    
-    console.log('🔍 [ResetPassword] === ANALYSE COMPLÈTE URL ===');
-    console.log('🔍 [ResetPassword] Analyse URL:', analysis);
-    console.log('🔍 [ResetPassword] Tokens détectés:', {
-      accessToken: accessToken ? 'Présent' : 'Manquant',
-      refreshToken: refreshToken ? 'Présent' : 'Manquant',
-      code: code ? 'Présent' : 'Manquant',
-      token: token ? 'Présent (PKCE)' : 'Manquant',
-      type: type,
-      error_description: error_description,
-      error_code: error_code
-    });
-
-    // Si l'URL est complètement vide (cas actuel), afficher immédiatement le diagnostic
-    if (!analysis.hasAnyParams) {
-      console.log('🚨 [ResetPassword] URL COMPLÈTEMENT VIDE - Problème de génération Supabase');
-      setError(`🚨 PROBLÈME SUPABASE CONFIRMÉ - URL vide
-
-❌ Diagnostic technique :
-• URL reçue : ${analysis.fullUrl}
-• Paramètres : AUCUN (search: "${analysis.search}", hash: "${analysis.hash}")
-• Tokens : TOUS MANQUANTS
-
-🔍 ANALYSE :
-Supabase n'a généré AUCUN paramètre dans l'URL de redirection.
-Cela indique un problème de configuration côté serveur Supabase.
-
-📊 LOGS SUPABASE ANALYSÉS :
-• Token PKCE généré : pkce_55b27e6fdadbf415a3b01fc4ac4eb5671d5a0d895f2298b3647dd233
-• Erreur serveur : "One-time token not found"
-• Le token est créé mais Supabase ne le trouve pas
-
-🔧 SOLUTIONS À TESTER :
-1. Vérifiez Authentication → Settings → Site URL
-2. Vérifiez que le template email utilise {{ .ConfirmationURL }}
-3. Testez avec un autre email
-4. Contactez le support Supabase avec ces logs précis
-
-🆘 CONTOURNEMENT IMMÉDIAT :
-Utilisez le système de fallback ci-dessous pour créer un nouveau lien.`);
-      setShowFallback(true);
-      return;
-    }
-
-    // 🚨 DÉTECTION IMMÉDIATE des erreurs
-    const hasError = error_code || error_description || 
-                    window.location.href.includes('error') ||
-                    window.location.href.includes('expired') ||
-                    window.location.href.includes('invalid');
+    // Détecter les erreurs dans l'URL
+    const hasError = error_code || error_description;
     
     if (hasError) {
-      console.log('🚨 [ResetPassword] Erreur détectée dans l\'URL');
-      setError(`🚨 Lien de récupération invalide
-
-❌ Erreur Supabase : "${error_description || error_code}"
-
-🔍 ANALYSE DES LOGS SUPABASE :
-• Token PKCE généré : ${token || 'Non trouvé'}
-• Type de récupération : ${type || 'Non spécifié'}
-• Erreur serveur : "One-time token not found"
-• Code HTTP : 403
-
-🚨 PROBLÈME CONFIRMÉ :
-Le token PKCE est généré mais Supabase ne le trouve pas côté serveur.
-C'est un problème de configuration ou de synchronisation Supabase.
-
-💡 SOLUTIONS IMMÉDIATES :
-1. 🔄 Demandez un NOUVEAU lien (bouton ci-dessous)
-2. 🕐 Cliquez IMMÉDIATEMENT sur le nouveau lien
-3. 🧹 Videz complètement le cache navigateur
-4. 🔧 Vérifiez la configuration Supabase :
-   • Site URL : https://www.befornorka.fr
-   • Email Template : {{ .ConfirmationURL }}
-
-🆘 SOLUTION DE CONTOURNEMENT :
-Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
+      setError('Lien de récupération invalide ou expiré. Veuillez demander un nouveau lien.');
       
       // Déconnexion forcée
       supabase.auth.signOut({ scope: 'global' });
       localStorage.clear();
       sessionStorage.clear();
-      
-      // Afficher le fallback après 3 secondes
-      setTimeout(() => {
-        setShowFallback(true);
-      }, 3000);
-      
       return;
     }
 
@@ -145,17 +56,7 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
       supabase.auth.exchangeCodeForSession(code).then(async ({ data, error }) => {
         if (error) {
           console.error('❌ [ResetPassword] Erreur échange code:', error);
-          setError(`🚨 Code de récupération invalide
-
-❌ Erreur : ${error.message}
-
-🔍 Détails :
-• Code reçu : ${code}
-• Type : ${type}
-• Erreur Supabase : ${error.message}
-
-💡 Le code a expiré ou est invalide. Demandez un nouveau lien.`);
-          setShowFallback(true);
+          setError('Code de récupération invalide ou expiré. Veuillez demander un nouveau lien.');
         } else if (data.session) {
           console.log('✅ [ResetPassword] Session établie via code');
           setSessionReady(true);
@@ -172,8 +73,7 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
       }).then(({ error }) => {
         if (error) {
           console.error('❌ [ResetPassword] Erreur session:', error);
-          setError(`🚨 Session invalide : ${error.message}`);
-          setShowFallback(true);
+          setError('Session invalide. Veuillez demander un nouveau lien.');
         } else {
           console.log('✅ [ResetPassword] Session établie');
           setSessionReady(true);
@@ -182,21 +82,7 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
     }
     // Aucun token valide trouvé
     else if (!hasError) {
-      console.log('⚠️ [ResetPassword] Aucun token valide dans l\'URL');
-      setError(`🔗 Lien de récupération incomplet
-
-❌ Aucun paramètre d'authentification valide dans l'URL
-
-🔍 URL analysée : ${window.location.href}
-
-💡 Causes possibles :
-• Lien copié/collé manuellement (ne marche pas)
-• Email mal formaté par Supabase
-• Configuration Supabase incorrecte
-• Token expiré avant d'arriver sur la page
-
-🆘 Utilisez le système de fallback ci-dessous.`);
-      setShowFallback(true);
+      setError('Lien de récupération incomplet. Veuillez demander un nouveau lien.');
     }
   }, [accessToken, refreshToken, code, token, type, error_description, error_code]);
 
@@ -218,7 +104,7 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
-        throw new Error('Session expirée. Utilisez le système de fallback ci-dessous.');
+        throw new Error('Session expirée. Veuillez demander un nouveau lien.');
       }
 
       const { error } = await supabase.auth.updateUser({
@@ -244,90 +130,6 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
     if (!/[a-z]/.test(password)) errors.push('Au moins une minuscule');
     if (!/[0-9]/.test(password)) errors.push('Au moins un chiffre');
     return errors;
-  };
-
-  // Système de fallback pour contourner le problème Supabase
-  const FallbackSystem = () => {
-    const [fallbackEmail, setFallbackEmail] = useState('');
-    const [fallbackLoading, setFallbackLoading] = useState(false);
-    const [fallbackSent, setFallbackSent] = useState(false);
-
-    const handleFallbackReset = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setFallbackLoading(true);
-
-      try {
-        // Essayer avec une URL de redirection différente
-        const { error } = await supabase.auth.resetPasswordForEmail(fallbackEmail, {
-          redirectTo: `${window.location.origin}/auth/reset-password`
-        });
-
-        if (error) throw error;
-
-        setFallbackSent(true);
-        alert(`📧 Nouveau lien envoyé vers ${fallbackEmail} !
-
-🚨 INSTRUCTIONS CRITIQUES :
-1. Vérifiez votre boîte mail IMMÉDIATEMENT
-2. Cliquez sur le lien dans les 30 SECONDES
-3. Si ça ne marche pas → Contactez l'administrateur
-
-⚠️ Problème Supabase confirmé - tokens expirés immédiatement`);
-
-      } catch (error: any) {
-        alert(`❌ Erreur : ${error.message}`);
-      } finally {
-        setFallbackLoading(false);
-      }
-    };
-
-    return (
-      <div className="mt-6 p-6 bg-yellow-50 border-2 border-yellow-300 rounded-xl">
-        <h3 className="text-lg font-bold text-yellow-800 mb-4">
-          🆘 Système de contournement
-        </h3>
-        
-        {!fallbackSent ? (
-          <form onSubmit={handleFallbackReset} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-yellow-700 mb-2">
-                Votre email pour un nouveau lien :
-              </label>
-              <input
-                type="email"
-                required
-                value={fallbackEmail}
-                onChange={(e) => setFallbackEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-                placeholder="votre@email.com"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={fallbackLoading}
-              className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {fallbackLoading ? 'Envoi...' : '🔄 Envoyer un nouveau lien'}
-            </button>
-          </form>
-        ) : (
-          <div className="text-center">
-            <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
-            <p className="text-green-800 font-medium">
-              Nouveau lien envoyé ! Cliquez IMMÉDIATEMENT dessus.
-            </p>
-          </div>
-        )}
-        
-        <div className="mt-4 p-3 bg-red-100 border border-red-300 rounded-lg">
-          <p className="text-red-800 text-sm">
-            <strong>🚨 PROBLÈME SUPABASE CONFIRMÉ :</strong><br/>
-            Les logs montrent "One-time token not found" - les tokens expirent immédiatement.<br/>
-            <strong>Solution définitive :</strong> Contactez l'administrateur pour recréer votre compte.
-          </p>
-        </div>
-      </div>
-    );
   };
 
   if (success) {
@@ -374,19 +176,16 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
               Réinitialisation du mot de passe
             </h1>
-            <p className="text-gray-600">
-              {sessionReady ? 'Choisissez votre nouveau mot de passe' : 'Vérification du lien de récupération...'}
-            </p>
+            {sessionReady ? (
+              <p className="text-gray-600">Choisissez votre nouveau mot de passe</p>
+            ) : (
+              <p className="text-gray-600">Vérification du lien de récupération...</p>
+            )}
           </div>
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-              <div className="flex items-start space-x-2">
-                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-red-800 text-sm whitespace-pre-line">{error}</p>
-                </div>
-              </div>
+              <p className="text-red-800 text-sm">{error}</p>
             </div>
           )}
 
@@ -443,7 +242,7 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
               <button
                 type="submit"
                 disabled={loading || newPassword !== confirmPassword || validatePassword(newPassword).length > 0}
-                className="w-full bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <div className="flex items-center justify-center space-x-2">
@@ -462,9 +261,6 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
             </div>
           ) : null}
 
-          {/* Système de fallback */}
-          {(showFallback || error) && <FallbackSystem />}
-
           {/* Bouton retour */}
           <div className="mt-6 text-center">
             <button
@@ -475,38 +271,6 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
               <span>Retour à la connexion</span>
             </button>
           </div>
-
-          {/* Diagnostic technique */}
-          {error && (
-            <div className="mt-6 p-4 bg-gray-100 rounded-lg">
-              <h4 className="text-sm font-bold text-gray-800 mb-2">🔍 Diagnostic technique</h4>
-              <div className="text-xs text-gray-600 space-y-1 max-h-32 overflow-y-auto">
-                {urlAnalysis && (
-                  <>
-                    <p><strong>URL complète :</strong> {urlAnalysis.fullUrl}</p>
-                    <p><strong>Pathname :</strong> {urlAnalysis.pathname}</p>
-                    <p><strong>Search params :</strong> {urlAnalysis.search || 'Vide'}</p>
-                    <p><strong>Hash params :</strong> {urlAnalysis.hash || 'Vide'}</p>
-                    <p><strong>A des paramètres :</strong> {urlAnalysis.hasAnyParams ? 'Oui' : 'NON - PROBLÈME ICI'}</p>
-                    <p><strong>Token PKCE :</strong> {token || 'Manquant'}</p>
-                    <p><strong>Code :</strong> {code || 'Manquant'}</p>
-                    <p><strong>Type :</strong> {type || 'Manquant'}</p>
-                    <p><strong>Erreur :</strong> {error_description || error_code || 'Aucune'}</p>
-                    <p><strong>Plan Supabase :</strong> Pro (confirmé)</p>
-                    <p><strong>Problème :</strong> {urlAnalysis.hasAnyParams ? 'Token invalide côté serveur' : 'URL générée sans paramètres'}</p>
-                  </>
-                )}
-              </div>
-              
-              <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-800">
-                <strong>🚨 CONCLUSION :</strong> 
-                {urlAnalysis?.hasAnyParams 
-                  ? 'Supabase génère les tokens mais ne les trouve pas côté serveur (bug Supabase)'
-                  : 'Supabase ne génère AUCUN paramètre dans l\'URL (configuration incorrecte)'
-                }
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
