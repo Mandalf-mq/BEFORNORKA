@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle, ArrowLeft, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export const ResetPasswordPage: React.FC = () => {
@@ -17,7 +17,6 @@ export const ResetPasswordPage: React.FC = () => {
   const parseTokensFromUrl = () => {
     const hash = window.location.hash.slice(1);
     const search = window.location.search.slice(1);
-    
     const allParams = new URLSearchParams(hash + '&' + search);
     
     return {
@@ -164,7 +163,10 @@ export const ResetPasswordPage: React.FC = () => {
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-              <p className="text-red-800 text-sm">{error}</p>
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <p className="text-red-800 text-sm">{error}</p>
+              </div>
             </div>
           )}
 
@@ -205,7 +207,6 @@ export const ResetPasswordPage: React.FC = () => {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    placeholder="••••••••"
                   />
                   <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
                   <button
