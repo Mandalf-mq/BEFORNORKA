@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Clock, FileText, Users, ArrowRight, AlertCircle, Eye, UserCheck, XCircle, Download } from 'lucide-react';
+import { CheckCircle, Clock, FileText, Users, ArrowRight, AlertCircle, Eye, UserCheck, XCircle, Download, RotateCcw } from 'lucide-react';
 import { useMembers } from '../../hooks/useMembers';
 import { supabase } from '../../lib/supabase';
 
@@ -159,6 +159,59 @@ export const ValidationWorkflow: React.FC = () => {
     }
   };
 
+  const unvalidateDocument = async (documentId: string) => {
+    if (!confirm('⚠️ Êtes-vous sûr de vouloir annuler la validation de ce document ?\n\nIl repassera en statut "En attente".')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('member_documents')
+        .update({
+          status: 'pending',
+          rejection_reason: null,
+          validated_by: null,
+          validated_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', documentId);
+
+      if (error) throw error;
+      
+      await fetchSubmittedDocuments();
+      alert('🔄 Document remis en attente de validation');
+    } catch (error: any) {
+      console.error('Erreur lors de l\'annulation:', error);
+      alert(`❌ Erreur: ${error.message}`);
+    }
+  };
+
+  const calculateMemberProgress = (member: any) => {
+    // Étapes du workflow avec leurs poids
+    const workflowSteps = {
+      'pending': 0,           // 0% - Inscription en attente
+      'validated': 25,        // 25% - Profil validé
+      'documents_pending': 50, // 50% - Documents en cours d'upload
+      'documents_validated': 75, // 75% - Documents validés
+      'season_validated': 100  // 100% - Validé pour la saison
+    };
+
+    const baseProgress = workflowSteps[member.status] || 0;
+    
+    // Si le membre est en phase documents, calculer le pourcentage de documents validés
+    if (member.status === 'documents_pending' || member.status === 'documents_validated') {
+      // Récupérer les documents du membre depuis submittedDocs
+      const memberDocs = submittedDocs.filter(doc => doc.member_email === member.email);
+      const validatedDocs = memberDocs.filter(doc => doc.status === 'validated');
+      
+      if (memberDocs.length > 0) {
+        const docProgress = (validatedDocs.length / memberDocs.length) * 25; // 25% pour la phase documents
+        return Math.min(100, baseProgress + docProgress);
+      }
+    }
+    
+    return baseProgress;
+  };
   const stats = getWorkflowStats();
 
   const getStatusColor = (status: string) => {
@@ -430,7 +483,7 @@ export const ValidationWorkflow: React.FC = () => {
                       <span>{getStatusLabel(member.status)}</span>
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      Progression: {(member as any).workflow_progress || 0}%
+                      Progression: {calculateMemberProgress(member)}%
                     </div>
                   </div>
 
@@ -478,7 +531,7 @@ export const ValidationWorkflow: React.FC = () => {
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-gradient-to-r from-primary-500 to-green-500 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${(member as any).workflow_progress || 0}%` }}
+                    style={{ width: `${calculateMemberProgress(member)}%` }}
                   ></div>
                 </div>
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -580,6 +633,42 @@ export const ValidationWorkflow: React.FC = () => {
                           <XCircle className="w-4 h-4" />
                           <span>Rejeter</span>
                         </button>
+                      </div>
+                    )}
+
+                    {(doc.status === 'validated' || doc.status === 'rejected') && selectedSeason === 'current' && (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => unvalidateDocument(doc.id)}
+                          className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg flex items-center space-x-1 transition-colors"
+                          title="Annuler la validation et remettre en attente"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                          <span>Annuler</span>
+                        </button>
+                        
+                        {doc.status === 'validated' && (
+                          <button
+                            onClick={() => {
+                              const reason = prompt('Raison du rejet:');
+                              if (reason) validateDocument(doc.id, 'reject', reason);
+                            }}
+                            className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg flex items-center space-x-1 transition-colors"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>Rejeter</span>
+                          </button>
+                        )}
+                        
+                        {doc.status === 'rejected' && (
+                          <button
+                            onClick={() => validateDocument(doc.id, 'validate')}
+                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center space-x-1 transition-colors"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Valider</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
