@@ -126,6 +126,8 @@ export const ValidationWorkflow: React.FC = () => {
 
   const fetchMemberDocuments = async (memberId: string) => {
     try {
+      console.log('🔍 [ValidationWorkflow] Chargement documents pour membre:', memberId);
+      
       const { data, error } = await supabase
         .from('member_documents')
         .select('*')
@@ -133,6 +135,10 @@ export const ValidationWorkflow: React.FC = () => {
         .order('uploaded_at', { ascending: false });
 
       if (error) throw error;
+      
+      console.log('✅ [ValidationWorkflow] Documents trouvés:', data?.length || 0);
+      console.log('📄 [ValidationWorkflow] Types de documents:', data?.map(d => d.document_type));
+      
       setSelectedMemberDocs(data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des documents du membre:', error);
@@ -187,30 +193,63 @@ export const ValidationWorkflow: React.FC = () => {
   };
 
   const calculateMemberProgress = (member: any) => {
-    // Étapes du workflow avec leurs poids
-    const workflowSteps = {
-      'pending': 0,           // 0% - Inscription en attente
-      'validated': 25,        // 25% - Profil validé
-      'documents_pending': 50, // 50% - Documents en cours d'upload
-      'documents_validated': 75, // 75% - Documents validés
-      'season_validated': 100  // 100% - Validé pour la saison
-    };
-
-    const baseProgress = workflowSteps[member.status] || 0;
+    // Calculer la progression réelle basée sur les documents
+    const memberDocs = submittedDocs.filter(doc => doc.member_email === member.email);
+    const validatedDocs = memberDocs.filter(doc => doc.status === 'validated');
+    const requiredDocsCount = getRequiredDocumentsForMember(member);
     
-    // Si le membre est en phase documents, calculer le pourcentage de documents validés
-    if (member.status === 'documents_pending' || member.status === 'documents_validated') {
-      // Récupérer les documents du membre depuis submittedDocs
-      const memberDocs = submittedDocs.filter(doc => doc.member_email === member.email);
-      const validatedDocs = memberDocs.filter(doc => doc.status === 'validated');
-      
-      if (memberDocs.length > 0) {
-        const docProgress = (validatedDocs.length / memberDocs.length) * 25; // 25% pour la phase documents
-        return Math.min(100, baseProgress + docProgress);
-      }
+    // Étapes du workflow
+    let progress = 0;
+    
+    // 1. Profil validé = 20%
+    if (member.status !== 'pending') {
+      progress += 20;
     }
     
-    return baseProgress;
+    // 2. Documents uploadés = 40% (20% par document uploadé)
+    if (memberDocs.length > 0 && requiredDocsCount > 0) {
+      progress += Math.min(40, (memberDocs.length / requiredDocsCount) * 40);
+    }
+    
+    // 3. Documents validés = 40% (20% par document validé)
+    if (validatedDocs.length > 0 && requiredDocsCount > 0) {
+      progress += Math.min(40, (validatedDocs.length / requiredDocsCount) * 40);
+    }
+    
+    // 4. Statut final
+    if (member.status === 'season_validated') {
+      progress = 100;
+    }
+    
+    return Math.min(100, Math.round(progress));
+  };
+  
+  const getRequiredDocumentsForMember = (member: any) => {
+    if (!member.birth_date) return 4; // Valeur par défaut
+    
+    const age = calculateAge(member.birth_date);
+    let requiredCount = 4; // Documents de base
+    
+    if (age < 18) {
+      requiredCount = 5; // + autorisation parentale
+    }
+    
+    return requiredCount;
+  };
+  
+  const calculateAge = (birthDate: string) => {
+    if (!birthDate) return 18;
+    
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    
+    return age;
   };
   const stats = getWorkflowStats();
 
@@ -483,7 +522,36 @@ export const ValidationWorkflow: React.FC = () => {
                       <span>{getStatusLabel(member.status)}</span>
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      Progression: {calculateMemberProgress(member)}%
+                      Progression: {(() => {
+                        const memberDocs = submittedDocs.filter(doc => doc.member_email === member.email);
+                        const validatedDocs = memberDocs.filter(doc => doc.status === 'validated');
+                        const age = member.birth_date ? calculateAge(member.birth_date) : 18;
+                        const requiredDocsCount = age < 18 ? 5 : 4;
+                        
+                        let progress = 0;
+                        
+                        // 1. Profil validé = 20%
+                        if (member.status !== 'pending') {
+                          progress += 20;
+                        }
+                        
+                        // 2. Documents uploadés = 40%
+                        if (memberDocs.length > 0 && requiredDocsCount > 0) {
+                          progress += Math.min(40, (memberDocs.length / requiredDocsCount) * 40);
+                        }
+                        
+                        // 3. Documents validés = 40%
+                        if (validatedDocs.length > 0 && requiredDocsCount > 0) {
+                          progress += Math.min(40, (validatedDocs.length / requiredDocsCount) * 40);
+                        }
+                        
+                        // 4. Statut final
+                        if (member.status === 'season_validated') {
+                          progress = 100;
+                        }
+                        
+                        return Math.min(100, Math.round(progress));
+                      })()}%
                     </div>
                   </div>
 
@@ -712,7 +780,22 @@ export const ValidationWorkflow: React.FC = () => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="font-semibold text-gray-800 mb-3">📄 Documents requis</h4>
                 <div className="space-y-2">
-            {['medical_certificate', 'photo', 'registration_form', 'parental_authorization', 'identity_copy'].map((docType: string) => {
+                  {(() => {
+                    // Calculer les documents requis pour ce membre spécifique
+                    const age = selectedMember.birth_date ? calculateAge(selectedMember.birth_date) : 18;
+                    const requiredDocs = [
+                      'medicalCertificate',
+                      'idPhoto', 
+                      'ffvbForm',
+                      'identityCopy'
+                    ];
+                    
+                    if (age < 18) {
+                      requiredDocs.push('parentalConsent');
+                    }
+                    
+                    return requiredDocs;
+                  })().map((docType: string) => {
                     const memberDoc = selectedMemberDocs.find(doc => doc.document_type === docType);
                     const isUploaded = !!memberDoc;
                     const isValidated = memberDoc?.status === 'validated';
@@ -722,13 +805,12 @@ export const ValidationWorkflow: React.FC = () => {
                     return (
                       <div key={docType} className="flex items-center justify-between p-2 bg-white rounded">
                         <span className="text-sm text-gray-700">
-                         {docType === 'medical_certificate' ? '🏥 Certificat médical' :
-                          docType === 'photo' ? '📷 Photo d\'identité' :
-                          docType === 'registration_form' ? '📋 Formulaire d\'inscription' :
-                          docType === 'parental_authorization' ? '👨‍👩‍👧‍👦 Autorisation parentale' :
-                          docType === 'identity_copy' ? '🆔 Pièce d\'identité' :
-                          docType}
-
+                          {docType === 'medicalCertificate' ? '🏥 Certificat médical' :
+                           docType === 'idPhoto' ? '📷 Photo d\'identité' :
+                           docType === 'ffvbForm' ? '📋 Formulaire FFVB' :
+                           docType === 'parentalConsent' ? '👨‍👩‍👧‍👦 Autorisation parentale' :
+                           docType === 'identityCopy' ? '🆔 Pièce d\'identité' :
+                           docType}
                         </span>
                         <div className="flex items-center space-x-2">
                           {isValidated ? (
@@ -775,9 +857,29 @@ export const ValidationWorkflow: React.FC = () => {
 
               <div className="bg-blue-50 rounded-lg p-4">
                 <h4 className="font-semibold text-blue-800 mb-2">🎯 Prochaine étape</h4>
-                <p className="text-sm text-blue-700">
-                  {(selectedMember as any).next_step || 'Aucune action requise'}
-                </p>
+                <div className="text-sm text-blue-700">
+                  {(() => {
+                    const memberDocs = selectedMemberDocs;
+                    const validatedDocs = memberDocs.filter(doc => doc.status === 'validated');
+                    const pendingDocs = memberDocs.filter(doc => doc.status === 'pending');
+                    const age = selectedMember.birth_date ? calculateAge(selectedMember.birth_date) : 18;
+                    const requiredDocsCount = age < 18 ? 5 : 4;
+                    
+                    if (selectedMember.status === 'pending') {
+                      return '👤 Valider le profil membre pour qu\'il puisse uploader ses documents';
+                    } else if (selectedMember.status === 'validated' && memberDocs.length === 0) {
+                      return '📄 Le membre peut maintenant uploader ses documents requis';
+                    } else if (pendingDocs.length > 0) {
+                      return `📋 ${pendingDocs.length} document(s) en attente de validation`;
+                    } else if (validatedDocs.length < requiredDocsCount) {
+                      return `📤 ${requiredDocsCount - validatedDocs.length} document(s) manquant(s)`;
+                    } else if (validatedDocs.length === requiredDocsCount) {
+                      return '🎉 Tous les documents sont validés ! Le membre peut participer aux entraînements';
+                    } else {
+                      return '✅ Dossier complet';
+                    }
+                  })()}
+                </div>
               </div>
 
               <div className="flex space-x-3">
