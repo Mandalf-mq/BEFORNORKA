@@ -65,413 +65,273 @@ export const SettingsPanel: React.FC = () => {
 
   // États pour les paramètres généraux
   const [generalSettings, setGeneralSettings] = useState<ClubSettings>({
-  const [categories, setCategories] = useState<any[]>([]);
-  const [showPasswordReset, setShowPasswordReset] = useState(false);
-  const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    birth_date: '',
-    category: 'loisirs',
-    role: 'member',
-    temporary_password: ''
+    clubName: 'BE FOR NOR KA',
+    clubDescription: 'Association de volleyball affiliée FFVB',
+    contactEmail: 'contact@befornorka.fr',
+    contactPhone: '01 23 45 67 89',
+    address: '123 Rue du Volleyball',
+    city: 'Paris',
+    postalCode: '75001',
+    logoUrl: '/logo b4NK.png',
+    websiteUrl: 'https://befornorka.fr',
+    facebookUrl: '',
+    instagramUrl: '',
+    twitterUrl: '',
+    primaryColor: '#ec4899',
+    secondaryColor: '#22c55e',
+    accentColor: '#f59e0b'
+  });
+
+  // États pour les utilisateurs
+  const [users, setUsers] = useState<User[]>([]);
+  const [changingRole, setChangingRole] = useState<string | null>(null);
+
+  // États pour les catégories
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [newCategory, setNewCategory] = useState({
+    value: '',
+    label: '',
+    description: '',
+    age_range: '',
+    membership_fee: 0,
+    color: '#3b82f6'
+  });
+
+  // États pour les règles de tarification
+  const [feeRules, setFeeRules] = useState<FeeRule[]>([]);
+  const [showFeeForm, setShowFeeForm] = useState(false);
+  const [editingFeeRule, setEditingFeeRule] = useState<FeeRule | null>(null);
+  const [newFeeRule, setNewFeeRule] = useState({
+    name: '',
+    category: ['senior'],
+    base_amount: 250,
+    discounts: { family: 0, earlyBird: 0, student: 0 },
+    supplements: { competition: 0, equipment: 0 },
+    conditions: { requiresParent: false }
   });
   const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+
+  // Vérifier les permissions d'accès
+  const userRole = userProfile?.role || '';
+  const isWebmaster = userRole === 'webmaster';
+  const isAdmin = userRole === 'administrateur';
+  const hasAccess = isWebmaster || isAdmin;
+
+  console.log('🔍 SettingsPanel Debug:', {
+    userRole,
+    isWebmaster,
+    isAdmin,
+    hasAccess,
+    userEmail: userProfile?.email
+  });
 
   useEffect(() => {
-    fetchCategories();
-    generatePassword();
-  }, []);
+    if (hasAccess) {
+      fetchGeneralSettings();
+      fetchUsers();
+      fetchCategories();
+      fetchFeeRules();
+    }
+  }, [hasAccess]);
+
+  // ========================================
+  // FONCTIONS POUR LES PARAMÈTRES GÉNÉRAUX
+  // ========================================
+
+  const fetchGeneralSettings = async () => {
+    try {
+      setLoading(true);
+      
+      // Essayer de charger depuis Supabase
+      const { data, error } = await supabase
+        .from('club_settings')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('Erreur chargement Supabase, création de la table:', error);
+        
+        // Essayer de créer la table via RPC
+        const { error: rpcError } = await supabase.rpc('create_club_settings_table');
+        if (rpcError) {
+          console.warn('Erreur création table:', rpcError);
+        }
+        
+        // Utiliser les valeurs par défaut
+        return;
+      }
+
+      if (data) {
+        // Mapper les données SQL vers JavaScript
+        setGeneralSettings({
+          clubName: data.club_name || 'BE FOR NOR KA',
+          clubDescription: data.club_description || 'Association de volleyball affiliée FFVB',
+          contactEmail: data.contact_email || 'contact@befornorka.fr',
+          contactPhone: data.contact_phone || '01 23 45 67 89',
+          address: data.address || '123 Rue du Volleyball',
+          city: data.city || 'Paris',
+          postalCode: data.postal_code || '75001',
+          logoUrl: data.logo_url || '/logo b4NK.png',
+          websiteUrl: data.website_url || 'https://befornorka.fr',
+          facebookUrl: data.facebook_url || '',
+          instagramUrl: data.instagram_url || '',
+          twitterUrl: data.twitter_url || '',
+          primaryColor: data.primary_color || '#ec4899',
+          secondaryColor: data.secondary_color || '#22c55e',
+          accentColor: data.accent_color || '#f59e0b'
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des paramètres:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveGeneralSettings = async () => {
+    try {
+      setSaving(true);
+
+      // Mapper les données JavaScript vers SQL
+      const sqlData = {
+        id: 1,
+        club_name: generalSettings.clubName,
+        club_description: generalSettings.clubDescription,
+        contact_email: generalSettings.contactEmail,
+        contact_phone: generalSettings.contactPhone,
+        address: generalSettings.address,
+        city: generalSettings.city,
+        postal_code: generalSettings.postalCode,
+        logo_url: generalSettings.logoUrl,
+        website_url: generalSettings.websiteUrl,
+        facebook_url: generalSettings.facebookUrl,
+        instagram_url: generalSettings.instagramUrl,
+        twitter_url: generalSettings.twitterUrl,
+        primary_color: generalSettings.primaryColor,
+        secondary_color: generalSettings.secondaryColor,
+        accent_color: generalSettings.accentColor,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('club_settings')
+        .upsert(sqlData, { onConflict: 'id' });
+
+      if (error) {
+        console.error('Erreur Supabase:', error);
+        throw error;
+      }
+
+      alert('✅ Paramètres sauvegardés avec succès !');
+    } catch (error: any) {
+      console.error('Erreur lors de la sauvegarde:', error);
+      alert(`❌ Erreur lors de la sauvegarde: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ========================================
+  // FONCTIONS POUR LES UTILISATEURS
+  // ========================================
+
+  const fetchUsers = async () => {
+    try {
+      console.log('🔍 [SettingsPanel] Chargement des utilisateurs...');
+      
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ [SettingsPanel] Erreur chargement utilisateurs:', error);
+        throw error;
+      }
+
+      console.log('✅ [SettingsPanel] Utilisateurs chargés:', data?.length || 0);
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des utilisateurs:', error);
+      // En cas d'erreur, afficher un message mais ne pas bloquer l'interface
+      setUsers([]);
+    }
+  };
+
+  const updateUserRole = async (userEmail: string, newRole: string) => {
+    try {
+      setChangingRole(userEmail);
+
+      const user = users.find(u => u.email === userEmail);
+      if (!user) {
+        alert('❌ Utilisateur non trouvé');
+        return;
+      }
+
+      // Vérification de sécurité côté client
+      if (newRole === 'webmaster' && userProfile?.role !== 'webmaster') {
+        alert('❌ Seul un Webmaster peut attribuer le rôle Webmaster');
+        return;
+      }
+
+      // Empêcher de se retirer ses propres privilèges webmaster
+      if (user.email === userProfile?.email && userProfile?.role === 'webmaster' && newRole !== 'webmaster') {
+        if (!confirm('⚠️ Vous allez perdre vos privilèges de Webmaster !\n\nÊtes-vous sûr ?')) {
+          return;
+        }
+      }
+
+      // Utiliser la fonction PostgreSQL transparente
+      const { data, error } = await supabase.rpc('update_user_role_and_metadata', {
+        p_user_email: userEmail,
+        p_new_role: newRole,
+      });
+
+      if (error) {
+        console.error('Erreur RPC update_user_role_and_metadata:', error);
+        throw error;
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Erreur lors de la mise à jour du rôle');
+      }
+
+      // Rafraîchir la liste des utilisateurs
+      await fetchUsers();
+
+      alert(`✅ Rôle mis à jour avec succès !
+
+👤 ${user.first_name} ${user.last_name} est maintenant ${getRoleLabel(newRole)}
+
+🔄 Les nouveaux menus apparaîtront à sa prochaine connexion`);
+
+    } catch (error: any) {
+      console.error('Erreur lors de la mise à jour du rôle:', error);
+      alert(`❌ Erreur: ${error.message}`);
+    } finally {
+      setChangingRole(null);
+    }
+  };
+
+  // ========================================
+  // FONCTIONS POUR LES CATÉGORIES
+  // ========================================
 
   const fetchCategories = async () => {
     try {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .eq('is_active', true)
         .order('display_order');
 
       if (error) throw error;
       setCategories(data || []);
     } catch (error) {
-      console.error('Erreur chargement catégories:', error);
-    }
-  };
-
-  const generatePassword = () => {
-    const lowercase = 'abcdefghijkmnpqrstuvwxyz';
-    const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
-    const numbers = '23456789';
-    const specials = '!@#$%^&*()_+-=[]{}';
-    
-    let password = '';
-    
-    // Garantir au moins un caractère de chaque type
-    password += lowercase[Math.floor(Math.random() * lowercase.length)];
-    password += uppercase[Math.floor(Math.random() * uppercase.length)];
-    password += numbers[Math.floor(Math.random() * numbers.length)];
-    password += specials[Math.floor(Math.random() * specials.length)];
-    
-    // Compléter avec 8 caractères supplémentaires
-    const allChars = lowercase + uppercase + numbers + specials;
-    for (let i = 4; i < 12; i++) {
-      password += allChars[Math.floor(Math.random() * allChars.length)];
-    }
-    
-    // Mélanger le mot de passe
-    const finalPassword = password.split('').sort(() => Math.random() - 0.5).join('');
-    setFormData(prev => ({ ...prev, temporary_password: finalPassword }));
-  };
-
-  const validatePassword = (password: string) => {
-    const hasLower = /[a-z]/.test(password);
-    const hasUpper = /[A-Z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{}|;':".,<>?]/.test(password);
-    const isLongEnough = password.length >= 8;
-    
-    return hasLower && hasUpper && hasNumber && hasSpecial && isLongEnough;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validatePassword(formData.temporary_password)) {
-      alert(`❌ Le mot de passe ne respecte pas les exigences Supabase :
-
-Requis :
-• Au moins 8 caractères
-• Au moins une minuscule (a-z)
-• Au moins une majuscule (A-Z)  
-• Au moins un chiffre (0-9)
-• Au moins un caractère spécial (!@#$%^&*()_+-=[]{}...)`);
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // Utiliser l'Edge Function pour créer le compte avec authentification
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-accounts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          accounts: [{
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            email: formData.email,
-            phone: formData.phone || null,
-            birth_date: formData.birth_date || null,
-            category: formData.category,
-            role: formData.role,
-            temporary_password: formData.temporary_password
-          }]
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erreur HTTP: ${response.status} - Vérifiez que l'Edge Function est déployée`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success && result.success_count > 0) {
-        alert(`✅ Compte créé avec succès !
-
-👤 Utilisateur : ${formData.first_name} ${formData.last_name}
-📧 Email : ${formData.email}
-🔑 Mot de passe temporaire : ${formData.temporary_password}
-👨‍💼 Rôle : ${getRoleLabel(formData.role)}
-
-📋 Instructions à communiquer :
-1. Se connecter sur le site avec ces identifiants
-2. Changer le mot de passe à la première connexion
-3. Compléter son profil si nécessaire`);
-
-        // Réinitialiser le formulaire
-        setFormData({
-          first_name: '',
-          last_name: '',
-          email: '',
-          phone: '',
-          birth_date: '',
-          category: 'loisirs',
-          role: 'member',
-          temporary_password: ''
-        });
-        generatePassword();
-        onSuccess();
-      } else {
-        throw new Error(result.error || 'Erreur inconnue lors de la création');
-      }
-
-    } catch (error: any) {
-      console.error('Erreur lors de la création:', error);
-      
-      if (error.message.includes('Failed to fetch') || error.message.includes('HTTP: 404')) {
-        alert(`❌ Edge Function non disponible
-
-🔧 L'Edge Function 'create-user-accounts' n'est pas déployée.
-
-📋 Pour la déployer :
-1. Allez dans Supabase Dashboard
-2. Edge Functions → Create Function
-3. Nom : create-user-accounts
-4. Copiez le code depuis supabase/functions/create-user-accounts/index.ts
-5. Deploy
-
-🆘 SOLUTION TEMPORAIRE :
-Utilisez l'import CSV en mode "Profils seulement" en attendant.`);
-      } else {
-        alert(`❌ Erreur lors de la création: ${error.message}`);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'webmaster': return 'Webmaster';
-      case 'administrateur': return 'Administrateur';
-      case 'tresorerie': return 'Trésorerie';
-      case 'entraineur': return 'Entraîneur';
-      case 'member': return 'Membre';
-      default: return 'Membre';
-    }
-  };
-
-  // Vérifier les permissions
-  const userRole = userProfile?.role || '';
-  const hasAccess = ['webmaster', 'administrateur'].includes(userRole);
-  
-  if (!hasAccess) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-        <div className="flex items-center space-x-3">
-          <AlertTriangle className="w-6 h-6 text-red-600" />
-          <div>
-            <h3 className="text-lg font-semibold text-red-800">Accès refusé</h3>
-            <p className="text-red-700">
-              Cette section est réservée aux Webmasters et Administrateurs.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-xl p-6 shadow-lg">
-        <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2 mb-6">
-          <UserPlus className="w-6 h-6 text-primary-600" />
-          <span>Créer un compte</span>
-        </h2>
-        
-        <div className="flex space-x-4">
-          <button
-            onClick={() => setShowPasswordReset(true)}
-            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-          >
-            <Key className="w-4 h-4" />
-            <span>🆘 Réinitialiser mot de passe</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Formulaire de création */}
-      <div className="bg-white rounded-xl p-6 shadow-lg">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">
-          Nouveau compte utilisateur
-        </h3>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Informations personnelles */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Prénom *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.first_name}
-                onChange={(e) => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nom *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.last_name}
-                onChange={(e) => setFormData(prev => ({ ...prev, last_name: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email *
-              </label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Téléphone
-              </label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Date de naissance
-              </label>
-              <input
-                type="date"
-                value={formData.birth_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, birth_date: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Rôle *
-              </label>
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                <option value="member">👤 Membre</option>
-                <option value="entraineur">🏐 Entraîneur</option>
-                <option value="tresorerie">💰 Trésorerie</option>
-                <option value="administrateur">👨‍💼 Administrateur</option>
-                {userProfile?.role === 'webmaster' && (
-                  <option value="webmaster">👑 Webmaster</option>
-                )}
-              </select>
-            </div>
-          </div>
-
-          {/* Catégorie (si membre) */}
-          {formData.role === 'member' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Catégorie *
-              </label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                {categories.map(category => (
-                  <option key={category.id} value={category.value}>
-                    {category.label} ({category.membership_fee}€)
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Mot de passe temporaire */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mot de passe temporaire *
-            </label>
-            <div className="flex space-x-3">
-              <input
-                type="text"
-                required
-                value={formData.temporary_password}
-                onChange={(e) => setFormData(prev => ({ ...prev, temporary_password: e.target.value }))}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
-              />
-              <button
-                type="button"
-                onClick={generatePassword}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>Générer</span>
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Mot de passe conforme aux exigences Supabase (8+ caractères, majuscules, minuscules, chiffres, symboles)
-            </p>
-            <div className="mt-2 text-xs">
-              <div className="flex space-x-4">
-                <span className={validatePassword(formData.temporary_password) ? 'text-green-600' : 'text-red-600'}>
-                  {validatePassword(formData.temporary_password) ? '✅ Conforme' : '❌ Non conforme'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Bouton de création */}
-          <button
-            type="submit"
-            disabled={loading || !validatePassword(formData.temporary_password)}
-            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-          >
-            {loading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Création du compte...</span>
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-4 h-4" />
-                <span>Créer le compte avec authentification</span>
-              </>
-            )}
-          </button>
-        </form>
-      </div>
-
-      {/* Instructions */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="font-semibold text-blue-800 mb-2">📋 Mode d'emploi</h3>
-        <div className="text-sm text-blue-700 space-y-1">
-          <p>1. <strong>Remplissez</strong> les informations de l'utilisateur</p>
-          <p>2. <strong>Choisissez</strong> le rôle approprié</p>
-          <p>3. <strong>Générez</strong> un mot de passe temporaire sécurisé</p>
-          <p>4. <strong>Créez</strong> le compte (utilise l'Edge Function)</p>
-          <p>5. <strong>Communiquez</strong> les identifiants à l'utilisateur</p>
-          <p>6. <strong>L'utilisateur</strong> se connecte et change son mot de passe</p>
-        </div>
-      </div>
-
-      {/* Modal de réinitialisation */}
-      {showPasswordReset && (
-        <AdminPasswordReset onClose={() => setShowPasswordReset(false)} />
-      )}
-    </div>
-  );
-};
+      console.error('Erreur lors du chargement des catégories:', error);
     }
   };
 
