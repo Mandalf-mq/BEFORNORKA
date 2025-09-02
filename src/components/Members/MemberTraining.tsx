@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, Users, CheckCircle, XCircle, AlertCircle, Eye, X } from 'lucide-react';
-import { CalendarExport } from '../Calendar/CalendarExport';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CalendarExport } from '../Calendar/CalendarExport';
