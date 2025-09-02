@@ -797,6 +797,15 @@ export const ValidationWorkflow: React.FC = () => {
                     return requiredDocs;
                   })().map((docType: string) => {
                     const memberDoc = selectedMemberDocs.find(doc => doc.document_type === docType);
+                    
+                    console.log('🔍 [ValidationWorkflow] Recherche doc:', {
+                      docType,
+                      selectedMemberDocsLength: selectedMemberDocs.length,
+                      selectedMemberDocsTypes: selectedMemberDocs.map(d => d.document_type),
+                      foundDoc: !!memberDoc,
+                      docStatus: memberDoc?.status
+                    });
+                    
                     const isUploaded = !!memberDoc;
                     const isValidated = memberDoc?.status === 'validated';
                     const isPending = memberDoc?.status === 'pending';
