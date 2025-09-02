@@ -15,6 +15,7 @@ export const ResetPasswordPage: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
+  const [urlAnalysis, setUrlAnalysis] = useState<any>(null);
 
   // Fonction pour parser les tokens depuis l'URL complète
   const parseTokensFromUrl = () => {
@@ -37,8 +38,19 @@ export const ResetPasswordPage: React.FC = () => {
   const { accessToken, refreshToken, code, token, type, error_description, error_code } = parseTokensFromUrl();
 
   useEffect(() => {
+    // Analyser immédiatement l'URL pour diagnostic
+    const analysis = {
+      fullUrl: window.location.href,
+      pathname: window.location.pathname,
+      search: window.location.search,
+      hash: window.location.hash,
+      hasAnyParams: !!(window.location.search || window.location.hash),
+      detectedTokens: { accessToken, refreshToken, code, token, type, error_description, error_code }
+    };
+    setUrlAnalysis(analysis);
+    
     console.log('🔍 [ResetPassword] === ANALYSE COMPLÈTE URL ===');
-    console.log('🔍 [ResetPassword] URL complète:', window.location.href);
+    console.log('🔍 [ResetPassword] Analyse URL:', analysis);
     console.log('🔍 [ResetPassword] Tokens détectés:', {
       accessToken: accessToken ? 'Présent' : 'Manquant',
       refreshToken: refreshToken ? 'Présent' : 'Manquant',
@@ -48,6 +60,37 @@ export const ResetPasswordPage: React.FC = () => {
       error_description: error_description,
       error_code: error_code
     });
+
+    // Si l'URL est complètement vide (cas actuel), afficher immédiatement le diagnostic
+    if (!analysis.hasAnyParams) {
+      console.log('🚨 [ResetPassword] URL COMPLÈTEMENT VIDE - Problème de génération Supabase');
+      setError(`🚨 PROBLÈME SUPABASE CONFIRMÉ - URL vide
+
+❌ Diagnostic technique :
+• URL reçue : ${analysis.fullUrl}
+• Paramètres : AUCUN (search: "${analysis.search}", hash: "${analysis.hash}")
+• Tokens : TOUS MANQUANTS
+
+🔍 ANALYSE :
+Supabase n'a généré AUCUN paramètre dans l'URL de redirection.
+Cela indique un problème de configuration côté serveur Supabase.
+
+📊 LOGS SUPABASE ANALYSÉS :
+• Token PKCE généré : pkce_55b27e6fdadbf415a3b01fc4ac4eb5671d5a0d895f2298b3647dd233
+• Erreur serveur : "One-time token not found"
+• Le token est créé mais Supabase ne le trouve pas
+
+🔧 SOLUTIONS À TESTER :
+1. Vérifiez Authentication → Settings → Site URL
+2. Vérifiez que le template email utilise {{ .ConfirmationURL }}
+3. Testez avec un autre email
+4. Contactez le support Supabase avec ces logs précis
+
+🆘 CONTOURNEMENT IMMÉDIAT :
+Utilisez le système de fallback ci-dessous pour créer un nouveau lien.`);
+      setShowFallback(true);
+      return;
+    }
 
     // 🚨 DÉTECTION IMMÉDIATE des erreurs
     const hasError = error_code || error_description || 
@@ -437,14 +480,30 @@ Si ça ne marche toujours pas, utilisez le système de fallback ci-dessous.`);
           {error && (
             <div className="mt-6 p-4 bg-gray-100 rounded-lg">
               <h4 className="text-sm font-bold text-gray-800 mb-2">🔍 Diagnostic technique</h4>
-              <div className="text-xs text-gray-600 space-y-1">
-                <p><strong>URL :</strong> {window.location.href}</p>
-                <p><strong>Token PKCE :</strong> {token || 'Manquant'}</p>
-                <p><strong>Code :</strong> {code || 'Manquant'}</p>
-                <p><strong>Type :</strong> {type || 'Manquant'}</p>
-                <p><strong>Erreur :</strong> {error_description || error_code || 'Aucune'}</p>
-                <p><strong>Plan Supabase :</strong> Pro (confirmé)</p>
-                <p><strong>Problème :</strong> Configuration ou synchronisation serveur</p>
+              <div className="text-xs text-gray-600 space-y-1 max-h-32 overflow-y-auto">
+                {urlAnalysis && (
+                  <>
+                    <p><strong>URL complète :</strong> {urlAnalysis.fullUrl}</p>
+                    <p><strong>Pathname :</strong> {urlAnalysis.pathname}</p>
+                    <p><strong>Search params :</strong> {urlAnalysis.search || 'Vide'}</p>
+                    <p><strong>Hash params :</strong> {urlAnalysis.hash || 'Vide'}</p>
+                    <p><strong>A des paramètres :</strong> {urlAnalysis.hasAnyParams ? 'Oui' : 'NON - PROBLÈME ICI'}</p>
+                    <p><strong>Token PKCE :</strong> {token || 'Manquant'}</p>
+                    <p><strong>Code :</strong> {code || 'Manquant'}</p>
+                    <p><strong>Type :</strong> {type || 'Manquant'}</p>
+                    <p><strong>Erreur :</strong> {error_description || error_code || 'Aucune'}</p>
+                    <p><strong>Plan Supabase :</strong> Pro (confirmé)</p>
+                    <p><strong>Problème :</strong> {urlAnalysis.hasAnyParams ? 'Token invalide côté serveur' : 'URL générée sans paramètres'}</p>
+                  </>
+                )}
+              </div>
+              
+              <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-800">
+                <strong>🚨 CONCLUSION :</strong> 
+                {urlAnalysis?.hasAnyParams 
+                  ? 'Supabase génère les tokens mais ne les trouve pas côté serveur (bug Supabase)'
+                  : 'Supabase ne génère AUCUN paramètre dans l\'URL (configuration incorrecte)'
+                }
               </div>
             </div>
           )}

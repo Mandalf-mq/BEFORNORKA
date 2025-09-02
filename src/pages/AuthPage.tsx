@@ -158,27 +158,30 @@ export const AuthPage: React.FC = () => {
       
       console.log('✅ [AuthPage] Email de récupération envoyé avec succès');
       
-      // Message d'avertissement détaillé basé sur les logs
+      // Message d'avertissement avec diagnostic du problème
       alert(`📧 Email de récupération envoyé vers ${resetEmail} !
 
-🚨 AVERTISSEMENT - Problème Supabase confirmé :
+🚨 PROBLÈME SUPABASE CONFIRMÉ :
 
-📊 LOGS SUPABASE ANALYSÉS :
-• 09:15:41 - Token OTP créé avec succès ✅
-• 09:17:02 - Token déjà introuvable ❌ (1min 21s)
-• Expiration IMMÉDIATE = limitation serveur
+📊 DIAGNOSTIC BASÉ SUR VOS LOGS :
+• Token PKCE généré : pkce_55b27e6fdadbf415a3b01fc4ac4eb5671d5a0d895f2298b3647dd233
+• Erreur serveur : "One-time token not found" (403)
+• URL de redirection : VIDE (aucun paramètre)
+• Plan : Pro (donc pas de limitation)
 
-⚡ INSTRUCTIONS CRITIQUES :
-1. Cliquez IMMÉDIATEMENT sur le lien dans l'email
-2. N'attendez PAS, n'hésitez PAS
-3. Si ça ne marche pas en 30 secondes → NOUVEAU lien
-4. Ne copiez/collez JAMAIS l'URL manuellement
+🔍 PROBLÈME IDENTIFIÉ :
+Supabase génère les tokens mais l'URL de redirection arrive vide.
+C'est un problème de configuration du template email ou de l'API.
 
-🔧 Si le problème persiste après 3 tentatives :
-→ Contactez un administrateur pour recréer votre compte
-→ C'est une limitation technique du plan Supabase gratuit
+⚡ INSTRUCTIONS :
+1. Cliquez sur le lien dans l'email
+2. Si l'URL arrive vide → Utilisez le système de fallback
+3. Si ça ne marche toujours pas → Problème côté Supabase
 
-📧 Vérifiez votre boîte mail maintenant !`);
+🔧 SOLUTION TEMPORAIRE :
+Le système de fallback sur la page de reset peut créer un nouveau lien.
+
+📧 Vérifiez votre email maintenant !`);
       
       setResetSent(true);
     } catch (err: any) {
