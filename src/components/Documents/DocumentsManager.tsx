@@ -25,7 +25,7 @@ export const DocumentsManager: React.FC = () => {
   const [newTemplate, setNewTemplate] = useState({
     name: '',
     description: '',
-    document_type: 'ffvbForm',
+    document_type: 'registration_form',
     file_name: '',
     file: null as File | null
   });
