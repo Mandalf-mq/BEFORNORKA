@@ -158,8 +158,8 @@ export const AuthPage: React.FC = () => {
       
       console.log('✅ [AuthPage] Email de récupération envoyé avec succès');
       
-      alert(`📧 Email de récupération envoyé vers ${resetEmail} !
-      
+      alert(`📧 Email de récupération envoyé !
+
 Vérifiez votre boîte mail et cliquez sur le lien reçu.`);
       
       setResetSent(true);
