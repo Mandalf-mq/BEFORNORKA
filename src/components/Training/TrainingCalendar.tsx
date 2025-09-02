@@ -646,7 +646,7 @@ export const TrainingCalendar: React.FC = () => {
           <div className="grid grid-cols-7 min-h-96">
             {weekDays.map((day, index) => {
               const daySessions = sessions.filter(session => 
-                isSameDay(new Date(session.date), day)
+                isSameDay(new Date(session.date + 'T00:00:00'), day)
               );
 
               return (
@@ -763,7 +763,7 @@ export const TrainingCalendar: React.FC = () => {
                         <div className="flex items-center space-x-6 text-sm text-gray-600 mb-2">
                           <div className="flex items-center space-x-1">
                             <Calendar className="w-4 h-4" />
-                            <span>{format(new Date(session.date), 'EEEE dd MMM', { locale: fr })}</span>
+                            <span>{format(new Date(session.date + 'T00:00:00'), 'EEEE dd MMM', { locale: fr })}</span>
                           </div>
                           <div className="flex items-center space-x-1">
                             <Clock className="w-4 h-4" />
@@ -1583,7 +1583,7 @@ export const TrainingCalendar: React.FC = () => {
                   <div className="flex items-center space-x-3 text-gray-700">
                     <Calendar className="w-5 h-5 text-primary-600" />
                     <span className="font-semibold">
-                      {format(new Date(viewingSession.date), 'EEEE dd MMMM yyyy', { locale: fr })}
+                      {format(new Date(viewingSession.date + 'T00:00:00'), 'EEEE dd MMMM yyyy', { locale: fr })}
                     </span>
                   </div>
                   <div className="flex items-center space-x-3 text-gray-700">
