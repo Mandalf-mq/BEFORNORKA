@@ -387,14 +387,14 @@ console.log('🔍 Valeur exacte:', JSON.stringify(documentType));
   
   const age = calculateAge(memberData.birth_date);
   const baseDocuments = [
-     'medical_certificate',
-     'photo', 
-     'registration_form',
-     'identity_copy'
+     'medicalCertificate',
+     'idPhoto', 
+     'ffvbForm',
+     'identityCopy'
 ];
 
 if (age < 18) {
-  baseDocuments.push('parental_authorization');
+  baseDocuments.push('parentalConsent');
 }
 
   return baseDocuments;
@@ -402,7 +402,7 @@ if (age < 18) {
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
-     baseDocuments.push('parental_authorization');
+    const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
@@ -516,16 +516,17 @@ if (age < 18) {
               
               const getDocumentTitle = (type: string) => {
                 const titles: { [key: string]: string } = {
-                  'medical_certificate': '🏥 Certificat médical',
-                  'photo': '📸 Photo d\'identité',
-                  'registration_form': '📝 Formulaire d\'inscription',
-                  'parental_authorization': '👨‍👩‍👧‍👦 Autorisation parentale',
-                  'identity_copy': '🆔 Copie pièce d\'identité',
                   'ffvbForm': '📋 Formulaire FFVB',
                   'medicalCertificate': '🏥 Certificat médical',
                   'idPhoto': '📸 Photo d\'identité',
                   'parentalConsent': '👨‍👩‍👧‍👦 Autorisation parentale',
-                  'identityCopy': '🆔 Copie pièce d\'identité'
+                  'identityCopy': '🆔 Copie pièce d\'identité',
+                  // Nouveaux noms pour compatibilité
+                  'medical_certificate': '🏥 Certificat médical',
+                  'photo': '📸 Photo d\'identité',
+                  'registration_form': '📝 Formulaire d\'inscription',
+                  'parental_authorization': '👨‍👩‍👧‍👦 Autorisation parentale',
+                  'identity_copy': '🆔 Copie pièce d\'identité'
                 };
                 return titles[type] || type;
               };
