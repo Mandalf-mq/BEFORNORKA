@@ -3,7 +3,6 @@ import { Settings, Save, Plus, Edit, Trash2, Users, Tag, Euro, Building, Palette
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminPasswordReset } from './AdminPasswordReset';
-import { AdminPasswordReset } from './AdminPasswordReset';
 
 interface ClubSettings {
   clubName: string;
@@ -111,7 +110,6 @@ export const SettingsPanel: React.FC = () => {
     supplements: { competition: 0, equipment: 0 },
     conditions: { requiresParent: false }
   });
-  const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   // Vérifier les permissions d'accès
