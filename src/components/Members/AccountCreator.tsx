@@ -184,67 +184,7 @@ export const SettingsPanel: React.FC = () => {
         });
       }
     } catch (error) {
-      
-      if (error.message.includes('Failed to fetch')) {
-        alert(`❌ Edge Function non disponible
-
-🔧 SOLUTION IMMÉDIATE :
-Le profil sera créé mais l'utilisateur devra s'inscrire manuellement.
-
-📋 ÉTAPES :
-1. Le profil membre est créé dans la base
-2. Communiquez l'email à l'utilisateur
-3. Il s'inscrit sur /auth avec son email
-4. Il aura automatiquement accès à son profil
-
-🚀 POUR AUTOMATISER :
-Déployez l'Edge Function dans Supabase Dashboard → Edge Functions`);
-        
-        // Essayer quand même de créer le profil
-        try {
-          if (accountType === 'member') {
-            const { data, error } = await supabase.rpc('create_member_profile_only', {
-              p_email: formData.email,
-              p_first_name: formData.first_name,
-              p_last_name: formData.last_name,
-              p_phone: formData.phone || null,
-              p_birth_date: formData.birth_date || null,
-              p_category: formData.category,
-              p_membership_fee: null
-            });
-
-            if (error) throw error;
-
-            if (data.success) {
-              setCreatedAccount({
-                email: formData.email,
-                temporary_password: formData.temporary_password,
-                member_id: data.member_id,
-                role: 'member'
-              });
-              
-              alert(`✅ Profil membre créé malgré l'erreur Edge Function !
-
-👤 ${formData.first_name} ${formData.last_name}
-📧 ${formData.email}
-
-📋 INSTRUCTIONS POUR L'UTILISATEUR :
-1. Aller sur https://www.befornorka.fr/auth
-2. S'inscrire avec son email : ${formData.email}
-3. Choisir un mot de passe (suggestion : ${formData.temporary_password})
-4. Se connecter normalement
-
-✅ Son profil membre sera automatiquement lié !`);
-              
-              onSuccess();
-            }
-          }
-        } catch (fallbackError: any) {
-          alert(`❌ Erreur complète: ${fallbackError.message}`);
-        }
-      } else {
-        alert(`❌ Erreur: ${error.message}`);
-      }
+      console.error('Erreur lors du chargement des paramètres:', error);
     } finally {
       setLoading(false);
     }
@@ -884,89 +824,18 @@ Déployez l'Edge Function dans Supabase Dashboard → Edge Functions`);
 
       {activeTab === 'users' && (
         <div className="bg-white rounded-xl p-6 shadow-lg">
-      
-      if (accountType === 'member') {
-        // Utiliser la fonction PostgreSQL pour créer le profil membre
-        const { data, error } = await supabase.rpc('create_member_profile_only', {
-          p_email: formData.email,
-          p_first_name: formData.first_name,
-          p_last_name: formData.last_name,
-          p_phone: formData.phone || null,
-          p_birth_date: formData.birth_date || null,
-          p_category: formData.category,
-          p_membership_fee: null
-        });
-
-        if (error) throw error;
-
-        if (data.success) {
-          setCreatedAccount({
-            email: formData.email,
-            temporary_password: formData.temporary_password,
-            member_id: data.member_id,
-            role: 'member'
-          });
-          
-          alert(`✅ Profil membre créé avec succès !
-
-👤 Nom : ${formData.first_name} ${formData.last_name}
-📧 Email : ${formData.email}
-🔑 Mot de passe suggéré : ${formData.temporary_password}
-
-⚠️ IMPORTANT :
-• Le profil membre est créé
-• L'utilisateur doit s'INSCRIRE manuellement sur /auth
-• Communiquez-lui l'email et le mot de passe suggéré
-• Il pourra alors se connecter normalement
-
-🔧 Pour créer de vrais comptes automatiquement, déployez l'Edge Function.`);
-
-          onSuccess();
-        } else {
-          throw new Error(data.error || 'Erreur lors de la création du profil');
-        }
-      } else {
-        // Pour les comptes administratifs, créer seulement dans la table users
-        const { error } = await supabase
-          .from('users')
-          .insert({
-            id: crypto.randomUUID(),
-            email: formData.email,
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            phone: formData.phone || null,
-            role: formData.role,
-            is_active: true,
-            temp_password: formData.temporary_password,
-            must_change_password: true
-          });
-
-        if (error) throw error;
-
-        setCreatedAccount({
-          email: formData.email,
-          temporary_password: formData.temporary_password,
-          role: formData.role
-        });
-        
-        alert(`✅ Profil administrateur créé !
-
-👤 Nom : ${formData.first_name} ${formData.last_name}
-📧 Email : ${formData.email}
-👥 Rôle : ${getRoleLabel(formData.role)}
-
-⚠️ IMPORTANT :
-• Le profil est créé dans la base de données
-• L'utilisateur doit s'INSCRIRE manuellement sur /auth
-• Il aura automatiquement le bon rôle après inscription
-
-🔧 Pour créer de vrais comptes automatiquement, déployez l'Edge Function.`);
-
-        onSuccess();
-      }
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">
-            Gestion des utilisateurs
-          </h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Gestion des utilisateurs
+            </h3>
+            <button
+              onClick={() => setShowPasswordReset(true)}
+              className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Réinitialiser mot de passe</span>
+            </button>
+          </div>
 
           {users.length === 0 ? (
             <div className="text-center py-8">
@@ -1377,6 +1246,13 @@ Déployez l'Edge Function dans Supabase Dashboard → Edge Functions`);
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de réinitialisation de mot de passe */}
+      {showPasswordReset && (
+        <AdminPasswordReset
+          onClose={() => setShowPasswordReset(false)}
+        />
       )}
     </div>
   );
