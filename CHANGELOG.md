@@ -2,6 +2,38 @@
 
 Toutes les modifications notables de ce projet seront documentées dans ce fichier.
 
+## [1.2.1] - 2025-01-23
+
+### Corrigé
+- 🐛 **Erreur upload documents** : Correction de l'incohérence entre types de documents frontend/backend
+- 🐛 **Progression workflow à 0%** : Calcul de progression basé sur les vrais documents du membre
+- 🐛 **Détails workflow incorrects** : Statut et documents requis reflètent maintenant la réalité
+- 🐛 **Problème fuseau horaire** : Entraînements s'affichent au bon jour (lundi reste lundi)
+- 🔧 **Types de documents** : Utilisation cohérente des anciens noms (`ffvbForm`, `medicalCertificate`, etc.)
+- 🔧 **Modal workflow** : Chargement correct des documents du membre sélectionné
+- 🔧 **Calcul progression** : Basé sur l'âge réel (4-5 documents selon mineur/majeur)
+
+### Ajouté
+- ✨ **Bouton "Annuler validation"** : Possibilité de remettre un document en attente
+- ✨ **Actions bidirectionnelles** : Valider ↔ Rejeter ↔ En attente pour les documents
+- 📊 **Progression dynamique** : 25% profil + 25% upload + 50% validation
+- 🔍 **Debugging amélioré** : Logs détaillés pour identifier les problèmes
+- 📅 **Gestion fuseau horaire** : Dates cohérentes dans tous les affichages
+
+### Modifié
+- 🔄 **Workflow de validation** : Interface plus intuitive avec vraies données
+- 📊 **Calcul progression** : Basé sur les documents réellement uploadés/validés
+- 🎯 **Prochaine étape** : Messages contextuels selon la situation réelle
+- 📅 **Affichage dates** : Correction du décalage UTC → heure locale
+- 🏷️ **Types de documents** : Cohérence totale entre frontend et backend
+
+### Technique
+- 🔧 **Correction types documents** : Utilisation des anciens noms pour compatibilité
+- 📊 **Fonction calculateMemberProgress** : Calcul basé sur `selectedMemberDocs`
+- 🕐 **Gestion dates** : Ajout de `T00:00:00` pour éviter les décalages UTC
+- 🔍 **Logs debugging** : Identification des problèmes de chargement documents
+- 🎯 **Actions workflow** : Gestion bidirectionnelle des validations
+
 ## [1.2.0] - 2025-01-23
 
 ### Corrigé
